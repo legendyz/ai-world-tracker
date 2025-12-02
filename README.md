@@ -5,6 +5,8 @@
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Status-Active-brightgreen.svg" alt="Status">
+  <img src="https://img.shields.io/github/stars/legendz_microsoft/ai-world-tracker?style=social" alt="GitHub Stars">
+  <img src="https://img.shields.io/github/forks/legendz_microsoft/ai-world-tracker?style=social" alt="GitHub Forks">
 </p>
 
 <p align="center">
@@ -89,7 +91,7 @@ cd ai-world-tracker
 **Linux/macOS 用户:**
 ```bash
 # 克隆项目
-git clone https://github.com/yourusername/ai-world-tracker.git
+git clone https://github.com/legendz_microsoft/ai-world-tracker.git
 cd ai-world-tracker
 
 # 安装依赖
@@ -432,7 +434,7 @@ SOFTWARE.
 
 ## 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=yourusername/ai-world-tracker&type=Date)](https://star-history.com/#yourusername/ai-world-tracker&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=legendz_microsoft/ai-world-tracker&type=Date)](https://star-history.com/#legendz_microsoft/ai-world-tracker&Date)
 
 ---
 
