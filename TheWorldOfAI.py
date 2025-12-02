@@ -16,6 +16,7 @@ import sys
 import json
 import os
 from datetime import datetime
+from typing import Optional
 
 # 导入自定义模块
 from data_collector import DataCollector
@@ -287,7 +288,7 @@ class AIWorldTracker:
             print(f"⚠️ 无法自动打开浏览器: {e}")
             print(f"请手动打开文件: {os.path.abspath(web_file)}")
     
-    def _save_results(self, report: str, web_file: str = None):
+    def _save_results(self, report: str, web_file: Optional[str] = None):
         """保存结果到文件"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
