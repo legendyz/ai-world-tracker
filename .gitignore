@@ -133,7 +133,9 @@ dmypy.json
 ai_tracker_data_*.json
 ai_tracker_report_*.txt
 visualizations/
+# Allow index.html for GitHub Pages
 web_output/
+!web_output/index.html
 
 # IDE
 .vscode/
