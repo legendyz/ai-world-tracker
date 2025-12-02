@@ -10,394 +10,394 @@
 </p>
 
 <p align="center">
-  <strong>全球人工智能资讯追踪与分析系统</strong><br>
-  <em>Global AI Intelligence Tracking & Analysis System</em>
+  <strong>Global AI Intelligence Tracking & Analysis System</strong><br>
+  <em>全球人工智能资讯追踪与分析系统</em>
 </p>
 
 ---
 
-## 📋 项目概述
+## 📋 Project Overview
 
-AI World Tracker 是一个现代化的人工智能资讯追踪系统，能够自动采集、分类、分析和可视化来自全球的AI相关信息。系统集成了29个高质量数据源，提供实时AI行业动态追踪和趋势分析。
+AI World Tracker is a modern artificial intelligence information tracking system that automatically collects, classifies, analyzes, and visualizes AI-related information from around the world. The system integrates 29 high-quality data sources to provide real-time AI industry dynamics tracking and trend analysis.
 
-### 🎯 核心特性
+### 🎯 Core Features
 
-- **🌐 全球数据源**: 集成arXiv、GitHub、主流科技媒体等29个数据源
-- **🤖 智能分类**: 自动识别研究、产品、市场、开发者等6个维度
-- **📊 实时分析**: 生成可视化图表和趋势报告
-- **🌍 Web仪表盘**: 响应式HTML界面，支持多设备访问
-- **🔄 增量更新**: 支持历史数据管理和去重机制
+- **🌐 Global Data Sources**: Integrates 29 data sources including arXiv, GitHub, and mainstream tech media
+- **🤖 Intelligent Classification**: Automatically identifies 6 dimensions: research, products, market, and development
+- **📊 Real-time Analysis**: Generates visualization charts and trend reports
+- **🌍 Web Dashboard**: Responsive HTML interface supporting multi-device access
+- **🔄 Incremental Updates**: Supports historical data management and deduplication
 
-## ⭐ 功能特性
+## ⭐ Feature Highlights
 
-### 📊 数据采集 (29个高质量数据源)
+### 📊 Data Collection (29 High-Quality Sources)
 
-| 类别 | 数据源 | 说明 |
-|------|--------|------|
-| **🎓 学术研究** | arXiv (4个分类) | AI/ML/CV/NLP最新论文 |
-| **💻 开发者** | GitHub, Hugging Face | 开源项目、模型动态 |
-| **📰 行业新闻** | TechCrunch, Wired, MIT Tech Review | 国际科技媒体 |
-| **🇨🇳 中文资讯** | 36氪, 机器之心, 量子位 | 中国AI行业动态 |
-| **🚀 产品发布** | 各大公司官方博客 | OpenAI, Google, Microsoft |
-| **👥 社区讨论** | Hacker News, Product Hunt | 技术社区高质量内容 |
+| Category | Data Sources | Description |
+|----------|-------------|-------------|
+| **🎓 Academic Research** | arXiv (4 categories) | Latest papers in AI/ML/CV/NLP |
+| **💻 Developer** | GitHub, Hugging Face | Open source projects, model updates |
+| **📰 Industry News** | TechCrunch, Wired, MIT Tech Review | International tech media |
+| **🇨🇳 Chinese Content** | 36氪, 机器之心, 量子位 | Chinese AI industry news |
+| **🚀 Product Launches** | Company official blogs | OpenAI, Google, Microsoft |
+| **👥 Community** | Hacker News, Product Hunt | High-quality tech community content |
 
-### 🔍 智能分析引擎
+### 🔍 Intelligent Analysis Engine
 
-#### 多维度内容分类
-- **📚 研究维度**: 学术论文、算法突破
-- **💼 产品维度**: 新产品发布、版本更新  
-- **📈 市场维度**: 投融资、政策法规
-- **👨‍💻 开发维度**: 开源项目、开发工具
-- **🗣️ 领袖维度**: 行业专家观点
-- **💬 社区维度**: 社区讨论、用户反馈
+#### Multi-dimensional Content Classification
+- **📚 Research Dimension**: Academic papers, algorithmic breakthroughs
+- **💼 Product Dimension**: New product releases, version updates
+- **📈 Market Dimension**: Investments, policies and regulations
+- **👨‍💻 Development Dimension**: Open source projects, development tools
+- **🗣️ Leadership Dimension**: Industry expert opinions
+- **💬 Community Dimension**: Community discussions, user feedback
 
-#### 技术领域识别
+#### Technical Domain Recognition
 - **🤖 Generative AI**: LLM, GPT, Diffusion Models
-- **👁️ Computer Vision**: 图像识别、视频分析
-- **🗣️ NLP**: 自然语言处理
-- **🎮 Reinforcement Learning**: 强化学习
-- **⚙️ MLOps**: 机器学习运维
-- **🛡️ AI Ethics**: AI伦理与安全
+- **👁️ Computer Vision**: Image recognition, video analysis
+- **🗣️ NLP**: Natural language processing
+- **🎮 Reinforcement Learning**: Deep reinforcement learning
+- **⚙️ MLOps**: Machine learning operations
+- **🛡️ AI Ethics**: AI ethics and safety
 
-### 📊 可视化与报告
+### 📊 Visualization & Reports
 
-- **📈 趋势图表**: 技术热点、内容分布、地区分析
-- **🌐 Web仪表盘**: 响应式HTML界面
-- **📱 移动适配**: 支持手机、平板访问
-- **📄 文本报告**: 详细的分析报告
-- **💾 数据导出**: JSON格式的原始数据
+- **📈 Trend Charts**: Technology hotspots, content distribution, regional analysis
+- **🌐 Web Dashboard**: Responsive HTML interface
+- **📱 Mobile Adaptation**: Supports phone and tablet access
+- **📄 Text Reports**: Detailed analysis reports
+- **💾 Data Export**: Raw data in JSON format
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 📋 环境要求
+### 📋 Requirements
 
 - **Python**: 3.8+ 
-- **操作系统**: Windows / Linux / macOS
-- **内存**: 建议 2GB+
-- **网络**: 稳定的互联网连接
+- **Operating System**: Windows / Linux / macOS
+- **Memory**: Recommended 2GB+
+- **Network**: Stable internet connection
 
-### ⚡ 一键安装 (推荐)
+### ⚡ One-Click Installation (Recommended)
 
-**Windows 用户:**
+**Windows Users:**
 ```powershell
-# 克隆项目
+# Clone the project
 git clone https://github.com/yourusername/ai-world-tracker.git
 cd ai-world-tracker
 
-# 运行自动安装脚本
+# Run auto-installation script
 .\install.ps1
 ```
 
-**Linux/macOS 用户:**
+**Linux/macOS Users:**
 ```bash
-# 克隆项目
+# Clone the project
 git clone https://github.com/legendz_microsoft/ai-world-tracker.git
 cd ai-world-tracker
 
-# 安装依赖
+# Install dependencies
 pip install -r requirements.txt
 
-# 运行程序
+# Run the program
 python TheWorldOfAI.py
 ```
 
-### 🔧 手动安装
+### 🔧 Manual Installation
 
 ```bash
-# 1. 安装Python依赖
+# 1. Install Python dependencies
 pip install -r requirements.txt
 
-# 2. 验证安装
-python -c "import requests, feedparser, arxiv; print('✅ 依赖安装成功')"
+# 2. Verify installation
+python -c "import requests, feedparser, arxiv; print('✅ Dependencies installed successfully')"
 
-# 3. 运行程序
+# 3. Run the program
 python TheWorldOfAI.py
 ```
 
-### 🎮 使用方式
+### 🎮 Usage
 
-#### 方式一: 交互式菜单 (推荐新手)
+#### Method 1: Interactive Menu (Recommended for beginners)
 ```bash
 python TheWorldOfAI.py
 ```
 
-交互菜单提供以下选项:
-- **🚀 一键更新**: 完整的数据采集→分析→可视化流程
-- **📊 查看报告**: 展示最新的AI趋势分析  
-- **🔍 数据筛选**: 按类型、地区、技术领域筛选
-- **🌐 生成网页**: 创建HTML仪表盘
+Interactive menu provides the following options:
+- **🚀 One-click Update**: Complete data collection→analysis→visualization workflow
+- **📊 View Reports**: Display latest AI trend analysis
+- **🔍 Data Filtering**: Filter by type, region, technical domain
+- **🌐 Generate Web**: Create HTML dashboard
 
-#### 方式二: 命令行模式 (适合自动化)
+#### Method 2: Command Line Mode (For automation)
 ```bash
-# 自动运行完整流程
+# Auto-run complete workflow
 python TheWorldOfAI.py --auto
 
-# 显示帮助信息  
+# Show help information
 python TheWorldOfAI.py --help
 ```
 
-### 📂 输出文件
+### 📂 Output Files
 
-运行后会在项目目录生成:
+After running, the following files will be generated in the project directory:
 
 ```
-📁 输出文件/
-├── 📊 visualizations/          # 图表文件
-│   ├── tech_hotspots.png      # 技术热点图
-│   ├── content_distribution.png # 内容分布图
-│   └── daily_trends.png       # 趋势分析图
-├── 🌐 web_output/             # Web仪表盘
-│   └── ai_world_tracker.html  # 可直接打开的网页
-├── 💾 ai_tracker_data_*.json  # 原始数据
-└── 📄 ai_tracker_report_*.txt # 分析报告
+📁 Output Files/
+├── 📊 visualizations/          # Chart files
+│   ├── tech_hotspots.png      # Technology hotspots chart
+│   ├── content_distribution.png # Content distribution chart
+│   └── daily_trends.png       # Trend analysis chart
+├── 🌐 web_output/             # Web dashboard
+│   └── ai_world_tracker.html  # HTML page ready to open
+├── 💾 ai_tracker_data_*.json  # Raw data
+└── 📄 ai_tracker_report_*.txt # Analysis reports
 ```
 
-## 🏗️ 项目架构
+## 🏗️ Project Architecture
 
 ```
 ai-world-tracker/
 ├── 🎯 Core Modules/
-│   ├── TheWorldOfAI.py         # 主程序入口
-│   ├── data_collector.py       # 数据采集引擎
-│   ├── content_classifier.py   # 智能分类系统  
-│   ├── ai_analyzer.py          # 趋势分析引擎
-│   ├── visualizer.py           # 图表生成器
-│   └── web_publisher.py        # Web发布器
+│   ├── TheWorldOfAI.py         # Main program entry
+│   ├── data_collector.py       # Data collection engine
+│   ├── content_classifier.py   # Intelligent classification system
+│   ├── ai_analyzer.py          # Trend analysis engine
+│   ├── visualizer.py           # Chart generator
+│   └── web_publisher.py        # Web publisher
 ├── 🔧 Tools/
-│   ├── link_validator.py       # 链接验证工具
-│   ├── diagnose_feeds.py       # 数据源诊断
-│   └── install.ps1             # 自动安装脚本
+│   ├── link_validator.py       # Link validation tool
+│   ├── diagnose_feeds.py       # Data source diagnosis
+│   └── install.ps1             # Auto-installation script
 ├── 📖 Documentation/
-│   ├── README.md               # 项目说明
-│   ├── USAGE_GUIDE.md          # 使用指南
-│   └── requirements.txt        # 依赖清单
+│   ├── README.md               # Project documentation
+│   ├── USAGE_GUIDE.md          # Usage guide
+│   └── requirements.txt        # Dependencies list
 └── 📁 Output Directories/
-    ├── visualizations/         # 图表输出 (自动创建)
-    └── web_output/            # 网页输出 (自动创建)
+    ├── visualizations/         # Chart output (auto-created)
+    └── web_output/            # Web output (auto-created)
 ```
 
-### 🔄 工作流程
+### 🔄 Workflow
 
 ```mermaid
 graph TD
-    A[启动程序] --> B[数据采集模块]
-    B --> C[29个数据源]
-    C --> D[内容分类器]
-    D --> E[智能分析引擎]
-    E --> F[可视化生成]
-    F --> G[Web发布]
-    G --> H[输出文件]
+    A[Start Program] --> B[Data Collection Module]
+    B --> C[29 Data Sources]
+    C --> D[Content Classifier]
+    D --> E[Intelligent Analysis Engine]
+    E --> F[Visualization Generation]
+    F --> G[Web Publishing]
+    G --> H[Output Files]
 ```
 
-## 📊 功能演示
+## 📊 Feature Demonstration
 
-### 🖥️ Web仪表盘预览
+### 🖥️ Web Dashboard Preview
 
-生成的Web界面包含:
-- **📊 实时数据概览**: 显示最新采集的AI资讯数量和分布
-- **🔥 技术热点**: 当前最受关注的AI技术领域
-- **🌍 地区分析**: 全球AI活动的地理分布
-- **📈 趋势图表**: 可视化的数据分析结果
-- **📋 详细列表**: 可展开的完整数据表格
+The generated web interface includes:
+- **📊 Real-time Data Overview**: Shows latest collected AI news count and distribution
+- **🔥 Technology Hotspots**: Most popular AI technology domains currently
+- **🌍 Regional Analysis**: Geographic distribution of global AI activities
+- **📈 Trend Charts**: Visualized data analysis results
+- **📋 Detailed Lists**: Expandable complete data tables
 
-### 💻 终端界面
+### 💻 Terminal Interface
 
 ```bash
 ============================================================
-📋 主菜单  
+📋 Main Menu
 ============================================================
-1. 🚀 一键更新数据与报告 (Update & Generate All)
-2. 📄 查看分析报告 (View Report) 
-3. 🔍 搜索与筛选 (Search & Filter)
-4. 🌐 生成并打开 Web 页面 (Generate & Open Web Page)
-0. 退出程序
+1. 🚀 One-click Update Data & Reports (Update & Generate All)
+2. 📄 View Analysis Report (View Report)
+3. 🔍 Search & Filter (Search & Filter)
+4. 🌐 Generate & Open Web Page (Generate & Open Web Page)
+0. Exit Program
 ============================================================
-请选择功能 (0-4): 
+Please select function (0-4):
 ```
 
-## ⚙️ 高级配置
+## ⚙️ Advanced Configuration
 
-### 🔧 自定义数据源
+### 🔧 Custom Data Sources
 
-您可以在 `data_collector.py` 中自定义RSS源:
+You can customize RSS feeds in `data_collector.py`:
 
 ```python
-# 添加新的RSS源
+# Add new RSS source
 self.rss_feeds['custom'] = [
     'https://your-custom-feed.xml'
 ]
 ```
 
-### 🎯 筛选配置
+### 🎯 Filter Configuration
 
-支持多维度数据筛选:
-- **内容类型**: research, product, market, developer, leader, community
-- **技术领域**: Generative AI, Computer Vision, NLP, Reinforcement Learning
-- **地区分布**: China, USA, Europe, Global
-- **时间范围**: 默认30天内，可自定义
+Supports multi-dimensional data filtering:
+- **Content Type**: research, product, market, developer, leader, community
+- **Technical Domain**: Generative AI, Computer Vision, NLP, Reinforcement Learning
+- **Regional Distribution**: China, USA, Europe, Global
+- **Time Range**: Default 30 days, customizable
 
-### 🔍 数据质量控制
+### 🔍 Data Quality Control
 
-- **时效性**: 仅采集30天内的最新内容
-- **相关性**: 基于关键词自动过滤AI相关内容  
-- **去重机制**: 智能识别并移除重复内容
-- **质量评分**: 基于来源权重和内容质量自动评分
+- **Timeliness**: Only collects latest content within 30 days
+- **Relevance**: Automatically filters AI-related content based on keywords
+- **Deduplication**: Intelligently identifies and removes duplicate content
+- **Quality Score**: Automatic scoring based on source weight and content quality
 
-## 🛠️ 故障排除
+## 🛠️ Troubleshooting
 
-### 常见问题
+### Common Issues
 
-**❌ 问题: 模块导入失败**
+**❌ Issue: Module import failed**
 ```bash
-# 解决方案: 确认在正确目录并重新安装依赖
+# Solution: Confirm you're in the correct directory and reinstall dependencies
 pip install -r requirements.txt
 ```
 
-**❌ 问题: 图表显示中文乱码**
+**❌ Issue: Chinese character garbled in charts**
 ```bash
-# Windows: 确保安装中文字体
-# Linux: sudo apt-get install fonts-wqy-microhei  
-# macOS: 系统自带中文字体支持
+# Windows: Ensure Chinese fonts are installed
+# Linux: sudo apt-get install fonts-wqy-microhei
+# macOS: Built-in Chinese font support
 ```
 
-**❌ 问题: 网络连接超时**
+**❌ Issue: Network connection timeout**
 ```bash
-# 解决方案: 检查网络连接，部分API有访问频率限制
-# 系统会自动使用备用数据源
+# Solution: Check network connection, some APIs have rate limits
+# System will automatically use backup data sources
 ```
 
-**❌ 问题: GitHub API限制**  
+**❌ Issue: GitHub API limitations**
 ```bash
-# 系统会自动降级到示例数据
-# 或设置 GITHUB_TOKEN 环境变量提高访问限额
+# System will automatically downgrade to sample data
+# Or set GITHUB_TOKEN environment variable to increase access limits
 ```
 
-### 🔧 诊断工具
+### 🔧 Diagnostic Tools
 
-项目提供了内置诊断工具:
+The project provides built-in diagnostic tools:
 ```bash
-# 检测所有数据源状态
+# Check all data source status
 python diagnose_feeds.py
 
-# 验证网络连接
+# Verify network connections
 python link_validator.py
 ```
 
-## 📈 开发路线图
+## 📈 Development Roadmap
 
-### 🎯 即将发布
-- [ ] **数据库支持**: 集成SQLite持久化存储
-- [ ] **API接口**: RESTful API用于数据查询
-- [ ] **Docker部署**: 容器化部署方案
-- [ ] **定时任务**: 自动定时采集和更新
+### 🎯 Coming Soon
+- [ ] **Database Support**: Integrate SQLite persistent storage
+- [ ] **API Interface**: RESTful API for data queries
+- [ ] **Docker Deployment**: Containerized deployment solution
+- [ ] **Scheduled Tasks**: Automatic timed collection and updates
 
-### 🔮 未来规划  
-- [ ] **机器学习**: 集成NLP模型进行内容摘要
-- [ ] **多语言**: 支持英文、中文、日文界面
-- [ ] **用户系统**: 个性化订阅和推荐
-- [ ] **移动App**: React Native移动端应用
-- [ ] **实时通知**: 重要AI动态实时推送
+### 🔮 Future Plans
+- [ ] **Machine Learning**: Integrate NLP models for content summarization
+- [ ] **Multi-language**: Support English, Chinese, Japanese interfaces
+- [ ] **User System**: Personalized subscriptions and recommendations
+- [ ] **Mobile App**: React Native mobile application
+- [ ] **Real-time Notifications**: Real-time push for important AI updates
 
-## 📊 使用示例
+## 📊 Usage Examples
 
-### 交互式菜单
+### Interactive Menu
 ```
 ============================================================
-📋 主菜单
+📋 Main Menu
 ============================================================
-1. 运行完整数据处理流程
-2. 仅采集数据
-3. 查看数据统计
-4. 生成可视化图表
-5. 查看分析报告
-6. 按条件筛选数据
-7. 生成Web页面 🆕
-0. 退出程序
+1. Run complete data processing workflow
+2. Data collection only
+3. View data statistics
+4. Generate visualization charts
+5. View analysis reports
+6. Filter data by conditions
+7. Generate Web page 🆕
+0. Exit program
 ============================================================
 ```
 
-### 筛选功能
-- 按内容类型筛选: research/product/market
-- 按地区筛选: China/USA/Europe/Global
-- 按技术领域筛选: NLP, Computer Vision等
+### Filtering Features
+- Filter by content type: research/product/market
+- Filter by region: China/USA/Europe/Global
+- Filter by technical domain: NLP, Computer Vision, etc.
 
-## 🎯 输出文件
+## 🎯 Output Files
 
-程序运行后会生成以下文件:
+After running the program, the following files will be generated:
 
-1. **JSON数据文件**: `ai_tracker_data_YYYYMMDD_HHMMSS.json`
-   - 包含所有采集和分类的原始数据
+1. **JSON Data File**: `ai_tracker_data_YYYYMMDD_HHMMSS.json`
+   - Contains all collected and classified raw data
 
-2. **分析报告**: `ai_tracker_report_YYYYMMDD_HHMMSS.txt`
-   - 文本格式的趋势分析报告
+2. **Analysis Report**: `ai_tracker_report_YYYYMMDD_HHMMSS.txt`
+   - Text format trend analysis report
 
-3. **可视化图表** (保存在 `visualizations/` 目录):
-   - `tech_hotspots.png` - 技术热点图
-   - `content_distribution.png` - 内容分布图
-   - `region_distribution.png` - 地区分布图
-   - `daily_trends.png` - 每日趋势图
-   - `dashboard.png` - 综合仪表板
+3. **Visualization Charts** (saved in `visualizations/` directory):
+   - `tech_hotspots.png` - Technology hotspots chart
+   - `content_distribution.png` - Content distribution chart
+   - `region_distribution.png` - Regional distribution chart
+   - `daily_trends.png` - Daily trends chart
+   - `dashboard.png` - Comprehensive dashboard
 
-4. **Web网页** 🆕 (保存在 `web_output/` 目录):
-   - `ai_world_tracker.html` - 完整的Web页面，包含所有数据和图表
+4. **Web Page** 🆕 (saved in `web_output/` directory):
+   - `ai_world_tracker.html` - Complete web page with all data and charts
 
-## ⚙️ 配置选项
+## ⚙️ Configuration Options
 
-### OpenAI API (可选)
-如果你有OpenAI API密钥，可以启用AI摘要功能:
+### OpenAI API (Optional)
+If you have an OpenAI API key, you can enable AI summary feature:
 
-1. 设置环境变量:
+1. Set environment variable:
 ```powershell
 $env:OPENAI_API_KEY = "your-api-key-here"
 ```
 
-## 🤝 贡献指南
+## 🤝 Contributing
 
-我们欢迎所有形式的贡献！无论您是开发者、研究者还是AI爱好者。
+We welcome all forms of contributions! Whether you're a developer, researcher, or AI enthusiast.
 
-### 🔧 贡献方式
+### 🔧 Ways to Contribute
 
-**🐛 报告问题**
-- 在GitHub Issues中提交bug报告
-- 提供详细的复现步骤和环境信息
+**🐛 Report Issues**
+- Submit bug reports in GitHub Issues
+- Provide detailed reproduction steps and environment information
 
-**💡 功能建议**  
-- 提交新功能的建议和想法
-- 讨论技术实现方案
+**💡 Feature Suggestions**
+- Submit suggestions and ideas for new features
+- Discuss technical implementation approaches
 
-**📝 代码贡献**
-- Fork项目并创建feature分支
-- 遵循现有的代码风格和注释规范
-- 提交Pull Request前请测试您的修改
+**📝 Code Contributions**
+- Fork the project and create a feature branch
+- Follow existing code style and comment conventions
+- Test your changes before submitting a Pull Request
 
-**📚 文档改进**
-- 改进README、使用指南等文档
-- 添加更多使用示例和最佳实践
+**📚 Documentation Improvements**
+- Improve README, usage guides, and other documentation
+- Add more usage examples and best practices
 
-### 🚀 开发环境设置
+### 🚀 Development Environment Setup
 
 ```bash
-# 1. Fork并克隆项目
+# 1. Fork and clone the project
 git clone https://github.com/yourusername/ai-world-tracker.git
 cd ai-world-tracker
 
-# 2. 创建虚拟环境
+# 2. Create virtual environment
 python -m venv venv
 source venv/bin/activate  # Linux/macOS
-# 或 venv\Scripts\activate.bat  # Windows
+# or venv\Scripts\activate.bat  # Windows
 
-# 3. 安装开发依赖
+# 3. Install development dependencies
 pip install -r requirements.txt
-pip install pytest black flake8  # 开发工具
+pip install pytest black flake8  # Development tools
 
-# 4. 运行测试
+# 4. Run tests
 python -m pytest tests/
 
-# 5. 代码格式化
+# 5. Code formatting
 black . && flake8 .
 ```
 
-## 📄 许可证
+## 📄 License
 
 ```
 MIT License
@@ -423,14 +423,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## 🙏 致谢
+## 🙏 Acknowledgments
 
-感谢以下开源项目和数据源提供商:
-- [arXiv](https://arxiv.org/) - 学术论文数据
-- [GitHub](https://github.com/) - 开源项目信息
-- [Hacker News](https://news.ycombinator.com/) - 技术社区讨论
-- [Product Hunt](https://www.producthunt.com/) - 产品发现平台
-- 各大科技媒体和公司博客的RSS支持
+Thanks to the following open source projects and data source providers:
+- [arXiv](https://arxiv.org/) - Academic paper data
+- [GitHub](https://github.com/) - Open source project information
+- [Hacker News](https://news.ycombinator.com/) - Tech community discussions
+- [Product Hunt](https://www.producthunt.com/) - Product discovery platform
+- RSS support from major tech media and company blogs
 
 ## 🌟 Star History
 
@@ -439,10 +439,10 @@ SOFTWARE.
 ---
 
 <p align="center">
-  <b>🚀 让我们一起追踪AI的未来！</b><br>
+  <b>🚀 Let's track the future of AI together!</b><br>
   <i>Made with ❤️ by AI World Tracker Team</i>
 </p>
 
 <p align="center">
-  <a href="#-ai-world-tracker">回到顶部 ⬆️</a>
+  <a href="#-ai-world-tracker">Back to Top ⬆️</a>
 </p>
