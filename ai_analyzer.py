@@ -112,7 +112,7 @@ class AIAnalyzer:
             'source_distribution': dict(source_counter),
             'daily_trends': dict(sorted(date_counter.items())[-7:]),  # 最近7天
             'total_items': len(items),
-            'analysis_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            'analysis_time': datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')
         }
         
         self._print_trends(trends)

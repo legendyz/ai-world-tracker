@@ -60,7 +60,7 @@ class WebPublisher:
         """生成完整的HTML页面"""
         print("🌐 Generating new Web page...")
         
-        timestamp = trends.get('analysis_time', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        timestamp = trends.get('analysis_time', datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S %Z'))
         
         # 1. 准备数据
         # 按重要性和时间排序
