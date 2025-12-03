@@ -15,9 +15,10 @@ import re
 class WebPublisher:
     """Web网页发布器 - 专业版"""
     
-    def __init__(self, output_dir: str = "web_output"):
+    def __init__(self, output_dir: str = "."):  # 修改默认输出目录为根目录
         self.output_dir = output_dir
-        if not os.path.exists(output_dir):
+        # 不再创建web_output目录，直接输出到根目录
+        if not os.path.exists(output_dir) and output_dir != ".":
             os.makedirs(output_dir)
             
         # 定义颜色主题
@@ -151,13 +152,23 @@ class WebPublisher:
 </html>
 """
         
-        # 保存文件
-        html_file = os.path.join(self.output_dir, 'index.html')
-        with open(html_file, 'w', encoding='utf-8') as f:
+        # 保存文件到根目录 (用于GitHub Pages)
+        root_html_file = os.path.join(".", 'index.html')
+        with open(root_html_file, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        
+        # 同时保存到web_output目录 (保持兼容性)
+        web_output_dir = "web_output"
+        if not os.path.exists(web_output_dir):
+            os.makedirs(web_output_dir)
+        web_html_file = os.path.join(web_output_dir, 'index.html')
+        with open(web_html_file, 'w', encoding='utf-8') as f:
             f.write(html_content)
             
-        print(f"✅ New page generated: {html_file}")
-        return html_file
+        print(f"✅ Web page generated:")
+        print(f"   📄 Root: {root_html_file} (GitHub Pages)")
+        print(f"   📄 Web: {web_html_file} (Backup)")
+        return root_html_file
 
     def _render_dashboard(self, trends: Dict) -> str:
         """渲染顶部仪表盘"""
