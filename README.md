@@ -303,23 +303,32 @@ python link_validator.py
 ### Interactive Menu
 ```
 ============================================================
-📋 Main Menu
+📋 主菜单
 ============================================================
-1. Run complete data processing workflow
-2. Data collection only
-3. View data statistics
-4. Generate visualization charts
-5. View analysis reports
-6. Filter data by conditions
-7. Generate Web page 🆕
-0. Exit program
+1. 🚀 一键更新数据与报告 (Update & Generate All)
+2. 📄 查看分析报告 (View Report)
+3. 🔍 搜索与筛选 (Search & Filter)
+4. 🌐 生成并打开 Web 页面 (Generate & Open Web Page)
+0. 退出程序
 ============================================================
+请选择功能 (0-4):
 ```
 
-### Filtering Features
-- Filter by content type: research/product/market
-- Filter by region: China/USA/Europe/Global
-- Filter by technical domain: NLP, Computer Vision, etc.
+### Menu Options Explained
+
+- **Option 1**: Complete workflow - data collection, analysis, visualization, and web generation
+- **Option 2**: Display latest analysis report with trends and insights
+- **Option 3**: Filter and search collected data by various criteria
+- **Option 4**: Generate web dashboard and open it in browser
+- **Option 0**: Exit the program
+
+### Command Line Usage
+```bash
+# Run with interactive menu (default)
+python TheWorldOfAI.py
+
+# The program will guide you through the available options
+```
 
 ## 🎯 Output Files
 
@@ -338,8 +347,9 @@ After running the program, the following files will be generated:
    - `daily_trends.png` - Daily trends chart
    - `dashboard.png` - Comprehensive dashboard
 
-4. **Web Page** 🆕 (saved in `web_output/` directory):
-   - `ai_world_tracker.html` - Complete web page with all data and charts
+4. **Web Dashboard** 🆕 (dual output):
+   - `./index.html` - Main dashboard in root directory (GitHub Pages ready)
+   - `./web_output/index.html` - Backup copy in web_output directory
 
 ## ⚙️ Configuration Options
 
