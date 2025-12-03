@@ -5,17 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] - 2025-12-03
+
 ### Added
-- Historical data comparison and merging functionality
-- Database integration for persistent storage
-- Real-time notification system
+- Direct GitHub Pages integration: Web publisher now outputs index.html to repository root
+- Dual output system: Main output to root directory + backup to web_output/
+- Enhanced logging for web generation showing both output locations
+- Automatic GitHub Pages compatibility without manual file copying
 
 ### Changed
-- Performance improvements for large datasets
+- **BREAKING**: WebPublisher default output directory changed from "web_output" to "." (root)
+- Improved web dashboard with latest AI data and trends
+- Enhanced responsive design for better mobile experience
+- Updated project documentation to reflect current architecture
 
 ### Fixed
-- Memory usage optimization
+- GitHub Pages deployment issues resolved
+- Web dashboard now automatically syncs with repository root
+- Eliminated manual copy step for web deployment
+
+### Technical Details
+- WebPublisher.__init__(): Default output_dir parameter changed
+- generate_html_page(): Implements dual file output strategy
+- Enhanced error handling and user feedback
+
+## [1.1.0] - 2025-12-02
+
+### Added
+- Comprehensive English documentation for international developers
+- Bilingual project support (Chinese/English)
+- Professional README.md in English for global accessibility
+- GitHub repository setup for multiple accounts (legendz_microsoft, legendyz)
+
+### Changed
+- README.md converted to English as primary language
+- Project title updated to emphasize international scope
+- Documentation structure improved for open source standards
+
+### Fixed
+- Type annotation issues in TheWorldOfAI.py resolved
+- Import statements optimized for Optional[str] typing
 
 ## [1.0.0] - 2025-12-02
 ### Added

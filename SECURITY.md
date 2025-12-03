@@ -6,7 +6,9 @@ We actively maintain and provide security updates for the following versions:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
+| 1.2.x   | :white_check_mark: |
+| 1.1.x   | :white_check_mark: |
+| 1.0.x   | :warning: Limited  |
 | < 1.0   | :x:                |
 
 ## 🚨 Reporting a Vulnerability
@@ -16,8 +18,9 @@ We take the security of AI World Tracker seriously. If you discover a security v
 ### 📧 How to Report
 
 1. **DO NOT** create a public GitHub issue for security vulnerabilities
-2. Email us at: security@ai-world-tracker.com (or create a GitHub Security Advisory)
-3. Include the following information:
+2. Report via GitHub Security Advisory: https://github.com/legendyz/ai-world-tracker/security/advisories/new
+3. Or email directly to project maintainers
+4. Include the following information:
    - Description of the vulnerability
    - Steps to reproduce the issue
    - Potential impact assessment

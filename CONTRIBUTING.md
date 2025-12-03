@@ -1,33 +1,33 @@
 # Contributing to AI World Tracker
 
-我们热烈欢迎您为AI World Tracker项目做出贡献！🎉
+We warmly welcome your contributions to the AI World Tracker project! 🎉
 
-## 🤝 贡献方式
+## 🤝 How to Contribute
 
-### 🐛 报告Bug
-1. 检查现有的[Issues](https://github.com/yourusername/ai-world-tracker/issues)确保没有重复
-2. 使用Bug Report模板创建新的Issue
-3. 提供详细的复现步骤和环境信息
+### 🐛 Report Bugs
+1. Check existing [Issues](https://github.com/legendyz/ai-world-tracker/issues) to avoid duplicates
+2. Use the Bug Report template to create a new Issue
+3. Provide detailed reproduction steps and environment information
 
-### 💡 提出功能建议  
-1. 使用Feature Request模板创建Issue
-2. 详细描述功能需求和使用场景
-3. 与社区讨论可行性和实现方案
+### 💡 Suggest Features  
+1. Use the Feature Request template to create an Issue
+2. Describe feature requirements and use cases in detail
+3. Discuss feasibility and implementation approaches with the community
 
-### 📝 代码贡献
+### 📝 Code Contributions
 
-#### 开发环境设置
+#### Development Environment Setup
 ```bash
-# 1. Fork项目并克隆
-git clone https://github.com/yourusername/ai-world-tracker.git
+# 1. Fork and clone the project
+git clone https://github.com/legendyz/ai-world-tracker.git
 cd ai-world-tracker
 
-# 2. 创建虚拟环境
+# 2. Create virtual environment
 python -m venv venv
 source venv/bin/activate  # Linux/macOS
-# 或 venv\Scripts\activate.bat  # Windows
+# or venv\Scripts\activate.bat  # Windows
 
-# 3. 安装依赖
+# 3. Install dependencies
 pip install -r requirements.txt
 pip install pytest black flake8
 
@@ -67,37 +67,43 @@ git checkout -b feature/your-feature-name
    - 关联相关的Issue
    - 添加测试用例（如适用）
 
-## 📂 项目结构说明
+## 📂 Project Structure
 
 ```
 ai-world-tracker/
-├── TheWorldOfAI.py         # 主程序入口
-├── data_collector.py       # 数据采集模块（新数据源在这里添加）
-├── content_classifier.py   # 内容分类（新分类规则在这里修改）
-├── ai_analyzer.py          # 趋势分析引擎
-├── visualizer.py           # 图表生成器
-├── web_publisher.py        # Web界面生成
-├── link_validator.py       # 工具：链接验证
-├── diagnose_feeds.py       # 工具：数据源诊断
-└── requirements.txt        # 依赖管理
+├── TheWorldOfAI.py         # Main program entry point
+├── data_collector.py       # Data collection module (add new data sources here)
+├── content_classifier.py   # Content classification (modify classification rules here)
+├── ai_analyzer.py          # Trend analysis engine
+├── visualizer.py           # Chart generator
+├── web_publisher.py        # Web interface generator (outputs to root directory)
+├── index.html              # Generated web dashboard (GitHub Pages ready)
+├── web_output/             # Backup web files
+├── link_validator.py       # Tool: Link validation
+├── install.ps1             # Windows installation script
+├── requirements.txt        # Dependency management
+├── README.md               # Project documentation (English)
+├── CHANGELOG.md            # Version history
+├── USAGE_GUIDE.md          # Detailed usage instructions
+└── CONTRIBUTING.md         # This file
 ```
 
-## 🎯 贡献重点领域
+## 🎯 Key Contribution Areas
 
-### 🔥 高优先级
-- **新数据源集成**: 添加更多高质量AI资讯源
-- **性能优化**: 提高数据采集和处理效率
-- **错误处理**: 增强网络异常和API限制的处理
-- **国际化**: 支持英文界面和多语言内容
+### 🔥 High Priority
+- **New Data Source Integration**: Add more high-quality AI news sources
+- **Performance Optimization**: Improve data collection and processing efficiency  
+- **Error Handling**: Enhance network exception and API rate limit handling
+- **GitHub Pages**: Improve web dashboard automation and deployment
 
-### 📈 中优先级
-- **数据质量**: 改进内容过滤和去重算法
-- **可视化增强**: 新的图表类型和交互功能
-- **配置选项**: 更灵活的用户配置选项
-- **文档完善**: API文档和使用示例
+### 📈 Medium Priority
+- **Data Quality**: Improve content filtering and deduplication algorithms
+- **Visualization Enhancement**: New chart types and interactive features
+- **Configuration Options**: More flexible user configuration options
+- **Documentation**: API documentation and usage examples
 
-### 💡 创新方向
-- **AI集成**: 使用LLM进行内容摘要和分析
+### 💡 Innovation Directions
+- **AI Integration**: Use LLMs for content summarization and analysis
 - **实时推送**: 重要AI动态的实时通知
 - **移动应用**: 开发移动端应用
 - **社区功能**: 用户评论和分享功能

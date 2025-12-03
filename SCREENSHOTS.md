@@ -1,33 +1,46 @@
 # 📸 AI World Tracker - Demo Screenshots
 
-> **Note**: This file contains descriptions of screenshots that would be included in the GitHub repository.
+> **Note**: This file contains descriptions of screenshots and demos available for the AI World Tracker project.
 
-## 🌐 Web Dashboard Interface
+## 🌐 Live Web Dashboard
+
+### GitHub Pages Demo
+- **URL**: https://legendyz.github.io/ai-world-tracker/
+- **Description**: Live web interface automatically updated from repository root
+- **Features**: 
+  - Real-time AI news aggregation from 29 global sources
+  - Interactive dashboard with responsive design
+  - Automatic GitHub Pages deployment integration
+
+## 🖥️ Web Dashboard Interface
 
 ### Main Dashboard View
-- **File**: `screenshots/dashboard-main.png`
-- **Description**: Shows the complete web interface with navigation, statistics cards, and data sections
+- **File**: `screenshots/dashboard-main.png` (to be added)
+- **Description**: Complete web interface with modern gradient design
 - **Features Highlighted**: 
-  - Responsive design with gradient background
-  - Statistics overview (total items, categories, regions)
-  - Section navigation (Leaders, Community, Products, Research)
+  - Responsive design with professional UI/UX
+  - Real-time statistics overview (total items, categories, regions)
+  - Section navigation (Leaders, Community, Products, Research, Market, Developer)
+  - GitHub Pages optimized layout
 
 ### Interactive Data Tables
-- **File**: `screenshots/data-tables.png`  
-- **Description**: Demonstrates the collapsible table functionality
+- **File**: `screenshots/data-tables.png` (to be added)
+- **Description**: Dynamic table functionality with enhanced user experience
 - **Features Highlighted**:
   - Show/Hide toggle for large datasets
-  - Category color coding
-  - Responsive table design
-  - Direct links to original sources
+  - Category-based color coding system
+  - Mobile-responsive table design
+  - Direct source attribution and links
+  - Smart content truncation and expansion
 
 ### Charts and Analytics
-- **File**: `screenshots/charts-analytics.png`
-- **Description**: Embedded charts showing AI trends and distributions
+- **File**: `screenshots/charts-analytics.png` (to be added)
+- **Description**: Embedded visualization charts with trend analysis
 - **Features Highlighted**:
-  - Technology hotspots bar chart
-  - Content distribution pie chart
-  - Regional analysis
+  - Technology hotspots analysis
+  - Content distribution across categories
+  - Regional AI activity mapping
+  - Trend analysis over time
   - Daily trends timeline
 
 ## 💻 Terminal Interface

@@ -5,14 +5,19 @@
 ### 1. One-Click Installation (Windows)
 
 ```powershell
+# Clone the repository
+git clone https://github.com/legendyz/ai-world-tracker.git
+cd ai-world-tracker
+
 # Run the installation script
 .\install.ps1
 ```
 
 This script will:
-- ✓ Check your Python environment.
-- ✓ Install all dependencies from `requirements.txt`.
-- ✓ Prompt you to run the application immediately.
+- ✓ Check your Python environment (3.8+ required)
+- ✓ Install all dependencies from `requirements.txt`
+- ✓ Prompt you to run the application immediately
+- ✓ Generate initial web dashboard in root directory
 
 ### 2. Manual Installation
 
@@ -22,6 +27,26 @@ pip install -r requirements.txt
 
 # Run the application
 python TheWorldOfAI.py
+```
+
+### 3. GitHub Pages Deployment
+
+**NEW**: The web dashboard now automatically generates in the repository root!
+
+```powershell
+# Run the tracker to generate web dashboard
+python TheWorldOfAI.py
+
+# The index.html is automatically created in root directory
+# Perfect for GitHub Pages - no manual copying needed!
+
+# Commit and push to GitHub
+git add .
+git commit -m "Update AI dashboard"
+git push origin main
+
+# Enable GitHub Pages in repository Settings > Pages
+# Select Source: "Deploy from a branch" > "main" > "/ (root)"
 ```
 
 ---
