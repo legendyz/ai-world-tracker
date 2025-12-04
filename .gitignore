@@ -153,3 +153,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+# Data and Report files
+review_history_*.json
+learning_report_*.json
+
