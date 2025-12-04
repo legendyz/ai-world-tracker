@@ -24,6 +24,8 @@ from content_classifier import ContentClassifier
 from ai_analyzer import AIAnalyzer
 from visualizer import DataVisualizer
 from web_publisher import WebPublisher
+from manual_reviewer import ManualReviewer
+from learning_feedback import LearningFeedback, create_feedback_loop
 
 
 class AIWorldTracker:
@@ -40,6 +42,8 @@ class AIWorldTracker:
         self.analyzer = AIAnalyzer()
         self.visualizer = DataVisualizer()
         self.web_publisher = WebPublisher()
+        self.reviewer = ManualReviewer()
+        self.learner = LearningFeedback()
         
         self.data = []
         self.trends = {}
@@ -137,10 +141,12 @@ class AIWorldTracker:
             print("2. 📄 查看分析报告 (View Report)")
             print("3. 🔍 搜索与筛选 (Search & Filter)")
             print("4. 🌐 生成并打开 Web 页面 (Generate & Open Web Page)")
+            print("5. 📝 人工审核分类 (Manual Review) ⭐ 新功能")
+            print("6. 🎓 学习反馈分析 (Learning Feedback) ⭐ 新功能")
             print("0. 退出程序")
             print("="*60)
             
-            choice = input("\n请选择功能 (0-4): ").strip()
+            choice = input("\n请选择功能 (0-6): ").strip()
             
             if choice == '1':
                 self.run_full_pipeline()
@@ -150,6 +156,10 @@ class AIWorldTracker:
                 self._filter_data()
             elif choice == '4':
                 self._generate_web_page()
+            elif choice == '5':
+                self._manual_review()
+            elif choice == '6':
+                self._learning_feedback()
             elif choice == '0':
                 print("\n👋 感谢使用 AI World Tracker！再见！\n")
                 break
@@ -287,6 +297,297 @@ class AIWorldTracker:
         except Exception as e:
             print(f"⚠️ 无法自动打开浏览器: {e}")
             print(f"请手动打开文件: {os.path.abspath(web_file)}")
+    
+    def _manual_review(self):
+        """人工审核分类"""
+        if not self.data:
+            print("\n⚠️ 暂无数据，请先运行数据采集")
+            return
+        
+        print("\n" + "="*60)
+        print("📝 人工审核模式")
+        print("="*60)
+        
+        # 检查需要审核的内容
+        review_items = self.reviewer.get_items_for_review(self.data, min_confidence=0.6)
+        
+        print(f"\n📊 数据统计:")
+        print(f"   总内容数: {len(self.data)} 条")
+        print(f"   需要审核: {len(review_items)} 条 ({len(review_items)/len(self.data):.1%})")
+        
+        if not review_items:
+            print("\n✅ 所有内容分类置信度都很高，无需审核！")
+            return
+        
+        # 显示需要审核的内容概览
+        print("\n需要审核的内容:")
+        for i, item in enumerate(review_items[:5], 1):
+            print(f"   {i}. {item.get('title', 'N/A')[:50]}... (置信度: {item.get('confidence', 0):.1%})")
+        
+        if len(review_items) > 5:
+            print(f"   ... 还有 {len(review_items)-5} 条")
+        
+        print("\n审核选项:")
+        print("   1. 批量审核所有低置信度内容")
+        print("   2. 设置自定义置信度阈值")
+        print("   3. 仅查看需要审核的内容列表")
+        print("   0. 返回主菜单")
+        
+        choice = input("\n请选择 (0-3): ").strip()
+        
+        if choice == '1':
+            # 批量审核
+            self.data = self.reviewer.batch_review(self.data, min_confidence=0.6)
+            
+            # 保存审核后的数据
+            save = input("\n是否保存审核后的数据? (Y/N): ").strip().lower()
+            if save == 'y':
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                filename = f'ai_tracker_data_reviewed_{timestamp}.json'
+                with open(filename, 'w', encoding='utf-8') as f:
+                    json.dump({
+                        'metadata': {
+                            'timestamp': timestamp,
+                            'total_items': len(self.data),
+                            'reviewed': True
+                        },
+                        'data': self.data,
+                        'trends': self.trends
+                    }, f, ensure_ascii=False, indent=2)
+                print(f"✅ 已保存到: {filename}")
+            
+            # 保存审核历史
+            self.reviewer.save_review_history()
+            
+            # 显示审核摘要
+            summary = self.reviewer.get_review_summary()
+            print(f"\n📊 审核摘要:")
+            print(f"   总审核数: {summary['total']} 条")
+            for action, count in summary['actions'].items():
+                print(f"   - {action}: {count} 次")
+            
+            # 询问是否重新生成分析和Web页面
+            print("\n" + "="*60)
+            regenerate = input("\n是否基于审核后的数据重新生成报告和Web页面? (Y/N): ").strip().lower()
+            if regenerate == 'y':
+                self._regenerate_after_review()
+        
+        elif choice == '2':
+            # 自定义阈值
+            try:
+                threshold = float(input("\n请输入置信度阈值 (0.0-1.0, 如 0.7): ").strip())
+                if 0 <= threshold <= 1:
+                    self.data = self.reviewer.batch_review(self.data, min_confidence=threshold)
+                else:
+                    print("❌ 阈值必须在 0.0-1.0 之间")
+            except ValueError:
+                print("❌ 无效输入")
+        
+        elif choice == '3':
+            # 仅查看列表
+            print("\n" + "="*70)
+            print("需要审核的内容列表:")
+            print("="*70)
+            for i, item in enumerate(review_items, 1):
+                print(f"\n[{i}] {item.get('title', 'N/A')}")
+                print(f"    分类: {item.get('content_type')} | 置信度: {item.get('confidence', 0):.1%}")
+                print(f"    来源: {item.get('source', 'N/A')}")
+        
+        elif choice == '0':
+            return
+        else:
+            print("❌ 无效选择")
+    
+    def _regenerate_after_review(self):
+        """审核后重新生成分析和Web页面"""
+        print("\n" + "="*60)
+        print("🔄 重新生成报告和可视化")
+        print("="*60)
+        
+        try:
+            # 步骤1: 重新分析
+            print("\n【1/3】重新分析趋势...")
+            self.trends = self.analyzer.analyze_trends(self.data)
+            
+            # 步骤2: 重新生成图表
+            print("【2/3】重新生成图表...")
+            self.chart_files = self.visualizer.visualize_all(self.trends)
+            
+            # 步骤3: 重新生成Web页面
+            print("【3/3】重新生成Web页面...")
+            web_file = self.web_publisher.generate_html_page(self.data, self.trends, self.chart_files)
+            
+            # 生成报告
+            report = self.analyzer.generate_report(self.data, self.trends)
+            
+            # 保存（使用reviewed标记）
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            data_file = f'ai_tracker_data_reviewed_{timestamp}.json'
+            with open(data_file, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'metadata': {
+                        'timestamp': timestamp,
+                        'total_items': len(self.data),
+                        'reviewed': True
+                    },
+                    'data': self.data,
+                    'trends': self.trends
+                }, f, ensure_ascii=False, indent=2)
+            
+            report_file = f'ai_tracker_report_reviewed_{timestamp}.txt'
+            with open(report_file, 'w', encoding='utf-8') as f:
+                f.write(report)
+            
+            print("\n✅ 重新生成完成！")
+            print(f"   数据文件: {data_file}")
+            print(f"   报告文件: {report_file}")
+            print(f"   Web页面: {web_file}")
+            
+            # 询问是否打开
+            import webbrowser
+            choice = input("\n是否在浏览器中打开更新后的Web页面? (Y/N): ").strip().lower()
+            if choice == 'y':
+                webbrowser.open(f'file://{os.path.abspath(web_file)}')
+                print("🚀 已在浏览器中打开")
+        
+        except Exception as e:
+            print(f"\n❌ 重新生成失败: {e}")
+    
+    def _learning_feedback(self):
+        """学习反馈分析"""
+        print("\n" + "="*60)
+        print("🎓 学习反馈系统")
+        print("="*60)
+        
+        # 查找审核历史文件和审核后数据文件
+        import glob
+        
+        review_files = sorted(glob.glob('review_history_*.json'), reverse=True)
+        data_files = sorted(glob.glob('ai_tracker_data_reviewed_*.json'), reverse=True)
+        
+        if not review_files:
+            print("\n⚠️ 未找到审核历史文件")
+            print("请先完成人工审核（菜单选项5）")
+            return
+        
+        if not data_files:
+            print("\n⚠️ 未找到审核后的数据文件")
+            print("请先完成人工审核并保存数据")
+            return
+        
+        print(f"\n📁 找到审核记录:")
+        print(f"   审核历史: {len(review_files)} 个文件")
+        print(f"   审核数据: {len(data_files)} 个文件")
+        
+        # 显示最近的文件
+        print(f"\n最近的审核:")
+        for i, (review_file, data_file) in enumerate(zip(review_files[:3], data_files[:3]), 1):
+            print(f"   {i}. {review_file}")
+        
+        print("\n选项:")
+        print("   1. 分析最近一次审核")
+        print("   2. 选择特定审核文件")
+        print("   0. 返回")
+        
+        choice = input("\n请选择 (0-2): ").strip()
+        
+        if choice == '1':
+            # 分析最近一次
+            review_file = review_files[0]
+            data_file = data_files[0]
+            
+            print(f"\n📊 正在分析: {review_file}")
+            
+            try:
+                report_file = create_feedback_loop(
+                    review_file,
+                    data_file,
+                    self.classifier
+                )
+                
+                print(f"\n✅ 学习分析完成！")
+                print(f"详细报告已保存到: {report_file}")
+                
+                # 询问是否查看建议
+                view = input("\n是否查看改进建议? (Y/N): ").strip().lower()
+                if view == 'y':
+                    self._show_improvement_suggestions(report_file)
+                
+            except Exception as e:
+                print(f"\n❌ 分析失败: {e}")
+        
+        elif choice == '2':
+            # 选择特定文件
+            print("\n可用的审核历史文件:")
+            for i, file in enumerate(review_files, 1):
+                print(f"   {i}. {file}")
+            
+            try:
+                idx = int(input("\n选择文件编号: ").strip()) - 1
+                if 0 <= idx < len(review_files):
+                    review_file = review_files[idx]
+                    data_file = data_files[idx] if idx < len(data_files) else data_files[0]
+                    
+                    report_file = create_feedback_loop(
+                        review_file,
+                        data_file,
+                        self.classifier
+                    )
+                    
+                    print(f"\n✅ 学习分析完成！报告: {report_file}")
+                else:
+                    print("❌ 无效选择")
+            except (ValueError, IndexError) as e:
+                print(f"❌ 输入错误: {e}")
+        
+        elif choice == '0':
+            return
+        else:
+            print("❌ 无效选择")
+    
+    def _show_improvement_suggestions(self, report_file: str):
+        """显示改进建议"""
+        try:
+            with open(report_file, 'r', encoding='utf-8') as f:
+                report = json.load(f)
+            
+            suggestions = report.get('improvement_suggestions', [])
+            
+            if not suggestions:
+                print("\n✅ 当前分类器表现良好，暂无改进建议")
+                return
+            
+            print("\n" + "="*70)
+            print("💡 改进建议详情")
+            print("="*70)
+            
+            for i, sug in enumerate(suggestions, 1):
+                print(f"\n建议 {i}:")
+                print(f"   类型: {sug.get('type')}")
+                
+                if sug.get('category'):
+                    print(f"   分类: {sug.get('category')}")
+                
+                if sug.get('issue'):
+                    print(f"   问题: {sug.get('issue')}")
+                
+                if sug.get('suggestion'):
+                    print(f"   建议: {sug.get('suggestion')}")
+                
+                if sug.get('keywords'):
+                    print(f"   建议添加关键词: {', '.join(sug['keywords'])}")
+                
+                if sug.get('severity'):
+                    print(f"   严重程度: {sug.get('severity')}")
+            
+            print("\n" + "="*70)
+            print("📝 说明:")
+            print("   这些建议基于人工审核结果自动生成")
+            print("   可以手动编辑 content_classifier.py 应用这些改进")
+            print("="*70)
+            
+        except Exception as e:
+            print(f"❌ 读取报告失败: {e}")
     
     def _save_results(self, report: str, web_file: Optional[str] = None):
         """保存结果到文件"""
