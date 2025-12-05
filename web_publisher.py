@@ -5,9 +5,10 @@ Web发布模块 - Web Publisher (重构版)
 
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List
 import base64
+from email.utils import parsedate_to_datetime
 
 
 import re
@@ -56,6 +57,28 @@ class WebPublisher:
         clean = clean.replace("'", '&#39;')
         return clean
     
+    def _parse_date(self, date_str: str) -> datetime:
+        """解析各种格式的日期字符串为datetime对象，确保带时区"""
+        if not date_str:
+            return datetime.min.replace(tzinfo=timezone.utc)
+        try:
+            # 尝试 RFC 2822 格式 (如 "Tue, 11 Nov 2025 13:07:56 +0000")
+            dt = parsedate_to_datetime(date_str)
+            # 如果没有时区信息，添加UTC
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except:
+            try:
+                # 尝试 ISO 格式 (如 "2025-12-03T22:36:13-08:00")
+                dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt
+            except:
+                # 默认返回最小日期（带UTC时区）
+                return datetime.min.replace(tzinfo=timezone.utc)
+    
     def generate_html_page(self, data: List[Dict], trends: Dict, chart_files: Dict[str, str] = None) -> str:
         """生成完整的HTML页面"""
         print("🌐 Generating new Web page...")
@@ -63,8 +86,12 @@ class WebPublisher:
         timestamp = trends.get('analysis_time', datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S %Z'))
         
         # 1. 准备数据
-        # 按重要性和时间排序
-        sorted_data = sorted(data, key=lambda x: (x.get('importance', 0), x.get('published', '')), reverse=True)
+        # 按重要性降序，时间降序（最新的在前）
+        sorted_data = sorted(
+            data, 
+            key=lambda x: (-x.get('importance', 0), self._parse_date(x.get('published', ''))),
+            reverse=True  # reverse=True 让日期降序（最新的在前）
+        )
         
         # 分类数据
         categorized_data = {
