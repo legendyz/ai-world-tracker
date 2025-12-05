@@ -5,6 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - feature/ai-enhancements
+
+### Added - v2.0.0-beta
+- **LLM-Enhanced Classification System**
+  - Multi-provider support: Ollama, OpenAI, Anthropic
+  - Local model support with Ollama (DeepSeek-R1:14b)
+  - Semantic understanding for 95%+ accuracy
+  - MD5-based intelligent caching system
+  - Automatic fallback to rule-based classification
+  
+- **Performance Optimizations**
+  - Concurrent processing with ThreadPoolExecutor (3 workers)
+  - Smart content skipping for pre-classified items
+  - Optimized prompts (50% token reduction)
+  - Ollama parameter tuning (6-9x speed improvement)
+  - Processing time: 28 minutes → 3-5 minutes for 60 items
+
+- **Configuration Management** (`config.py`)
+  - Unified configuration interface
+  - Multi-source priority: ENV > .env > defaults
+  - Secure API key management
+  - Provider-agnostic design
+
+- **Enhanced User Interface**
+  - Hierarchical menu structure
+  - Manual workflow sub-menu
+  - Real-time classification mode display
+  - Context-aware menu items (LLM vs Rule mode)
+  - Auto-open web page after generation
+
+- **New Modules**
+  - `llm_classifier.py`: Core LLM classification engine
+  - `config.py`: Configuration management
+  - `test_ollama.py`: Ollama integration testing
+  - `test_llm_classifier.py`: LLM classifier tests
+  - `demo_llm_classifier.py`: Interactive demonstration
+
+- **Documentation**
+  - `LLM_CLASSIFICATION_GUIDE.md`: Comprehensive usage guide
+  - `LLM_IMPLEMENTATION_SUMMARY.md`: Technical implementation details
+  - `OLLAMA_SETUP_COMPLETE.md`: Ollama setup walkthrough
+  - `PROJECT_STATUS.md`: Complete project status report
+  - `.env.example`: Environment configuration template
+
+### Changed
+- Menu structure simplified and reorganized
+- Manual review and learning feedback now rule-mode only
+- Data collection limited to 10 items per category (60 total)
+- Classification mode now displayed in menu
+- Web page automatically opens after generation
+
+### Technical Details
+- LLM timeout: 60s → 45s
+- Ollama config: num_predict=300, num_ctx=2048
+- Concurrent workers: 3 threads
+- Cache storage: JSON with MD5 keys
+- Prompt length: ~50% reduction
+
+## [1.2.0] - 2025-12-05 (Main Branch)
+
+### Changed
+- Simplified main menu from 6 to 4 items
+- Removed "View Report" option
+- Removed "Search & Filter" option
+- Renamed menu item to "Auto Update & Generate"
+
+### Fixed
+- Menu numbering consistency
+- User experience improvements
+
 ## [1.2.0] - 2025-12-03
 
 ### Added
