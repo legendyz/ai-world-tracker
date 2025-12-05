@@ -145,11 +145,11 @@ class WebPublisher:
         <!-- 2. 可视化图表区 -->
         {self._render_charts(chart_files)}
         
-        <!-- 3. Global Leaders -->
-        {self._render_section('🗣️ Global Leaders', 'leader', categorized_data['leader'], is_grid=True)}
+        <!-- 3. Industry Leaders' Update -->
+        {self._render_section('🗣️ Industry Leaders\' Update', 'leader', categorized_data['leader'], is_grid=True)}
         
-        <!-- 4. Product Launches -->
-        {self._render_section('🚀 Product Launches', 'product', categorized_data['product'], is_grid=True)}
+        <!-- 4. Product News -->
+        {self._render_section('🚀 Product News', 'product', categorized_data['product'], is_grid=True)}
         
         <!-- 5. Market Dynamics -->
         {self._render_section('💼 Market Dynamics', 'market', categorized_data['market'], is_grid=True)}
@@ -157,8 +157,8 @@ class WebPublisher:
         <!-- 6. Frontier Research -->
         {self._render_section('🔬 Frontier Research', 'research', categorized_data['research'], is_grid=True)}
         
-        <!-- 7. Developer Resources -->
-        {self._render_section('🛠️ Developer Resources', 'developer', categorized_data['developer'], is_grid=True)}
+        <!-- 7. Developer Community Update -->
+        {self._render_section('🛠️ Developer Community Update', 'developer', categorized_data['developer'], is_grid=True)}
         
         <!-- 8. Geek Community -->
         {self._render_section('🔥 Geek Community', 'community', categorized_data['community'], is_grid=True)}
