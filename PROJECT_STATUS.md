@@ -16,7 +16,7 @@ AI World Tracker 是一个全球AI动态追踪和分析系统，现已演进为�
 |------|----------------|-------------------------------------|
 | **分类方式** | 规则+关键词 | LLM智能分类 + 规则备份 |
 | **LLM支持** | ❌ | ✅ (Ollama/OpenAI/Anthropic) |
-| **本地模型** | ❌ | ✅ DeepSeek-R1:14b |
+| **本地模型** | ❌ | ✅ Qwen3:8b |
 | **并发处理** | ❌ | ✅ 多线程加速 |
 | **智能缓存** | ❌ | ✅ MD5内容缓存 |
 | **菜单结构** | 简化4项 | 分层7项 |
@@ -68,7 +68,7 @@ AI World Tracker 是一个全球AI动态追踪和分析系统，现已演进为�
 
 #### Feature分支: `llm_classifier.py` + `content_classifier.py`
 - **LLM提供商**:
-  - Ollama (默认): DeepSeek-R1:14b, 免费本地
+  - Ollama (默认): Qwen3:8b, 免费本地
   - OpenAI: GPT-4o-mini, 需API key
   - Anthropic: Claude-3-Haiku, 需API key
 - **核心特性**:
@@ -135,7 +135,7 @@ AI World Tracker 是一个全球AI动态追踪和分析系统，现已演进为�
 
 #### LLM模式
 ```
-当前分类模式: 🤖 LLM增强 - Ollama (DeepSeek-R1:14b)
+当前分类模式: 🤖 LLM增强 - Ollama (Qwen3:8b)
 
 1. 🚀 自动更新数据并生成 Web 页面
 2. 🛠️  手动更新及生成 Web 页面
@@ -219,7 +219,7 @@ python-dotenv   - 环境变量管理
 ### 本地LLM
 ```
 Ollama          - 本地模型服务
-DeepSeek-R1:14b - 8.37 GB模型
+Qwen3:8b        - ~5 GB模型
 ```
 
 ---
@@ -277,7 +277,7 @@ python TheWorldOfAI.py
 # Linux: curl -fsSL https://ollama.com/install.sh | sh
 
 # 2. 拉取模型
-ollama pull deepseek-r1:14b
+ollama pull qwen3:8b
 
 # 3. 启动服务
 ollama serve

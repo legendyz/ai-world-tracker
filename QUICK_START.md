@@ -31,7 +31,7 @@ cd ai-world-tracker
 git checkout feature/ai-enhancements
 
 # 安装Ollama
-ollama pull deepseek-r1:14b
+ollama pull qwen3:8b
 ollama serve
 
 pip install -r requirements.txt
@@ -97,8 +97,8 @@ curl -fsSL https://ollama.com/install.sh | sh
 
 **Step 2: 下载模型**
 ```bash
-ollama pull deepseek-r1:14b
-# 大小: 8.37 GB
+ollama pull qwen3:8b
+# 大小: ~5 GB
 # 首次下载需要时间，之后可离线使用
 ```
 
@@ -168,7 +168,7 @@ python TheWorldOfAI.py
 
 #### LLM模式菜单
 ```
-当前分类模式: 🤖 LLM增强 - Ollama (DeepSeek-R1:14b)
+当前分类模式: 🤖 LLM增强 - Ollama (Qwen3:8b)
 
 1. 🚀 自动更新数据并生成 Web 页面
    - 智能采集 60条 AI资讯

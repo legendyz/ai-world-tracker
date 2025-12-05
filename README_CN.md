@@ -4,7 +4,7 @@
 
 **AI World Tracker (全球人工智能动态追踪系统)** 是一个全方位的 AI 资讯追踪与分析平台。它能够自动从 arXiv、GitHub、科技媒体和博客等多个渠道采集数据，利用智能分类算法（基于规则 + LLM增强）对内容进行多维度归类（研究、产品、市场等），并生成可视化的趋势分析报告和 Web 展示页面。
 
-**🆕 v2.0-beta**: 现已支持**LLM增强分类**，集成本地 Ollama (DeepSeek-R1:14b)、OpenAI 和 Anthropic，实现语义理解，准确率达 95%+！
+**🆕 v2.0-beta**: 现已支持**LLM增强分类**，集成本地 Ollama (Qwen3:8b)、OpenAI 和 Anthropic，实现语义理解，准确率达 95%+！
 
 ---
 
@@ -17,7 +17,7 @@
 - 生产就绪，稳定可靠
 
 ### Feature 分支 (v2.0-beta - LLM增强版)
-- 🤖 **LLM分类**: Ollama (DeepSeek-R1:14b)、OpenAI (GPT-4o-mini)、Anthropic (Claude-3-Haiku)
+- 🤖 **LLM分类**: Ollama (Qwen3:8b)、OpenAI (GPT-4o-mini)、Anthropic (Claude-3-Haiku)
 - ⚡ **性能提升**: 并发处理（3线程），速度提升6-9倍
 - 🧠 **智能缓存**: 基于MD5的内容缓存，避免重复API调用
 - 📱 **增强界面**: 分层菜单，手动工作流子菜单
@@ -86,7 +86,7 @@
     # Linux: curl -fsSL https://ollama.com/install.sh | sh
     
     # 拉取模型
-    ollama pull deepseek-r1:14b
+    ollama pull qwen3:8b
     
     # 启动 Ollama 服务
     ollama serve
@@ -143,7 +143,7 @@ python TheWorldOfAI.py
 
 #### 使用 LLM 模式时:
 ```
-当前分类模式: 🤖 LLM增强 - Ollama (DeepSeek-R1:14b)
+当前分类模式: 🤖 LLM增强 - Ollama (Qwen3:8b)
 
 1. 🚀 自动更新数据并生成 Web 页面
 2. 🛠️  手动更新及生成 Web 页面

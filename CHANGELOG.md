@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added - v2.0.0-beta
 - **LLM-Enhanced Classification System**
   - Multi-provider support: Ollama, OpenAI, Anthropic
-  - Local model support with Ollama (DeepSeek-R1:14b)
+  - Local model support with Ollama (Qwen3:8b)
   - Semantic understanding for 95%+ accuracy
   - MD5-based intelligent caching system
   - Automatic fallback to rule-based classification

@@ -37,21 +37,27 @@ class ContentClassifier:
             '官方', '官网', '新闻稿', '公告'
         }
         
-        # 研究类关键词（带权重）
+        # 研究类关键词（带权重）- 2025年更新版
         self.research_keywords = {
             # 高权重（3分）- 强研究指标
             'arxiv': 3, 'conference': 3, 'journal': 3, 'paper': 3, 'publication': 3,
-            'peer-reviewed': 3, 'proceedings': 3, 'academic': 3,
+            'peer-reviewed': 3, 'proceedings': 3, 'academic': 3, 'neurips': 3, 'icml': 3,
+            'iclr': 3, 'cvpr': 3, 'acl': 3, 'emnlp': 3, 'aaai': 3,
             '论文': 3, '学术': 3, '期刊': 3, '会议': 3,
             
-            # 中权重（2分）- 研究相关
+            # 中权重（2分）- 研究相关 + 2024-2025新研究方向
             'research': 2, 'study': 2, 'experiment': 2, 'methodology': 2,
-            'findings': 2, 'analysis': 2, 'survey': 2,
-            '研究': 2, '实验': 2, '分析': 2,
+            'findings': 2, 'analysis': 2, 'survey': 2, 'benchmark': 2,
+            'state-of-the-art': 2, 'sota': 2, 'baseline': 2, 'ablation': 2,
+            'reasoning': 2, 'chain-of-thought': 2, 'cot': 2, 'in-context learning': 2,
+            'multimodal': 2, 'moe': 2, 'mixture of experts': 2, 'sparse': 2,
+            'distillation': 2, 'quantization': 2, 'pruning': 2, 'efficient': 2,
+            'scaling law': 2, 'emergent': 2, 'alignment': 2, 'rlhf': 2, 'dpo': 2,
+            '研究': 2, '实验': 2, '分析': 2, '基准': 2, '消融': 2,
             
             # 低权重（1分）- 技术术语
             'algorithm': 1, 'model': 1, 'neural network': 1, 'deep learning': 1, 
-            'machine learning': 1, 'architecture': 1,
+            'machine learning': 1, 'architecture': 1, 'attention': 1, 'transformer': 1,
             '算法': 1, '模型': 1, '神经网络': 1, '学习': 1
         }
         
@@ -72,39 +78,57 @@ class ContentClassifier:
             '代码': 1, '工具': 1
         }
         
-        # 产品类关键词（带权重）
+        # 产品类关键词（带权重）- 2025年更新版
         self.product_keywords = {
-            # 高权重（3分）- 强发布指标
+            # 高权重（3分）- 强发布指标 + 2024-2025新产品名
             'official release': 3, 'officially launched': 3, 'announces launch': 3,
             'unveil': 3, 'debut': 3, 'available now': 3, 'now available': 3,
-            '正式发布': 3, '正式推出': 3, '正式上线': 3, '官方发布': 3,
+            'rolls out': 3, 'ships': 3, 'goes live': 3, 'general availability': 3,
+            'gpt-4o': 3, 'gpt-4-turbo': 3, 'o1': 3, 'o1-preview': 3, 'o1-mini': 3, 'o3': 3,
+            'claude-3': 3, 'claude-3.5': 3, 'claude-3-opus': 3, 'claude-3-sonnet': 3,
+            'gemini': 3, 'gemini-pro': 3, 'gemini-ultra': 3, 'gemini 2.0': 3,
+            'sora': 3, 'veo': 3, 'imagen 3': 3, 'firefly': 3,
+            'llama-3': 3, 'llama-3.1': 3, 'llama-3.2': 3,
+            'copilot': 3, 'github copilot': 3, 'cursor': 3,
+            '正式发布': 3, '正式推出': 3, '正式上线': 3, '官方发布': 3, '全面开放': 3,
+            '豆包': 3, 'doubao': 3, 'kimi': 3, '通义千问': 3, 'qwen': 3,
+            '文心一言': 3, 'ernie': 3, '星火': 3, 'spark': 3,
             
             # 中权重（2分）- 发布相关
             'release': 2, 'launch': 2, 'announce': 2, 'introduce': 2,
-            'version': 2, 'update': 2, 'available': 2,
-            '发布': 2, '推出': 2, '宣布': 2, '上线': 2, '版本': 2,
+            'version': 2, 'update': 2, 'available': 2, 'upgrade': 2,
+            'new feature': 2, 'new model': 2, 'latest version': 2,
+            '发布': 2, '推出': 2, '宣布': 2, '上线': 2, '版本': 2, '升级': 2, '更新': 2,
             
             # 低权重（1分）- 产品术语
             'official': 1, 'commercial': 1, 'enterprise': 1, 'product': 1,
             'platform': 1, 'service': 1, 'solution': 1, 'beta': 1, 'preview': 1,
-            '官方': 1, '商业': 1, '企业': 1, '产品': 1, '平台': 1, '服务': 1, '公测': 1
+            'pro': 1, 'plus': 1, 'premium': 1, 'subscription': 1,
+            '官方': 1, '商业': 1, '企业': 1, '产品': 1, '平台': 1, '服务': 1, '公测': 1, '订阅': 1
         }
         
-        # 市场类关键词（带权重）
+        # 市场类关键词（带权重）- 2025年更新版
         self.market_keywords = {
             # 高权重（3分）- 强市场指标
             'funding round': 3, 'investment': 3, 'acquisition': 3, 'ipo': 3,
             'valuation': 3, 'revenue': 3, 'raises': 3, 'secures funding': 3,
+            'series a': 3, 'series b': 3, 'series c': 3, 'series d': 3,
+            'unicorn': 3, 'billion': 3, 'million': 3,
             '融资': 3, '投资': 3, '收购': 3, '上市': 3, '估值': 3,
+            '轮融资': 3, '独角兽': 3, '亿美元': 3, '亿元': 3,
             
-            # 中权重（2分）- 市场相关
+            # 中权重（2分）- 市场相关 + 政策法规
             'market': 2, 'business': 2, 'startup': 2, 'company': 2,
-            'policy': 2, 'regulation': 2, 'industry': 2,
+            'policy': 2, 'regulation': 2, 'industry': 2, 'layoff': 2, 'layoffs': 2,
+            'antitrust': 2, 'lawsuit': 2, 'copyright': 2, 'license': 2,
+            'ai act': 2, 'executive order': 2, 'ban': 2, 'restrict': 2,
             '市场': 2, '企业': 2, '公司': 2, '政策': 2, '监管': 2, '行业': 2,
+            '裁员': 2, '反垄断': 2, '版权': 2, '合规': 2, '法案': 2,
             
             # 低权重（1分）- 商业术语
-            'funding': 1, 'partnership': 1, 'collaboration': 1,
-            '合作': 1, '伙伴': 1
+            'funding': 1, 'partnership': 1, 'collaboration': 1, 'deal': 1,
+            'contract': 1, 'profit': 1, 'loss': 1, 'growth': 1,
+            '合作': 1, '伙伴': 1, '交易': 1, '合同': 1, '营收': 1, '增长': 1
         }
         
         # 领袖言论关键词（带权重）
@@ -156,10 +180,99 @@ class ContentClassifier:
             'Europe': ['europe', 'eu', 'european', 'mistral', 'deepmind', '欧洲'],
             'Global': ['global', 'international', 'worldwide', '全球', '国际']
         }
+        
+        # ============ 新增：上下文短语匹配模式 ============
+        self.phrase_patterns = {
+            'product': [
+                r'officially\s+(launched|released|announced)',
+                r'now\s+available\s+(for|to|in)',
+                r'rolling\s+out\s+to',
+                r'is\s+now\s+(live|available|open)',
+                r'has\s+(launched|released|unveiled)',
+                r'introduces?\s+new',
+                r'正式(发布|上线|推出|开放)',
+                r'全面(开放|上线|推出)',
+                r'(开始|开启)(内测|公测|商用)',
+            ],
+            'research': [
+                r'we\s+propose',
+                r'we\s+present',
+                r'we\s+introduce\s+a\s+(new|novel)',
+                r'our\s+(method|approach|model)\s+(achieves?|outperforms?)',
+                r'state-of-the-art\s+(results?|performance)',
+                r'benchmark\s+results?',
+                r'experiments?\s+(show|demonstrate)',
+                r'(本文|我们)(提出|介绍|研究)',
+                r'(实验|结果)(表明|显示|证明)',
+            ],
+            'market': [
+                r'raises?\s+\$?\d+\s*(m|million|b|billion)',
+                r'valued\s+at\s+\$',
+                r'acquisition\s+of',
+                r'acquires?\s+',
+                r'ipo\s+(filing|plans?)',
+                r'layoffs?\s+at',
+                r'(获得|完成).{0,10}(融资|投资)',
+                r'估值.{0,5}(亿|万)',
+                r'(收购|并购)',
+            ],
+            'leader': [
+                r'(ceo|cto|founder|chief).{0,20}(said|says|stated|believes)',
+                r'in\s+(an\s+)?interview',
+                r'(sam altman|elon musk|jensen huang|sundar pichai).{0,30}(said|says|warns|predicts)',
+                r'(表示|认为|指出|警告|预测).{0,10}(说|称)',
+            ]
+        }
+        
+        # ============ 新增：来源先验概率 ============
+        self.source_priors = {
+            # 研究源
+            'arxiv': {'research': 0.95, 'developer': 0.02, 'product': 0.01, 'market': 0.01, 'leader': 0.01},
+            'arxiv.org': {'research': 0.95, 'developer': 0.02, 'product': 0.01, 'market': 0.01, 'leader': 0.01},
+            
+            # 开发者源
+            'github': {'developer': 0.90, 'research': 0.05, 'product': 0.03, 'market': 0.01, 'leader': 0.01},
+            'github.com': {'developer': 0.90, 'research': 0.05, 'product': 0.03, 'market': 0.01, 'leader': 0.01},
+            'huggingface': {'developer': 0.70, 'research': 0.20, 'product': 0.05, 'market': 0.03, 'leader': 0.02},
+            'hugging face': {'developer': 0.70, 'research': 0.20, 'product': 0.05, 'market': 0.03, 'leader': 0.02},
+            
+            # 科技新闻源
+            'techcrunch': {'product': 0.40, 'market': 0.35, 'developer': 0.10, 'research': 0.05, 'leader': 0.10},
+            'the verge': {'product': 0.45, 'market': 0.25, 'developer': 0.10, 'research': 0.05, 'leader': 0.15},
+            'wired': {'product': 0.35, 'market': 0.25, 'research': 0.15, 'developer': 0.10, 'leader': 0.15},
+            'mit technology review': {'research': 0.40, 'product': 0.25, 'market': 0.15, 'developer': 0.10, 'leader': 0.10},
+            
+            # 社区源
+            'product hunt': {'product': 0.70, 'developer': 0.20, 'market': 0.05, 'research': 0.03, 'leader': 0.02},
+            'hacker news': {'developer': 0.40, 'product': 0.25, 'research': 0.15, 'market': 0.10, 'leader': 0.10},
+            
+            # 官方博客
+            'openai': {'product': 0.50, 'research': 0.30, 'developer': 0.10, 'leader': 0.08, 'market': 0.02},
+            'google ai': {'product': 0.45, 'research': 0.35, 'developer': 0.10, 'leader': 0.05, 'market': 0.05},
+            'microsoft': {'product': 0.50, 'developer': 0.25, 'market': 0.15, 'research': 0.05, 'leader': 0.05},
+            'anthropic': {'product': 0.45, 'research': 0.35, 'developer': 0.10, 'leader': 0.05, 'market': 0.05},
+            
+            # 中文源
+            '36氪': {'market': 0.50, 'product': 0.35, 'leader': 0.08, 'developer': 0.05, 'research': 0.02},
+            '36kr': {'market': 0.50, 'product': 0.35, 'leader': 0.08, 'developer': 0.05, 'research': 0.02},
+            '机器之心': {'research': 0.35, 'product': 0.30, 'developer': 0.15, 'market': 0.10, 'leader': 0.10},
+            '量子位': {'product': 0.35, 'research': 0.30, 'market': 0.15, 'developer': 0.10, 'leader': 0.10},
+            'it之家': {'product': 0.50, 'market': 0.25, 'developer': 0.10, 'research': 0.05, 'leader': 0.10},
+        }
+        
+        # 编译正则表达式（提高性能）
+        self._compiled_patterns = {}
+        for category, patterns in self.phrase_patterns.items():
+            self._compiled_patterns[category] = [re.compile(p, re.IGNORECASE) for p in patterns]
     
     def classify_content_type(self, item: Dict) -> Tuple[str, float, List[str]]:
         """
         分类内容类型：研究/开发者/产品/市场/领袖/社区
+        
+        增强版特性：
+        - 标题/内容权重分离（标题权重 x1.5）
+        - 上下文短语匹配
+        - 来源先验概率
         
         Args:
             item: 内容项（包含title, summary等字段）
@@ -172,21 +285,24 @@ class ContentClassifier:
         if category in ['research', 'developer', 'product', 'market', 'leader', 'community']:
             return str(category), 1.0, []
 
-        text = f"{item.get('title', '')} {item.get('summary', '')} {item.get('description', '')}".lower()
+        # ============ 分离标题和内容 ============
+        title = item.get('title', '').lower()
+        summary = f"{item.get('summary', '')} {item.get('description', '')}".lower()
+        full_text = f"{title} {summary}"
         source = item.get('source', '').lower()
         
         # 检测否定词和可信度
-        negative_score = self._detect_negative_context(text)
-        source_trust = self._calculate_source_trust(source, text)
+        negative_score = self._detect_negative_context(full_text)
+        source_trust = self._calculate_source_trust(source, full_text)
         
         # 绝对优先规则：GitHub来源必须归类为开发者（维持不变）
-        if 'github' in source or 'github.com' in text:
-            secondary = self._get_secondary_labels(text, exclude='developer')
+        if 'github' in source or 'github.com' in full_text:
+            secondary = self._get_secondary_labels(full_text, exclude='developer')
             return 'developer', 0.95, secondary
         
         # arXiv来源必须归类为研究（维持不变）
-        if 'arxiv' in source or 'arxiv.org' in text:
-            secondary = self._get_secondary_labels(text, exclude='research')
+        if 'arxiv' in source or 'arxiv.org' in full_text:
+            secondary = self._get_secondary_labels(full_text, exclude='research')
             return 'research', 0.95, secondary
         
         # 产品类严格规则：必须同时包含公司名称和产品发布关键词
@@ -196,16 +312,33 @@ class ContentClassifier:
                              'deepseek', 'mistral', 'cohere', 'stability', 'midjourney', 'runway',
                              '智谱', '月之暗面', '零一万物', '百川', '科大讯飞']
         
-        has_company = any(company in text or company in source for company in company_indicators)
+        has_company = any(company in full_text or company in source for company in company_indicators)
         
-        # 使用新的加权评分系统
-        scores = {
-            'research': self._calculate_weighted_score(text, self.research_keywords),
-            'developer': self._calculate_weighted_score(text, self.developer_keywords),
-            'product': self._calculate_weighted_score(text, self.product_keywords),
-            'market': self._calculate_weighted_score(text, self.market_keywords),
-            'leader': self._calculate_weighted_score(text, self.leader_keywords)
+        # ============ 新增：标题/内容分离加权评分 ============
+        all_keywords = {
+            'research': self.research_keywords,
+            'developer': self.developer_keywords,
+            'product': self.product_keywords,
+            'market': self.market_keywords,
+            'leader': self.leader_keywords
         }
+        
+        scores = {}
+        for cat, kw in all_keywords.items():
+            # 标题权重 x1.5，内容权重 x1.0
+            title_score = self._calculate_weighted_score(title, kw) * 1.5
+            summary_score = self._calculate_weighted_score(summary, kw)
+            scores[cat] = title_score + summary_score
+        
+        # ============ 新增：上下文短语匹配加分 ============
+        phrase_scores = self._calculate_phrase_scores(full_text)
+        for cat, phrase_score in phrase_scores.items():
+            if cat in scores:
+                # 短语匹配给予额外加分（每个匹配 +3 分）
+                scores[cat] += phrase_score * 3.0
+        
+        # ============ 新增：来源先验概率加成 ============
+        scores = self._apply_source_prior(scores, source)
         
         # 产品类加成规则（保持原有逻辑）
         if has_company and scores['product'] > 0:
@@ -232,6 +365,53 @@ class ContentClassifier:
         secondary_labels = self._get_secondary_labels_from_scores(scores, max_category[0])
         
         return max_category[0], confidence, secondary_labels
+    
+    def _calculate_phrase_scores(self, text: str) -> Dict[str, int]:
+        """
+        计算短语匹配分数
+        
+        Args:
+            text: 文本内容
+            
+        Returns:
+            各分类的短语匹配数量
+        """
+        scores = {}
+        for category, patterns in self._compiled_patterns.items():
+            match_count = 0
+            for pattern in patterns:
+                if pattern.search(text):
+                    match_count += 1
+            scores[category] = match_count
+        return scores
+    
+    def _apply_source_prior(self, scores: Dict[str, float], source: str) -> Dict[str, float]:
+        """
+        应用来源先验概率
+        
+        Args:
+            scores: 当前各分类分数
+            source: 来源字符串
+            
+        Returns:
+            调整后的分数
+        """
+        # 查找匹配的来源
+        matched_prior = None
+        for source_key, priors in self.source_priors.items():
+            if source_key in source:
+                matched_prior = priors
+                break
+        
+        if matched_prior:
+            # 应用先验概率加成（先验概率 * 权重系数）
+            for cat, prior in matched_prior.items():
+                if cat in scores:
+                    # 高先验概率的分类获得更多加成
+                    boost = 1 + (prior * 0.5)  # 最高加成 50%
+                    scores[cat] *= boost
+        
+        return scores
     
     def classify_tech_category(self, item: Dict) -> List[str]:
         """

@@ -4,7 +4,7 @@
 
 **AI World Tracker** is a comprehensive platform for tracking and analyzing global Artificial Intelligence trends. It automatically collects data from multiple sources such as arXiv, GitHub, tech media, and blogs. Utilizing intelligent classification algorithms (Rule-based + LLM-enhanced), it categorizes content into various dimensions (Research, Product, Market, etc.) and generates visual trend analysis reports and web pages.
 
-**🆕 v2.0-beta**: Now featuring **LLM-Enhanced Classification** with local Ollama support (DeepSeek-R1:14b), OpenAI, and Anthropic integration for semantic understanding and 95%+ accuracy!
+**🆕 v2.0-beta**: Now featuring **LLM-Enhanced Classification** with local Ollama support (Qwen3:8b), OpenAI, and Anthropic integration for semantic understanding and 95%+ accuracy!
 
 ---
 
@@ -17,7 +17,7 @@
 - Production-ready and stable
 
 ### Feature Branch (v2.0-beta - LLM Enhanced)
-- 🤖 **LLM Classification**: Ollama (DeepSeek-R1:14b), OpenAI (GPT-4o-mini), Anthropic (Claude-3-Haiku)
+- 🤖 **LLM Classification**: Ollama (Qwen3:8b), OpenAI (GPT-4o-mini), Anthropic (Claude-3-Haiku)
 - ⚡ **Performance**: 6-9x faster with concurrent processing (3 threads)
 - 🧠 **Smart Caching**: MD5-based content caching to avoid redundant API calls
 - 📱 **Enhanced UI**: Hierarchical menu with manual workflow sub-menu
@@ -86,7 +86,7 @@
     # Linux: curl -fsSL https://ollama.com/install.sh | sh
     
     # Pull the model
-    ollama pull deepseek-r1:14b
+    ollama pull qwen3:8b
     
     # Start Ollama service
     ollama serve
@@ -143,7 +143,7 @@ python TheWorldOfAI.py
 
 #### When Using LLM Mode:
 ```
-Current Classification Mode: 🤖 LLM Enhanced - Ollama (DeepSeek-R1:14b)
+Current Classification Mode: 🤖 LLM Enhanced - Ollama (Qwen3:8b)
 
 1. 🚀 Auto Update & Generate Web
 2. 🛠️  Manual Workflow
