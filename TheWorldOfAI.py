@@ -137,28 +137,22 @@ class AIWorldTracker:
             print("\n" + "="*60)
             print("📋 主菜单")
             print("="*60)
-            print("1. 🚀 一键更新数据与报告 (Update & Generate All)")
-            print("2. 📄 查看分析报告 (View Report)")
-            print("3. 🔍 搜索与筛选 (Search & Filter)")
-            print("4. 🌐 生成并打开 Web 页面 (Generate & Open Web Page)")
-            print("5. 📝 人工审核分类 (Manual Review) ⭐ 新功能")
-            print("6. 🎓 学习反馈分析 (Learning Feedback) ⭐ 新功能")
+            print("1. 🚀 自动更新数据与报告 (Auto Update & Generate)")
+            print("2. 🌐 生成并打开 Web 页面 (Generate & Open Web Page)")
+            print("3. 📝 人工审核分类 (Manual Review) ⭐ 新功能")
+            print("4. 🎓 学习反馈分析 (Learning Feedback) ⭐ 新功能")
             print("0. 退出程序")
             print("="*60)
             
-            choice = input("\n请选择功能 (0-6): ").strip()
+            choice = input("\n请选择功能 (0-4): ").strip()
             
             if choice == '1':
                 self.run_full_pipeline()
             elif choice == '2':
-                self._show_report()
-            elif choice == '3':
-                self._filter_data()
-            elif choice == '4':
                 self._generate_web_page()
-            elif choice == '5':
+            elif choice == '3':
                 self._manual_review()
-            elif choice == '6':
+            elif choice == '4':
                 self._learning_feedback()
             elif choice == '0':
                 print("\n👋 感谢使用 AI World Tracker！再见！\n")
