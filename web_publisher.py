@@ -160,8 +160,8 @@ class WebPublisher:
         <!-- 7. Developer Community Update -->
         {self._render_section('🛠️ Developer Community Update', 'developer', categorized_data['developer'], is_grid=True)}
         
-        <!-- 8. Geek Community -->
-        {self._render_section('🔥 Geek Community', 'community', categorized_data['community'], is_grid=True)}
+        <!-- 8. Geek Community Update -->
+        {self._render_section('🔥 Geek Community Update', 'community', categorized_data['community'], is_grid=True)}
         
         <!-- 9. 完整数据表 -->
         {self._render_data_table(sorted_data)}
