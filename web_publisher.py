@@ -145,21 +145,25 @@ class WebPublisher:
         <!-- 2. 可视化图表区 -->
         {self._render_charts(chart_files)}
         
-        <!-- 3. 领袖言论 (置顶) -->
+        <!-- 3. Global Leaders -->
         {self._render_section('🗣️ Global Leaders', 'leader', categorized_data['leader'], is_grid=True)}
         
-        <!-- 4. 社区热点 (高价值) -->
-        {self._render_section('🔥 Geek Community', 'community', categorized_data['community'], is_grid=True)}
-        
-        <!-- 5. 产品与市场 (商业核心) -->
+        <!-- 4. Product Launches -->
         {self._render_section('🚀 Product Launches', 'product', categorized_data['product'], is_grid=True)}
+        
+        <!-- 5. Market Dynamics -->
         {self._render_section('💼 Market Dynamics', 'market', categorized_data['market'], is_grid=True)}
         
-        <!-- 6. 技术前沿 -->
+        <!-- 6. Frontier Research -->
         {self._render_section('🔬 Frontier Research', 'research', categorized_data['research'], is_grid=True)}
+        
+        <!-- 7. Developer Resources -->
         {self._render_section('🛠️ Developer Resources', 'developer', categorized_data['developer'], is_grid=True)}
         
-        <!-- 7. 完整数据表 -->
+        <!-- 8. Geek Community -->
+        {self._render_section('🔥 Geek Community', 'community', categorized_data['community'], is_grid=True)}
+        
+        <!-- 9. 完整数据表 -->
         {self._render_data_table(sorted_data)}
         
     </div>
