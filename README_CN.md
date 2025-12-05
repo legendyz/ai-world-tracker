@@ -1,121 +1,44 @@
 # 🌍 AI World Tracker
 
-[🇺🇸 English Version](README.md) | [📊 项目状态](PROJECT_STATUS.md)
+[🇺🇸 English Version](README.md)
 
-**AI World Tracker (全球人工智能动态追踪系统)** 是一个全方位的 AI 资讯追踪与分析平台。它能够自动从 arXiv、GitHub、科技媒体和博客等多个渠道采集数据，利用智能分类算法（基于规则 + LLM增强）对内容进行多维度归类（研究、产品、市场等），并生成可视化的趋势分析报告和 Web 展示页面。
+**AI World Tracker** 是一个全面的人工智能动态追踪和分析平台。它自动从多个权威来源采集数据，使用智能算法对内容进行分类，并生成可视化趋势分析报告和网页仪表盘。
 
-**🆕 v2.0-beta**: 现已支持**LLM增强分类**，集成本地 Ollama (DeepSeek-R1:14b)、OpenAI 和 Anthropic，实现语义理解，准确率达 95%+！
+## ✨ 核心功能
 
----
-
-## 🌟 v2.0 新特性
-
-### Main 分支 (v1.2 - 稳定版)
-- 基于规则的关键词匹配分类
-- 人工审核和学习反馈系统
-- 精简的4项菜单
-- 生产就绪，稳定可靠
-
-### Feature 分支 (v2.0-beta - LLM增强版)
-- 🤖 **LLM分类**: Ollama (DeepSeek-R1:14b)、OpenAI (GPT-4o-mini)、Anthropic (Claude-3-Haiku)
-- ⚡ **性能提升**: 并发处理（3线程），速度提升6-9倍
-- 🧠 **智能缓存**: 基于MD5的内容缓存，避免重复API调用
-- 📱 **增强界面**: 分层菜单，手动工作流子菜单
-- 🎯 **95%+ 准确率**: 语义理解 vs 关键词匹配
-- 💰 **零成本选项**: 本地 Ollama 模型，完全免费
-- 🔄 **自动降级**: 优雅降级到基于规则的分类
-
----
-
-## ✨ 主要功能
-
-### 核心功能（所有版本）
-*   **🤖 多源数据采集**: 自动抓取 arXiv (最新论文)、GitHub (热门项目) 和 RSS Feeds (科技新闻、官方博客)。
-*   **📊 数据可视化**: 生成技术热点图、内容分布图、地区分布图和每日趋势图。
-*   **🌐 Web 报告生成**: 自动生成包含仪表盘和分类资讯的静态 HTML 页面 (`index.html`)，支持移动端适配。
-
-### 分类系统
-**Main 分支**: 基于规则的关键词匹配（准确率 ~70-80%）
-- 模式识别和关键词权重
-- 人工审核系统进行修正
-- 学习反馈优化规则
-
-**Feature 分支**: LLM增强，支持多提供商（准确率 95%+）
-- 语义理解和上下文分析
-- 多级置信度和推理说明
-- 技术领域识别
-- 谣言检测和事实核查
+- **🤖 多源数据采集**: 自动从 arXiv（最新论文）、GitHub（热门项目）、科技媒体（TechCrunch、The Verge、Wired）以及 AI 博客（OpenAI、Google AI、Hugging Face）采集数据
+- **📊 智能分类**: 基于规则的内容分类系统，支持关键词匹配和模式识别
+- **📈 数据可视化**: 生成技术热点、内容分布、地区分布和每日趋势图表
+- **🌐 网页报告生成**: 创建带有分类新闻和移动端支持的静态 HTML 仪表盘
+- **📝 人工审核系统**: 审核低置信度分类结果并提供修正
+- **🎓 学习反馈**: 分析审核历史并生成改进分类器的建议
 
 ## 🛠️ 安装指南
 
 ### 环境要求
-*   Python 3.8+
-*   Windows/macOS/Linux
-*   (可选) Ollama 用于本地 LLM 支持
 
-### 快速开始 - Main 分支（稳定版）
+- Python 3.8+
+- Windows / macOS / Linux
 
-1.  **克隆仓库**
-    ```bash
-    git clone https://github.com/legendyz/ai-world-tracker.git
-    cd ai-world-tracker
-    ```
+### 快速开始
 
-2.  **安装依赖**
-    ```bash
-    pip install -r requirements.txt
-    ```
+1. **克隆仓库**
+   ```bash
+   git clone https://github.com/legendyz/ai-world-tracker.git
+   cd ai-world-tracker
+   ```
 
-3.  **运行应用**
-    ```bash
-    python TheWorldOfAI.py
-    ```
+2. **安装依赖**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-### 高级设置 - Feature 分支（LLM增强版）
+3. **运行程序**
+   ```bash
+   python TheWorldOfAI.py
+   ```
 
-1.  **切换到 Feature 分支**
-    ```bash
-    git checkout feature/ai-enhancements
-    ```
-
-2.  **方式A: 使用 Ollama（推荐 - 免费且本地）**
-    ```bash
-    # 安装 Ollama
-    # Windows: 从 https://ollama.com/download 下载
-    # Mac: brew install ollama
-    # Linux: curl -fsSL https://ollama.com/install.sh | sh
-    
-    # 拉取模型
-    ollama pull deepseek-r1:14b
-    
-    # 启动 Ollama 服务
-    ollama serve
-    
-    # 安装 Python 依赖
-    pip install -r requirements.txt
-    
-    # 运行应用
-    python TheWorldOfAI.py
-    ```
-
-3.  **方式B: 使用 OpenAI 或 Anthropic**
-    ```bash
-    # 安装依赖
-    pip install -r requirements.txt
-    
-    # 设置 API 密钥（Windows PowerShell）
-    $env:OPENAI_API_KEY='sk-your-openai-key'
-    $env:ANTHROPIC_API_KEY='sk-ant-your-anthropic-key'
-    
-    # 或创建 .env 文件
-    cp .env.example .env
-    # 编辑 .env 并添加你的 API 密钥
-    
-    # 运行应用
-    python TheWorldOfAI.py
-    ```
-
-## 🚀 快速开始
+## 🚀 使用方法
 
 运行主程序启动交互式菜单：
 
@@ -123,233 +46,139 @@
 python TheWorldOfAI.py
 ```
 
-### Main 分支菜单 (v1.2)
+### 主菜单
 
-1.  **🚀 自动更新数据与报告**
-    *   执行完整流程：采集 → 分类 → 分析 → 可视化 → Web 生成。
-    *   自动在浏览器中打开生成的网页。
-
-2.  **🌐 生成并打开 Web 页面**
-    *   基于当前数据重新生成 HTML 页面并在浏览器中打开。
-
-3.  **📝 人工审核分类**
-    *   进入审核模式，系统会筛选出置信度较低的内容供人工确认或修正。
-    *   审核结果会自动保存，用于后续的学习优化。
-
-4.  **🎓 学习反馈分析**
-    *   分析审核历史，生成分类器改进建议报告。
-
-### Feature 分支菜单 (v2.0-beta)
-
-#### 使用 LLM 模式时:
 ```
-当前分类模式: 🤖 LLM增强 - Ollama (DeepSeek-R1:14b)
-
-1. 🚀 自动更新数据并生成 Web 页面
-2. 🛠️  手动更新及生成 Web 页面
-   ├─ 1. 📥 仅更新数据
-   ├─ 2. 🏷️  分类数据
-   └─ 3. 🌐 生成 Web 页面
-5. ⚙️  切换分类模式
-0. 退出
+📋 主菜单
+============================================================
+1. 🚀 自动更新数据与报告 (完整流程)
+2. 🌐 生成并打开 Web 页面
+3. 📝 人工审核分类 (审核低置信度项目)
+4. 🎓 学习反馈分析 (分析审核历史)
+0. 退出程序
+============================================================
 ```
 
-#### 使用规则模式时:
-```
-当前分类模式: 📝 规则分类
+### 功能说明
 
-1. 🚀 自动更新数据并生成 Web 页面
-2. 🛠️  手动更新及生成 Web 页面
-3. 📝 人工审核分类（仅规则模式）
-4. 🎓 学习反馈分析（仅规则模式）
-5. ⚙️  切换分类模式
-0. 退出
-```
+| 选项 | 功能 | 描述 |
+|------|------|------|
+| 1 | 自动更新 | 执行完整流程：采集 → 分类 → 分析 → 可视化 → 生成网页 |
+| 2 | 网页生成 | 重新生成 HTML 仪表盘并在浏览器中打开 |
+| 3 | 人工审核 | 审核低分类置信度的内容项 |
+| 4 | 学习反馈 | 根据审核历史生成优化建议 |
 
 ## 📂 项目结构
 
-### Main 分支 (v1.2)
-```text
+```
 ai-world-tracker/
 ├── TheWorldOfAI.py          # 主程序入口
-├── data_collector.py        # 数据采集（arXiv、RSS、GitHub）
-├── content_classifier.py    # 基于规则的分类器
-├── ai_analyzer.py           # 趋势分析
-├── visualizer.py            # 数据可视化（Matplotlib）
-├── web_publisher.py         # Web 页面生成器
+├── data_collector.py        # 数据采集模块 (arXiv, RSS, GitHub)
+├── content_classifier.py    # 基于规则的内容分类器
+├── ai_analyzer.py           # 趋势分析引擎
+├── visualizer.py            # 数据可视化 (Matplotlib)
+├── web_publisher.py         # 网页生成器
 ├── manual_reviewer.py       # 人工审核界面
 ├── learning_feedback.py     # 学习反馈系统
-├── requirements.txt         # 依赖项
+├── link_validator.py        # URL 验证工具
+├── requirements.txt         # Python 依赖
 ├── visualizations/          # 生成的图表
 └── web_output/              # 生成的网页
+    └── index.html           # 主仪表盘
 ```
 
-### Feature 分支 (v2.0-beta) - 额外文件
-```text
-ai-world-tracker/
-├── llm_classifier.py        # 🆕 LLM 分类引擎
-├── config.py                # 🆕 配置管理
-├── .env.example             # 🆕 环境变量模板
-├── cache/                   # 🆕 LLM 响应缓存
-├── test_ollama.py           # 🆕 Ollama 集成测试
-├── test_llm_classifier.py   # 🆕 LLM 分类器测试
-├── demo_llm_classifier.py   # 🆕 交互式演示
-├── LLM_CLASSIFICATION_GUIDE.md     # 🆕 LLM 使用指南
-├── LLM_IMPLEMENTATION_SUMMARY.md   # 🆕 实现细节
-├── OLLAMA_SETUP_COMPLETE.md        # 🆕 Ollama 设置指南
-└── PROJECT_STATUS.md               # 🆕 综合状态报告
-```
+## 📰 数据来源
 
-## 🔄 工作流程
+### 研究论文
+- arXiv (cs.AI, cs.LG, cs.CV, cs.CL)
 
-### Main 分支工作流
-```
-1. 采集 → 规则分类 → 分析
-2. 可视化 → Web 生成
-3. [可选] 人工审核 → 学习反馈
-```
+### 新闻媒体
+- TechCrunch AI
+- The Verge AI
+- Wired AI
+- MIT Technology Review
+- IEEE Spectrum AI
+- 36氪
+- 机器之心
+- 量子位
 
-### Feature 分支工作流（LLM 模式）
-```
-1. 采集 → 智能分类
-   ├─ 缓存检查（MD5）
-   ├─ 智能跳过（已分类）
-   ├─ 并发 LLM 调用（3线程）
-   └─ 自动降级（LLM 失败时）
-2. 分析 → 可视化
-3. Web 生成 + 自动打开
-```
+### 开发者与官方博客
+- GitHub Blog
+- OpenAI Blog
+- Google AI Blog
+- Hugging Face Blog
 
-## ⚡ 性能对比
+### 社区
+- Product Hunt AI
+- Hacker News
 
-| 指标 | Main 分支 | Feature 分支（LLM） |
-|------|----------|-------------------|
-| **准确率** | 70-80% | 95%+ |
-| **速度** | 基准 | 快6-9倍* |
-| **成本** | 免费 | 免费（Ollama）/ 付费（API） |
-| **离线** | ✅ | ✅（仅 Ollama） |
-| **设置** | 简单 | 中等 |
+## 🔧 配置
 
-*使用并发处理和优化
+程序使用智能默认设置，基本使用无需任何配置。
 
-## 📊 分类类别
+### 可选环境变量
 
-两个版本都支持 6 个主要类别：
-
-1. **Research（研究）** - 学术论文、科学研究
-2. **Product（产品）** - 产品发布、新版本
-3. **Market（市场）** - 融资、收购、商业新闻
-4. **Developer（开发者）** - 工具、库、教程
-5. **Leader（领袖）** - 专家观点、访谈
-6. **Community（社区）** - 热门讨论、病毒式内容
-
-### LLM 优势（Feature 分支）
-- 语义理解 vs 关键词匹配
-- 上下文感知的分类
-- 多维度分析
-- 置信度评分和推理说明
-- 技术领域识别
-- 谣言检测
-
-## 🧪 测试
-
-### Main 分支
 ```bash
-python test_workflow.py
-python test_classifier_advanced.py
+# 用于未来 LLM 集成（当前版本不需要）
+OPENAI_API_KEY=sk-your-api-key
 ```
 
-### Feature 分支
+## 📊 内容分类
+
+分类器将内容分为六个维度：
+
+| 类别 | 描述 | 示例 |
+|------|------|------|
+| `research` | 学术论文和研究 | arXiv 论文、基准测试结果 |
+| `product` | 产品发布和更新 | GPT-4o 发布、新功能上线 |
+| `market` | 商业和市场新闻 | 融资轮次、收购事件 |
+| `developer` | 开发者工具和资源 | SDK、API、教程 |
+| `leader` | 行业领袖观点 | CEO 访谈、主题演讲 |
+| `community` | 社区讨论 | 热门话题、技术辩论 |
+
+## 🌿 分支信息
+
+| 分支 | 描述 | 状态 |
+|------|------|------|
+| `main` | 稳定生产版本 | ✅ 推荐使用 |
+| `feature/ai-enhancements-v2` | LLM 增强分类 (Qwen3:8b) | 🧪 测试版 |
+
+### 功能分支 (v2.0-beta)
+
+`feature/ai-enhancements-v2` 分支包含实验性的 LLM 增强分类功能：
+
+- **LLM 提供商**: Ollama（本地）、OpenAI、Anthropic
+- **推荐模型**: Qwen3:8b（使用 Chat API + think=false 优化）
+- **特性**: GPU 自动检测、MD5 缓存、自动降级
+
+试用测试版：
 ```bash
-# 测试 Ollama 集成
-python test_ollama.py
-
-# 测试 LLM 分类器
-python test_llm_classifier.py
-
-# 交互式演示
-python demo_llm_classifier.py
+git checkout feature/ai-enhancements-v2
+pip install -r requirements.txt
+# 安装 Ollama 并拉取 qwen3:8b 模型
+ollama pull qwen3:8b
+python TheWorldOfAI.py
 ```
-
-## 🤝 贡献
-
-我们欢迎贡献！请查看我们的开发分支：
-
-- `main` - 稳定的生产版本（v1.2）
-- `feature/ai-enhancements` - LLM 功能（v2.0-beta）
-
-### 开发工作流
-1. Fork 仓库
-2. 创建功能分支
-3. 进行更改
-4. 提交 pull request
-
-### 提交约定
-```
-feat: 新功能
-fix: Bug修复
-docs: 文档
-refactor: 代码重构
-perf: 性能改进
-test: 测试
-chore: 构建/配置
-```
-
-## 📝 文档
-
-- [项目状态报告](PROJECT_STATUS.md) - 综合项目概览
-- [LLM 分类指南](LLM_CLASSIFICATION_GUIDE.md) - 仅 Feature 分支
-- [LLM 实现摘要](LLM_IMPLEMENTATION_SUMMARY.md) - 仅 Feature 分支
-- [Ollama 设置指南](OLLAMA_SETUP_COMPLETE.md) - 仅 Feature 分支
-- [变更日志](CHANGELOG.md) - 版本历史
-
-## 🐛 已知问题
-
-### Main 分支
-- 基于规则的准确率限制在 70-80%
-- 边缘情况需要人工审核
-
-### Feature 分支
-- Ollama 首次推理较慢（~28秒，后续通过缓存加速）
-- 并发处理时内存占用较高
-- LLM 模式下学习反馈不可用
-
-## 🗺️ 路线图
-
-### v2.0.0（Feature 分支 - 进行中）
-- [x] LLM 分类核心
-- [x] 多提供商支持
-- [x] 本地 Ollama 集成
-- [x] 并发处理
-- [x] 智能缓存
-- [x] 菜单重构
-- [ ] 全面测试
-- [ ] 合并到 main
-
-### v2.1.0（计划中）
-- [ ] 批量 API 支持
-- [ ] 自定义提示词模板
-- [ ] 分类结果导出
-- [ ] RESTful API
-
-### v2.2.0（计划中）
-- [ ] Web UI
-- [ ] 实时数据流
-- [ ] 用户认证
-- [ ] 数据库集成
-
-## 💬 社区与支持
-
-- **GitHub Issues**: 报告 Bug 或请求功能
-- **GitHub Discussions**: 社区讨论和问答
-- **文档**: 查看我们的综合文档
 
 ## 📄 许可证
 
 本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
 
+## 🤝 贡献指南
+
+欢迎贡献！请随时提交 Pull Request。
+
+1. Fork 本仓库
+2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'Add amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 创建 Pull Request
+
+## 📧 联系方式
+
+- GitHub: [@legendyz](https://github.com/legendyz)
+- 项目地址: [ai-world-tracker](https://github.com/legendyz/ai-world-tracker)
+
 ---
 
-**注意**: Feature 分支（v2.0-beta）目前处于 beta 测试阶段。生产环境请使用 main 分支。LLM 增强版将在经过全面测试和稳定性验证后合并。
-
-**最后更新**: 2025年12月5日
+**⭐ 如果这个项目对您有帮助，请给它一个 Star！**
