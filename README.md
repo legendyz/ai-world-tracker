@@ -149,12 +149,24 @@ output:
   web_dir: ./web_output/
 ```
 
-### 如何扩展
-- 新增参数直接在 config.yaml 添加即可
-- 代码中通过 `from config_manager import config`，然后 `config.get('路径.参数名', 默认值)` 访问
+### Configuration Priority
+Configuration sources are loaded in this order (higher priority overrides lower):
+1. **Environment Variables** - Highest priority
+2. **.env File** - For local development
+3. **config.yaml** - Project defaults
+4. **Code Defaults** - Fallback values
 
-### 依赖
-- 需安装 pyyaml
+### How to Use
+```python
+from config import config
+
+# Access configuration using dot notation
+product_count = config.get('collector.product_count', 10)
+llm_model = config.get('classifier.llm_model', 'qwen3:8b')
+```
+
+### Dependencies
+- Requires pyyaml
 
 ```
 pip install pyyaml

@@ -15,7 +15,7 @@ import random
 import difflib
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
-from config_manager import config
+from config import config
 
 # 导入国际化模块
 try:
