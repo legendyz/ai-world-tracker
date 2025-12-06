@@ -332,7 +332,8 @@ class LearningFeedback:
                 print(f"   - 分类: {suggestion.get('category')}")
             print(f"   - 建议: {suggestion.get('suggestion', suggestion.get('reason'))}")
             if suggestion.get('keywords'):
-                print(f"   - 关键词: {', '.join(suggestion['keywords'][:3])}...")
+                keywords_str = ', '.join(suggestion['keywords'][:3])
+                print(f"   - 关键词: {keywords_str}...")
         
         if learning_result.get('suggestions_count', 0) > 5:
             print(f"\n   ... 还有 {learning_result['suggestions_count'] - 5} 条建议（详见报告文件）")

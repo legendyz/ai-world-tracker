@@ -42,7 +42,8 @@ for i, item in enumerate(results, 1):
     print(f"\n案例 {i}: {item['title']}")
     print(f"  ├─ 分类: {item['content_type']}")
     print(f"  ├─ 置信度: {item['confidence']:.1%}")
-    print(f"  ├─ 技术领域: {', '.join(item['tech_categories'])}")
+    tech_str = ', '.join(item['tech_categories'])
+    print(f"  ├─ 技术领域: {tech_str}")
     print(f"  ├─ 地区: {item['region']}")
     if item.get('needs_review'):
         print(f"  └─ ⚠️  需要人工审核")

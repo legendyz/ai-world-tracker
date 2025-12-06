@@ -569,7 +569,8 @@ class AIWorldTracker:
                     print(f"   建议: {sug.get('suggestion')}")
                 
                 if sug.get('keywords'):
-                    print(f"   建议添加关键词: {', '.join(sug['keywords'])}")
+                    keywords_str = ', '.join(sug['keywords'])
+                    print(f"   建议添加关键词: {keywords_str}")
                 
                 if sug.get('severity'):
                     print(f"   严重程度: {sug.get('severity')}")

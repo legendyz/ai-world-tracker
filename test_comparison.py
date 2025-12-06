@@ -60,7 +60,8 @@ for i, test in enumerate(test_cases, 1):
     print(f"✓ 置信度: {result['confidence']:.1%}")
     
     if result.get('secondary_labels'):
-        print(f"✓ 次要标签: {', '.join(result['secondary_labels'])} ⭐")
+        secondary_str = ', '.join(result['secondary_labels'])
+        print(f"✓ 次要标签: {secondary_str} ⭐")
     
     if result.get('needs_review'):
         print(f"✓ 审核标记: 是 ⚠️")
