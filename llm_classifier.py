@@ -922,9 +922,13 @@ class LLMClassifier:
         """批量分类模式：一次LLM调用处理多条内容"""
         results = []
         total = len(items)
+        total_batches = (total + self.batch_size - 1) // self.batch_size
         
         # 分批处理
+        batch_num = 0
         for batch_start in range(0, total, self.batch_size):
+            batch_start_time = time.time()
+            batch_num += 1
             batch_end = min(batch_start + self.batch_size, total)
             batch_items = items[batch_start:batch_end]
             batch_indices = indices[batch_start:batch_end]
@@ -973,7 +977,14 @@ class LLMClassifier:
             
             if show_progress:
                 completed = min(batch_end, total)
-                print(f"   进度: {completed}/{total} ({completed/total:.0%})")
+                batch_time = time.time() - batch_start_time
+                remaining_batches = total_batches - batch_num
+                estimated_remaining = batch_time * remaining_batches
+                
+                if remaining_batches > 0:
+                    print(f"   进度: {completed}/{total} ({completed/total:.0%}) | 本批耗时: {batch_time:.1f}秒 | 预计剩余: {estimated_remaining:.0f}秒")
+                else:
+                    print(f"   进度: {completed}/{total} ({completed/total:.0%}) | 本批耗时: {batch_time:.1f}秒")
         
         return results
     
@@ -982,6 +993,8 @@ class LLMClassifier:
         """并发单条分类模式"""
         results = []
         total = len(items)
+        last_progress_time = time.time()
+        last_progress_count = 0
         
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = {executor.submit(self.classify_item, item): (i, idx) 
@@ -996,7 +1009,20 @@ class LLMClassifier:
                     completed += 1
                     
                     if show_progress and completed % 5 == 0:
-                        print(f"   进度: {completed}/{total} ({completed/total:.0%})")
+                        current_time = time.time()
+                        interval_time = current_time - last_progress_time
+                        interval_count = completed - last_progress_count
+                        
+                        if interval_count > 0 and interval_time > 0:
+                            rate = interval_count / interval_time  # 条/秒
+                            remaining = total - completed
+                            estimated_remaining = remaining / rate if rate > 0 else 0
+                            print(f"   进度: {completed}/{total} ({completed/total:.0%}) | 速度: {rate:.1f}条/秒 | 预计剩余: {estimated_remaining:.0f}秒")
+                        else:
+                            print(f"   进度: {completed}/{total} ({completed/total:.0%})")
+                        
+                        last_progress_time = current_time
+                        last_progress_count = completed
                         
                 except Exception as e:
                     print(f"⚠️ 分类任务失败: {e}")
