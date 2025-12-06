@@ -124,7 +124,7 @@ class AIWorldTracker:
                         log.config(t('config_loaded_llm', provider=saved_provider, model=saved_model))
                     else:
                         log.config(t('config_loaded_rule'))
-        except Exception as e:
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
             # 配置文件损坏或不存在，使用默认值
             pass
     
@@ -594,7 +594,7 @@ class AIWorldTracker:
         try:
             idx = int(model_choice) - 1
             selected_model = models[idx] if 0 <= idx < len(models) else models[0]
-        except:
+        except (ValueError, IndexError):
             selected_model = models[0]
         
         # 初始化LLM分类器
@@ -647,7 +647,7 @@ class AIWorldTracker:
         try:
             idx = int(model_choice) - 1
             selected_model = models[idx] if 0 <= idx < len(models) else models[0]
-        except:
+        except (ValueError, IndexError):
             selected_model = models[0]
         
         self.classification_mode = 'llm'
@@ -692,7 +692,7 @@ class AIWorldTracker:
         try:
             idx = int(model_choice) - 1
             selected_model = models[idx] if 0 <= idx < len(models) else models[0]
-        except:
+        except (ValueError, IndexError):
             selected_model = models[0]
         
         self.classification_mode = 'llm'

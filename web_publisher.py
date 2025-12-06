@@ -70,14 +70,14 @@ class WebPublisher:
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
             return dt
-        except:
+        except (ValueError, TypeError, AttributeError):
             try:
                 # 尝试 ISO 格式 (如 "2025-12-03T22:36:13-08:00")
                 dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=timezone.utc)
                 return dt
-            except:
+            except (ValueError, TypeError):
                 # 默认返回最小日期（带UTC时区）
                 return datetime.min.replace(tzinfo=timezone.utc)
     

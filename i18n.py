@@ -811,7 +811,7 @@ def t(key: str, **kwargs) -> str:
     if kwargs:
         try:
             text = text.format(**kwargs)
-        except KeyError:
+        except (KeyError, IndexError, ValueError):
             pass
     return text
 

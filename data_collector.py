@@ -109,7 +109,7 @@ class AIDataCollector:
                                 if (datetime.now() - last_time).days > 7:
                                     log.warning(t('dc_cache_expired'))
                                     return {'urls': set(), 'titles': set(), 'last_updated': ''}
-                            except:
+                            except (ValueError, TypeError):
                                 pass
                         # 转换为 set 以加速查找
                         cache['urls'] = set(cache['urls'])
@@ -1080,7 +1080,7 @@ class AIDataCollector:
                     dt = parser.parse(date_val)
                     # 比较时间戳以避免时区问题
                     return dt.timestamp() >= cutoff_date.timestamp()
-                except:
+                except (ValueError, TypeError, AttributeError):
                     # 如果解析失败，尝试简单格式
                     if len(date_val) >= 10:
                         dt = datetime.strptime(date_val[:10], '%Y-%m-%d')
