@@ -3,8 +3,9 @@
 # Core Data Collection
 requests>=2.31.0
 beautifulsoup4>=4.12.0
-feedparser>=6.0.10
-arxiv>=2.1.0
+feedparser>=6.0.11  # Fixed for Python 3.13+ (cgi module removed)
+arxiv>=2.1.3  # Updated for feedparser compatibility
+legacy-cgi>=2.6.1  # Compatibility for Python 3.13+ (cgi module backport)
 
 # Date/Time Handling
 python-dateutil>=2.8.0
