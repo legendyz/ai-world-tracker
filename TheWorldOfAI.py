@@ -28,6 +28,9 @@ from web_publisher import WebPublisher
 from manual_reviewer import ManualReviewer
 from learning_feedback import LearningFeedback, create_feedback_loop
 
+# 用户配置文件
+CONFIG_FILE = 'ai_tracker_config.json'
+
 # LLM分类器（可选导入）
 try:
     from llm_classifier import LLMClassifier, check_ollama_status, AVAILABLE_MODELS, LLMProvider
@@ -64,12 +67,84 @@ class AIWorldTracker:
         self.llm_provider = 'ollama'
         self.llm_model = 'qwen3:8b'
         
+        # 加载用户配置（包括上次的分类模式）
+        self._load_user_config()
+        
         # 尝试加载最新数据
         self._load_latest_data()
         
         # 检查LLM可用性
         if LLM_AVAILABLE:
             self._check_llm_availability()
+        
+        # 尝试恢复上次的LLM分类器
+        self._try_restore_llm_classifier()
+    
+    def _load_user_config(self):
+        """加载用户配置（包括上次的分类模式选择）"""
+        try:
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    
+                # 恢复分类模式设置
+                saved_mode = config.get('classification_mode', 'rule')
+                saved_provider = config.get('llm_provider', 'ollama')
+                saved_model = config.get('llm_model', 'qwen3:8b')
+                
+                # 验证模式有效性
+                if saved_mode in ['rule', 'llm']:
+                    self.classification_mode = saved_mode
+                    self.llm_provider = saved_provider
+                    self.llm_model = saved_model
+                    
+                    if saved_mode == 'llm':
+                        print(f"📋 已加载上次配置: LLM模式 ({saved_provider}/{saved_model})")
+                    else:
+                        print(f"📋 已加载上次配置: 规则模式")
+        except Exception as e:
+            # 配置文件损坏或不存在，使用默认值
+            pass
+    
+    def _save_user_config(self):
+        """保存用户配置"""
+        try:
+            config = {
+                'classification_mode': self.classification_mode,
+                'llm_provider': self.llm_provider,
+                'llm_model': self.llm_model,
+                'last_updated': datetime.now().isoformat()
+            }
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"⚠️ 保存配置失败: {e}")
+    
+    def _try_restore_llm_classifier(self):
+        """尝试恢复上次的LLM分类器"""
+        if self.classification_mode == 'llm' and LLM_AVAILABLE:
+            try:
+                # 检查Ollama服务是否可用
+                if self.llm_provider == 'ollama':
+                    status = check_ollama_status()
+                    if status['running'] and self.llm_model in status.get('models', []):
+                        self.llm_classifier = LLMClassifier(
+                            provider=LLMProvider.OLLAMA,
+                            model=self.llm_model
+                        )
+                        print(f"✅ 已恢复LLM分类器: {self.llm_model}")
+                    else:
+                        print(f"⚠️ 无法恢复LLM模式 (Ollama服务不可用或模型未安装)，切换到规则模式")
+                        self.classification_mode = 'rule'
+                        self._save_user_config()
+                else:
+                    # OpenAI/Anthropic 等云服务，需要用户手动配置
+                    print(f"⚠️ 上次使用的是云端LLM ({self.llm_provider})，需要重新配置")
+                    self.classification_mode = 'rule'
+            except Exception as e:
+                print(f"⚠️ 恢复LLM分类器失败: {e}，切换到规则模式")
+                self.classification_mode = 'rule'
+                self._save_user_config()
     
     def _check_llm_availability(self):
         """检查LLM服务可用性，提供启动帮助"""
@@ -372,6 +447,7 @@ class AIWorldTracker:
         if choice == '1':
             self.classification_mode = 'rule'
             self.llm_classifier = None
+            self._save_user_config()
             print("\n✅ 已切换到规则模式")
         
         elif choice == '2' and LLM_AVAILABLE:
@@ -444,10 +520,12 @@ class AIWorldTracker:
                 enable_cache=True,
                 max_workers=3
             )
+            self._save_user_config()
             print(f"\n✅ 已切换到LLM模式: Ollama/{selected_model}")
         except Exception as e:
             print(f"\n❌ 初始化LLM分类器失败: {e}")
             self.classification_mode = 'rule'
+            self._save_user_config()
     
     def _setup_openai_mode(self):
         """设置OpenAI模式"""
@@ -485,10 +563,12 @@ class AIWorldTracker:
                 enable_cache=True,
                 max_workers=3
             )
+            self._save_user_config()
             print(f"\n✅ 已切换到LLM模式: OpenAI/{selected_model}")
         except Exception as e:
             print(f"\n❌ 初始化LLM分类器失败: {e}")
             self.classification_mode = 'rule'
+            self._save_user_config()
     
     def _setup_anthropic_mode(self):
         """设置Anthropic模式"""
@@ -526,10 +606,12 @@ class AIWorldTracker:
                 enable_cache=True,
                 max_workers=3
             )
+            self._save_user_config()
             print(f"\n✅ 已切换到LLM模式: Anthropic/{selected_model}")
         except Exception as e:
             print(f"\n❌ 初始化LLM分类器失败: {e}")
             self.classification_mode = 'rule'
+            self._save_user_config()
     
     def _classify_data(self, items: list) -> list:
         """根据当前模式分类数据"""
