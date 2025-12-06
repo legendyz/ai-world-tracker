@@ -525,14 +525,22 @@ class LLMClassifier:
         summary = item.get('summary', item.get('description', ''))[:300]  # 减少摘要长度
         source = item.get('source', '')
         
-        # 精简版prompt，大幅减少token
+        # 精简版prompt，大幅减少token，但保持分类准确性
         prompt = f"""分类AI内容。输出JSON格式。
 
 标题: {title}
 摘要: {summary}
 来源: {source}
 
-类型选项: research(论文研究), product(产品发布), market(市场融资), developer(开源工具), leader(领袖言论), community(社区讨论)
+类型选项:
+- research: 学术论文、科研报告
+- product: 产品发布、功能更新
+- market: 融资新闻、行业分析、公司竞争、播客分析
+- developer: 开源工具、技术框架
+- leader: 必须有明确人物的直接引言或观点（如CEO声明）
+- community: 社区讨论、趋势话题
+
+提示: 播客和分析文章通常是market类型，只有明确人物直接发言才是leader
 
 输出格式(严格JSON):
 {{"content_type": "类型", "confidence": 0.8, "tech_fields": ["领域"], "reasoning": "原因"}}"""
@@ -550,19 +558,24 @@ class LLMClassifier:
         
         all_items = "\n".join(items_text)
         
-        # 使用更明确的格式指令
+        # 使用更明确的格式指令和分类标准
         prompt = f"""Classify these {len(items)} AI news items. Output ONLY valid JSON, one per line.
 
 Items to classify:
 {all_items}
 
 IMPORTANT: Use ONLY these exact values for content_type:
-- research (academic papers, studies)
-- product (product releases, launches)
-- market (funding, investments, news)
-- developer (tools, models, open source)
-- leader (opinions, quotes)
-- community (discussions, trends)
+- research: Academic papers, scientific studies, technical reports from arxiv/conferences
+- product: Product launches, new features, version releases, API announcements
+- market: Funding news, investments, company analysis, industry competition, market trends, podcasts about companies
+- developer: Tools, frameworks, models, open source projects, technical tutorials
+- leader: ONLY direct quotes or statements from specific named individuals (CEO, researchers), must have a clear person speaking
+- community: Forum discussions, social media trends, community events
+
+CLASSIFICATION TIPS:
+- If the content is ABOUT a company/product without direct quotes from a person -> market
+- Podcasts and analysis articles are usually -> market
+- Only use "leader" when there's a specific person's direct opinion or quote
 
 tech_fields options: LLM, Computer Vision, NLP, Robotics, AI Safety, MLOps, Multimodal, Audio/Speech, Healthcare AI, General AI
 
