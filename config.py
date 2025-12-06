@@ -2,10 +2,17 @@
 配置管理模块 - Config Manager
 统一管理LLM和应用配置
 
-优先级: 环境变量 > .env文件 > 默认值
+支持多种配置源:
+- YAML配置文件 (config.yaml)
+- 环境变量
+- .env文件
+- 默认值
+
+优先级: 环境变量 > .env文件 > YAML配置 > 默认值
 """
 
 import os
+import yaml
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -63,16 +70,26 @@ class ClassifierConfig:
 
 
 @dataclass 
+class CollectorConfig:
+    """数据采集配置"""
+    product_count: int = 10
+    community_count: int = 10
+    leader_count: int = 15
+    research_count: int = 15
+    developer_count: int = 20
+    news_count: int = 25
+    max_total: int = 100
+    timeout: int = 30
+
+
+@dataclass 
 class AppConfig:
     """应用总配置"""
     ollama: OllamaConfig = field(default_factory=OllamaConfig)
     openai: OpenAIConfig = field(default_factory=OpenAIConfig)
     anthropic: AnthropicConfig = field(default_factory=AnthropicConfig)
     classifier: ClassifierConfig = field(default_factory=ClassifierConfig)
-    
-    # 数据采集配置
-    collect_max_items: int = 15
-    collect_timeout: int = 30
+    collector: CollectorConfig = field(default_factory=CollectorConfig)
     
     # 输出配置
     output_dir: str = "."
@@ -81,27 +98,60 @@ class AppConfig:
 
 
 class ConfigManager:
-    """配置管理器"""
+    """配置管理器 - 统一管理所有配置
+    
+    支持多种配置源，优先级: 环境变量 > .env文件 > YAML配置 > 默认值
+    """
     
     _instance = None
     _config: AppConfig = None
+    _yaml_config: Dict = None
     
-    def __new__(cls):
+    def __new__(cls, config_path: str = 'config.yaml'):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
+            cls._instance._config_path = config_path
             cls._instance._load_config()
         return cls._instance
     
+    def _load_yaml_config(self) -> Dict:
+        """加载YAML配置文件"""
+        config_file = Path(self._config_path)
+        if config_file.exists():
+            try:
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    return yaml.safe_load(f) or {}
+            except Exception as e:
+                print(f"⚠️ 加载YAML配置失败: {e}")
+        return {}
+    
+    def _get_yaml_value(self, key_path: str, default: Any = None) -> Any:
+        """从YAML配置获取值，支持点号路径"""
+        if not self._yaml_config:
+            return default
+        keys = key_path.split('.')
+        val = self._yaml_config
+        for k in keys:
+            if isinstance(val, dict) and k in val:
+                val = val[k]
+            else:
+                return default
+        return val
+    
     def _load_config(self):
         """加载配置"""
-        # 尝试加载.env文件
+        # 1. 加载.env文件
         self._load_env_file()
         
-        # 创建配置对象
+        # 2. 加载YAML配置
+        self._yaml_config = self._load_yaml_config()
+        
+        # 3. 创建配置对象（按优先级合并）
         self._config = AppConfig(
             ollama=OllamaConfig(
                 base_url=os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434'),
-                default_model=os.getenv('OLLAMA_MODEL', 'qwen3:8b'),
+                default_model=os.getenv('OLLAMA_MODEL', 
+                    self._get_yaml_value('classification.model', 'qwen3:8b')),
                 timeout=int(os.getenv('OLLAMA_TIMEOUT', '60')),
             ),
             openai=OpenAIConfig(
@@ -113,12 +163,27 @@ class ConfigManager:
                 default_model=os.getenv('ANTHROPIC_MODEL', 'claude-3-haiku-20240307'),
             ),
             classifier=ClassifierConfig(
-                default_mode=os.getenv('CLASSIFIER_MODE', 'rule'),
-                llm_provider=os.getenv('LLM_PROVIDER', 'ollama'),
-                llm_model=os.getenv('LLM_MODEL', 'qwen3:8b'),
+                default_mode=os.getenv('CLASSIFIER_MODE', 
+                    self._get_yaml_value('classification.mode', 'rule')),
+                llm_provider=os.getenv('LLM_PROVIDER', 
+                    self._get_yaml_value('classification.provider', 'ollama')),
+                llm_model=os.getenv('LLM_MODEL', 
+                    self._get_yaml_value('classification.model', 'qwen3:8b')),
                 enable_cache=os.getenv('ENABLE_CACHE', 'true').lower() == 'true',
-                max_workers=int(os.getenv('MAX_WORKERS', '3')),
+                max_workers=int(os.getenv('MAX_WORKERS', 
+                    str(self._get_yaml_value('classification.max_workers', 3)))),
             ),
+            collector=CollectorConfig(
+                product_count=self._get_yaml_value('collector.product_count', 10),
+                community_count=self._get_yaml_value('collector.community_count', 10),
+                leader_count=self._get_yaml_value('collector.leader_count', 15),
+                research_count=self._get_yaml_value('collector.research_count', 15),
+                developer_count=self._get_yaml_value('collector.developer_count', 20),
+                news_count=self._get_yaml_value('collector.news_count', 25),
+                max_total=self._get_yaml_value('collector.max_total', 100),
+            ),
+            output_dir=self._get_yaml_value('output.report_dir', '.'),
+            web_output_dir=self._get_yaml_value('output.web_dir', 'web_output'),
         )
     
     def _load_env_file(self):
@@ -206,6 +271,14 @@ class ConfigManager:
         print(f"  缓存: {'启用' if self._config.classifier.enable_cache else '禁用'}")
         print(f"  并发数: {self._config.classifier.max_workers}")
         
+        print(f"\n【数据采集】")
+        print(f"  产品数: {self._config.collector.product_count}")
+        print(f"  社区数: {self._config.collector.community_count}")
+        print(f"  领袖数: {self._config.collector.leader_count}")
+        print(f"  研究数: {self._config.collector.research_count}")
+        print(f"  开发者数: {self._config.collector.developer_count}")
+        print(f"  新闻数: {self._config.collector.news_count}")
+        
         print(f"\n【Ollama】")
         print(f"  地址: {self._config.ollama.base_url}")
         print(f"  默认模型: {self._config.ollama.default_model}")
@@ -219,9 +292,16 @@ class ConfigManager:
         print(f"  默认模型: {self._config.anthropic.default_model}")
         
         print("="*60)
+    
+    def reload(self):
+        """重新加载配置"""
+        self._load_config()
 
 
-# 全局配置实例
+# 全局配置实例（兼容旧的config_manager模块）
+config = ConfigManager()
+
+
 def get_config() -> ConfigManager:
     """获取配置管理器实例"""
     return ConfigManager()
