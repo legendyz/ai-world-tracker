@@ -381,6 +381,7 @@ class AIWorldTracker:
         print("【步骤 2/5】内容分类")
         self.data = self._classify_data(all_items)
         timing_stats['classification'] = round(time.time() - step_start, 1)
+        print(f"⏱️ 分类总耗时: {timing_stats['classification']} 秒")
         
         # 步骤3: 智能分析
         step_start = time.time()
