@@ -15,6 +15,10 @@ except ImportError:
     def t(key, **kwargs): return key
     def get_language(): return 'zh'
 
+# 导入日志模块
+from logger import get_log_helper
+log = get_log_helper('ai_analyzer')
+
 
 class AIAnalyzer:
     """AI内容智能分析器"""
@@ -32,7 +36,7 @@ class AIAnalyzer:
         
         # 只在 verbose 模式下显示提示
         if verbose and not self.use_ai:
-            print(t('ai_no_api_key'))
+            log.warning(t('ai_no_api_key'))
     
     def generate_summary(self, item: Dict) -> str:
         """
@@ -72,7 +76,7 @@ class AIAnalyzer:
             return response.choices[0].message.content.strip()
             
         except Exception as e:
-            print(t('ai_summary_failed', error=str(e)))
+            log.error(t('ai_summary_failed', error=str(e)))
             return self._generate_rule_based_summary(item)
     
     def _generate_rule_based_summary(self, item: Dict) -> str:
@@ -135,7 +139,7 @@ class AIAnalyzer:
         """打印趋势分析结果"""
         print("\n" + t('ai_analysis_done') + "\n")
         
-        print(t('ai_top_tech'))
+        log.chart(t('ai_top_tech'))
         for tech, count in list(trends['tech_hotspots'].items())[:5]:
             bar = '█' * (count * 2)
             print(f"   {tech:20s} {bar} {count}")

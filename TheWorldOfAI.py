@@ -28,6 +28,13 @@ from web_publisher import WebPublisher
 from manual_reviewer import ManualReviewer
 from learning_feedback import LearningFeedback, create_feedback_loop
 from i18n import set_language, get_language, t, select_language_interactive
+from logger import get_log_helper, configure_logging
+
+# 配置日志
+configure_logging(log_level='INFO')
+
+# 模块日志器
+log = get_log_helper('main')
 
 # 用户配置文件
 CONFIG_FILE = 'ai_tracker_config.json'
@@ -38,7 +45,7 @@ try:
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False
-    print(t('llm_not_installed'))
+    log.warning(t('llm_not_installed'))
 
 
 class AIWorldTracker:
@@ -78,7 +85,7 @@ class AIWorldTracker:
         
         # 自动模式下强制使用规则分类，跳过LLM相关初始化
         if self.auto_mode:
-            print(t('auto_mode'))
+            log.info(t('auto_mode'), emoji="⚙️")
             self._load_latest_data()
             return
         
@@ -114,9 +121,9 @@ class AIWorldTracker:
                     self.llm_model = saved_model
                     
                     if saved_mode == 'llm':
-                        print(t('config_loaded_llm', provider=saved_provider, model=saved_model))
+                        log.config(t('config_loaded_llm', provider=saved_provider, model=saved_model))
                     else:
-                        print(t('config_loaded_rule'))
+                        log.config(t('config_loaded_rule'))
         except Exception as e:
             # 配置文件损坏或不存在，使用默认值
             pass
@@ -133,7 +140,7 @@ class AIWorldTracker:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
                 json.dump(config, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(t('config_save_failed', error=str(e)))
+            log.error(t('config_save_failed', error=str(e)))
     
     def _try_restore_llm_classifier(self, clear_cache: bool = False):
         """尝试恢复上次的LLM分类器
@@ -155,17 +162,17 @@ class AIWorldTracker:
                             provider=LLMProvider.OLLAMA,
                             model=self.llm_model
                         )
-                        print(t('llm_restored', model=self.llm_model))
+                        log.success(t('llm_restored', model=self.llm_model))
                     else:
-                        print(t('llm_restore_failed'))
+                        log.warning(t('llm_restore_failed'))
                         self.classification_mode = 'rule'
                         self._save_user_config()
                 else:
                     # OpenAI/Anthropic 等云服务，需要用户手动配置
-                    print(t('llm_cloud_reconfig', provider=self.llm_provider))
+                    log.warning(t('llm_cloud_reconfig', provider=self.llm_provider))
                     self.classification_mode = 'rule'
             except Exception as e:
-                print(t('llm_restore_error', error=str(e)))
+                log.error(t('llm_restore_error', error=str(e)))
                 self.classification_mode = 'rule'
                 self._save_user_config()
     
@@ -175,11 +182,11 @@ class AIWorldTracker:
         try:
             if os.path.exists(cache_file):
                 os.remove(cache_file)
-                print(t('llm_cache_force_cleared'))
+                log.success(t('llm_cache_force_cleared'))
             else:
-                print(t('llm_cache_not_found'))
+                log.info(t('llm_cache_not_found'), emoji="ℹ️")
         except Exception as e:
-            print(t('llm_cache_clear_error', error=str(e)))
+            log.error(t('llm_cache_clear_error', error=str(e)))
     
     def _check_llm_availability(self):
         """检查LLM服务可用性，提供启动帮助"""
@@ -187,15 +194,15 @@ class AIWorldTracker:
         
         if status['running']:
             if status['models']:
-                print(t('ollama_running') + ", " + t('ollama_available_models', models=', '.join(status['models'][:3])))
+                log.success(t('ollama_running') + ", " + t('ollama_available_models', models=', '.join(status['models'][:3])))
                 if status['recommended']:
                     self.llm_model = status['recommended']
             else:
-                print(t('ollama_no_models_warning'))
-                print(t('ollama_install_hint'))
-                print(t('ollama_no_llm_hint'))
+                log.warning(t('ollama_no_models_warning'))
+                log.info(t('ollama_install_hint'), emoji="💡")
+                log.info(t('ollama_no_llm_hint'), emoji="ℹ️")
         else:
-            print(t('ollama_not_running_info'))
+            log.warning(t('ollama_not_running_info'))
             self._offer_ollama_startup_help()
     
     def _offer_ollama_startup_help(self):
@@ -296,7 +303,7 @@ class AIWorldTracker:
                     )
                 
                 import time
-                print(t('ollama_waiting'), end='', flush=True)
+                log.info(t('ollama_waiting'), emoji="⏳")
                 for i in range(10):
                     time.sleep(1)
                     print('.', end='', flush=True)
@@ -309,7 +316,7 @@ class AIWorldTracker:
                 
             except FileNotFoundError:
                 print("\n" + t('ollama_not_found'))
-                print(t('ollama_download'))
+                log.info(t('ollama_download'), emoji="📥")
             except Exception as e:
                 print(f"\n" + t('ollama_start_failed', error=str(e)))
     
@@ -318,7 +325,8 @@ class AIWorldTracker:
         import subprocess
         
         print("\n" + t('model_installing', model=model_name))
-        print(t('model_install_wait') + "\n")
+        log.info(t('model_install_wait'), emoji="⏳")
+        print()
         
         try:
             # 实时显示下载进度
@@ -354,7 +362,7 @@ class AIWorldTracker:
                 return
             
             latest_file = max(files)
-            print(t('loading_history', file=latest_file))
+            log.data(t('loading_history', file=latest_file))
             
             with open(latest_file, 'r', encoding='utf-8') as f:
                 saved_data = json.load(f)
@@ -374,9 +382,9 @@ class AIWorldTracker:
                 # 验证文件是否存在
                 self.chart_files = {k: v for k, v in self.chart_files.items() if os.path.exists(v)}
             
-            print(t('history_loaded', count=len(self.data)))
+            log.success(t('history_loaded', count=len(self.data)))
         except Exception as e:
-            print(t('history_load_failed', error=str(e)))
+            log.warning(t('history_load_failed', error=str(e)))
     
     def run_full_pipeline(self):
         """运行完整数据处理流程"""
@@ -384,11 +392,11 @@ class AIWorldTracker:
         start_time = time.time()
         timing_stats = {}  # 收集耗时统计
         
-        print(t('start_pipeline'))
+        log.start(t('start_pipeline'))
         
         # 步骤1: 数据采集
         step_start = time.time()
-        print(t('step_collect'))
+        log.step(1, 5, t('step_collect'))
         raw_data = self.collector.collect_all()
         
         # 合并所有数据
@@ -401,10 +409,10 @@ class AIWorldTracker:
         
         # 步骤2: 内容分类（根据当前模式选择分类器）
         step_start = time.time()
-        print(t('step_classify'))
+        log.step(2, 5, t('step_classify'))
         self.data = self._classify_data(all_items)
         timing_stats['classification'] = round(time.time() - step_start, 1)
-        print(t('classification_time', time=timing_stats['classification']))
+        log.info(t('classification_time', time=timing_stats['classification']), emoji="⏱️")
         
         # 步骤3: 智能分析
         step_start = time.time()
@@ -434,12 +442,12 @@ class AIWorldTracker:
         self._save_results(report, web_file, timing_stats)
         
         print("\n" + "="*60)
-        print(t('process_complete'))
+        log.done(t('process_complete'))
         print("="*60)
         print(f"\n{t('charts_generated', count=len([f for f in self.chart_files.values() if f]))}")
-        print(t('report_saved'))
-        print(t('data_saved'))
-        print(t('web_generated') + "\n")
+        log.file(t('report_saved'))
+        log.data(t('data_saved'))
+        log.web(t('web_generated') + "\n")
         
         return report
     
@@ -531,7 +539,7 @@ class AIWorldTracker:
             self._force_clear_llm_cache()
             # 重新加载LLM分类器（如果当前是LLM模式）
             if self.llm_classifier:
-                print(t('reinit_llm_classifier'))
+                log.ai(t('reinit_llm_classifier'))
                 self._try_restore_llm_classifier(clear_cache=False)  # 不需要再清除，已经清除了
         
         elif choice == '6':
@@ -809,7 +817,7 @@ class AIWorldTracker:
             tech = input(tech_prompt).strip()
             filtered = self.classifier.get_filtered_items(self.data, tech_category=tech)
         else:
-            print(t('invalid_choice'))
+            log.warning(t('invalid_choice'))
             return
         
         print(f"\n" + t('filter_result', count=len(filtered)) + "\n")
@@ -851,10 +859,10 @@ class AIWorldTracker:
             choice = input(prompt).strip().lower()
             if choice in ['y', 'yes', '是']:
                 webbrowser.open(f'file://{os.path.abspath(web_file)}')
-                print(t('opened_browser'))
+                log.success(t('opened_browser'))
         except Exception as e:
-            print(t('browser_error', error=str(e)))
-            print(t('manual_open', file=os.path.abspath(web_file)))
+            log.error(t('browser_error', error=str(e)))
+            log.info(t('manual_open', file=os.path.abspath(web_file)), emoji="📄")
     
     def _manual_review(self):
         """人工审核分类"""
@@ -915,7 +923,7 @@ class AIWorldTracker:
                         'data': self.data,
                         'trends': self.trends
                     }, f, ensure_ascii=False, indent=2)
-                print(t('review_saved', file=filename))
+                log.file(t('review_saved', file=filename))
             
             # 保存审核历史
             self.reviewer.save_review_history()
@@ -942,9 +950,9 @@ class AIWorldTracker:
                 if 0 <= threshold <= 1:
                     self.data = self.reviewer.batch_review(self.data, min_confidence=threshold)
                 else:
-                    print(t('review_threshold_error'))
+                    log.warning(t('review_threshold_error'))
             except ValueError:
-                print(t('review_input_error'))
+                log.error(t('review_input_error'))
         
         elif choice == '3':
             # 仅查看列表
@@ -962,7 +970,7 @@ class AIWorldTracker:
         elif choice == '0':
             return
         else:
-            print(t('invalid_choice'))
+            log.warning(t('invalid_choice'))
     
     def _regenerate_after_review(self):
         """审核后重新生成分析和Web页面"""
@@ -976,11 +984,11 @@ class AIWorldTracker:
             self.trends = self.analyzer.analyze_trends(self.data)
             
             # 步骤2: 重新生成图表
-            print(t('regenerate_step2'))
+            log.step(2, 3, t('regenerate_step2'))
             self.chart_files = self.visualizer.visualize_all(self.trends)
             
             # 步骤3: 重新生成Web页面
-            print(t('regenerate_step3'))
+            log.step(3, 3, t('regenerate_step3'))
             web_file = self.web_publisher.generate_html_page(self.data, self.trends, self.chart_files)
             
             # 生成报告
@@ -1015,7 +1023,7 @@ class AIWorldTracker:
             choice = input(open_prompt).strip().lower()
             if choice == 'y':
                 webbrowser.open(f'file://{os.path.abspath(web_file)}')
-                print(t('regenerate_opened'))
+                log.success(t('regenerate_opened'))
         
         except Exception as e:
             print("\n" + t('regenerate_failed', error=str(e)))
@@ -1034,12 +1042,12 @@ class AIWorldTracker:
         
         if not review_files:
             print("\n" + t('learning_no_history'))
-            print(t('learning_do_review'))
+            log.info(t('learning_do_review'), emoji="💡")
             return
         
         if not data_files:
             print("\n" + t('learning_no_data'))
-            print(t('learning_do_save'))
+            log.info(t('learning_do_save'), emoji="💡")
             return
         
         print(f"\n" + t('learning_found'))
@@ -1074,7 +1082,7 @@ class AIWorldTracker:
                 )
                 
                 print(f"\n" + t('learning_done'))
-                print(t('learning_report', file=report_file))
+                log.file(t('learning_report', file=report_file))
                 
                 # 询问是否查看建议
                 view_prompt = "\nView improvement suggestions? (Y/N): " if get_language() == 'en' else "\n是否查看改进建议? (Y/N): "
@@ -1106,14 +1114,14 @@ class AIWorldTracker:
                     
                     print(f"\n" + t('learning_done') + " " + t('learning_report', file=report_file))
                 else:
-                    print(t('invalid_choice'))
+                    log.warning(t('invalid_choice'))
             except (ValueError, IndexError) as e:
-                print(t('review_input_error') + f": {e}")
+                log.error(t('review_input_error') + f": {e}")
         
         elif choice == '0':
             return
         else:
-            print(t('invalid_choice'))
+            log.warning(t('invalid_choice'))
     
     def _show_improvement_suggestions(self, report_file: str):
         """显示改进建议"""
@@ -1128,7 +1136,7 @@ class AIWorldTracker:
                 return
             
             print("\n" + "="*70)
-            print(t('learning_suggestions'))
+            log.info(t('learning_suggestions'), emoji="💡")
             print("="*70)
             
             for i, sug in enumerate(suggestions, 1):
@@ -1152,13 +1160,13 @@ class AIWorldTracker:
                     print("   " + t('learning_sug_severity', severity=sug.get('severity')))
             
             print("\n" + "="*70)
-            print(t('learning_note'))
+            log.info(t('learning_note'), emoji="📝")
             print("   " + t('learning_note_1'))
             print("   " + t('learning_note_2'))
             print("="*70)
             
         except Exception as e:
-            print(t('learning_read_error', error=str(e)))
+            log.error(t('learning_read_error', error=str(e)))
     
     def _save_results(self, report: str, web_file: Optional[str] = None, timing_stats: Optional[Dict] = None):
         """保存结果到文件"""
@@ -1189,17 +1197,17 @@ class AIWorldTracker:
                 'trends': self.trends
             }, f, ensure_ascii=False, indent=2)
         
-        print(t('data_saved_to', file=data_file))
+        log.data(t('data_saved_to', file=data_file))
         
         # 保存文本报告
         report_file = f'ai_tracker_report_{timestamp}.txt'
         with open(report_file, 'w', encoding='utf-8') as f:
             f.write(report)
         
-        print(t('report_saved_to', file=report_file))
+        log.file(t('report_saved_to', file=report_file))
         
         if web_file:
-            print(t('web_saved_to', file=web_file))
+            log.web(t('web_saved_to', file=web_file))
 
 
 def main():

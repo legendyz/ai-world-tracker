@@ -31,6 +31,7 @@ from enum import Enum
 
 # 导入规则分类器作为备份
 from content_classifier import ContentClassifier
+from logger import get_log_helper
 
 # 导入国际化模块
 try:
@@ -38,6 +39,9 @@ try:
 except ImportError:
     def t(key, **kwargs): return key
     def get_language(): return 'zh'
+
+# 模块日志器
+log = get_log_helper('llm_classifier')
 
 
 # 模型保活时间（秒）
@@ -313,22 +317,22 @@ class LLMClassifier:
     
     def _print_init_info(self):
         """打印初始化信息"""
-        print(t('llm_init_done'))
-        print(t('llm_provider', provider=self.provider.value))
-        print(t('llm_model_name', model=self.model))
+        log.ai(t('llm_init_done'))
+        log.ai(t('llm_provider', provider=self.provider.value))
+        log.ai(t('llm_model_name', model=self.model))
         cache_status = t('llm_cache_enabled') if self.enable_cache else t('llm_cache_disabled')
-        print(t('llm_cache_status', status=cache_status))
+        log.config(t('llm_cache_status', status=cache_status))
         
         if self.gpu_info:
             if self.gpu_info.ollama_gpu_supported:
-                print(t('llm_gpu_enabled', gpu_name=self.gpu_info.gpu_name))
+                log.success(t('llm_gpu_enabled', gpu_name=self.gpu_info.gpu_name))
                 if self.gpu_info.vram_mb:
-                    print(t('llm_vram', vram=self.gpu_info.vram_mb))
+                    log.info(t('llm_vram', vram=self.gpu_info.vram_mb), emoji="💾")
             else:
                 gpu_name = self.gpu_info.gpu_name or t('llm_no_gpu_detected')
-                print(t('llm_cpu_mode', gpu_name=gpu_name))
+                log.warning(t('llm_cpu_mode', gpu_name=gpu_name))
                 if self.ollama_options:
-                    print(t('llm_cpu_threads', threads=self.ollama_options.num_thread))
+                    log.info(t('llm_cpu_threads', threads=self.ollama_options.num_thread), emoji="⚙️")
     
     def get_gpu_info(self) -> Optional[GPUInfo]:
         """获取GPU信息"""
@@ -347,10 +351,10 @@ class LLMClassifier:
             return True
         
         if self.is_warmed_up:
-            print(t('llm_model_warmed'))
+            log.info(t('llm_model_warmed'), emoji="✅")
             return True
         
-        print(t('llm_warming_model', model=self.model))
+        log.start(t('llm_warming_model', model=self.model))
         start_time = time.time()
         
         try:
@@ -376,15 +380,15 @@ class LLMClassifier:
             if response.status_code == 200:
                 elapsed = time.time() - start_time
                 self.is_warmed_up = True
-                print(t('llm_warmup_done', time=f'{elapsed:.1f}'))
-                print(t('llm_keep_alive', minutes=MODEL_KEEP_ALIVE_SECONDS // 60))
+                log.success(t('llm_warmup_done', time=f'{elapsed:.1f}'))
+                log.info(t('llm_keep_alive', minutes=MODEL_KEEP_ALIVE_SECONDS // 60), emoji="⏰")
                 return True
             else:
-                print(t('llm_warmup_failed_http', code=response.status_code))
+                log.error(t('llm_warmup_failed_http', code=response.status_code))
                 return False
                 
         except Exception as e:
-            print(t('llm_warmup_failed', error=str(e)))
+            log.error(t('llm_warmup_failed', error=str(e)))
             return False
     
     def set_keep_alive(self, seconds: int = MODEL_KEEP_ALIVE_SECONDS):
@@ -414,10 +418,10 @@ class LLMClassifier:
             )
             
             if response.status_code == 200:
-                print(t('llm_keepalive_set', minutes=seconds // 60))
+                log.success(t('llm_keepalive_set', minutes=seconds // 60))
                 
         except Exception as e:
-            print(t('llm_keepalive_failed', error=str(e)))
+            log.warning(t('llm_keepalive_failed', error=str(e)))
     
     def unload_model(self):
         """立即卸载模型（释放显存/内存）"""
@@ -440,10 +444,10 @@ class LLMClassifier:
             
             if response.status_code == 200:
                 self.is_warmed_up = False
-                print(t('llm_model_unloaded', model=self.model))
+                log.success(t('llm_model_unloaded', model=self.model))
                 
         except Exception as e:
-            print(t('llm_unload_failed', error=str(e)))
+            log.warning(t('llm_unload_failed', error=str(e)))
 
     def _get_api_key(self) -> Optional[str]:
         """从环境变量获取API密钥"""
@@ -458,10 +462,10 @@ class LLMClassifier:
         if self.provider == LLMProvider.OLLAMA:
             # 检查Ollama服务是否运行
             if not self._check_ollama_service():
-                print(t('llm_ollama_not_running'))
+                log.error(t('llm_ollama_not_running'))
         elif self.provider in [LLMProvider.OPENAI, LLMProvider.ANTHROPIC]:
             if not self.api_key:
-                print(t('llm_api_key_missing', provider=self.provider.value.upper()))
+                log.error(t('llm_api_key_missing', provider=self.provider.value.upper()))
     
     def _check_ollama_service(self) -> bool:
         """检查Ollama服务是否运行"""
@@ -489,12 +493,12 @@ class LLMClassifier:
                     if first_entry and 'classified_by' not in first_entry:
                         # 旧格式缓存，删除文件
                         os.remove(self.cache_file)
-                        print(t('llm_cache_outdated'))
+                        log.warning(t('llm_cache_outdated'))
                         self.cache = {}
                         return
                 
                 self.cache = loaded_cache
-                print(t('llm_cache_loaded', count=len(self.cache)))
+                log.data(t('llm_cache_loaded', count=len(self.cache)))
             except Exception as e:
                 print(f"⚠️ Cache load failed: {e}")
                 # 删除损坏的缓存文件
@@ -512,7 +516,7 @@ class LLMClassifier:
             with open(self.cache_file, 'w', encoding='utf-8') as f:
                 json.dump(self.cache, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(t('llm_cache_save_failed', error=str(e)))
+            log.error(t('llm_cache_save_failed', error=str(e)))
     
     def _get_content_hash(self, item: Dict) -> str:
         """计算内容的MD5哈希"""
@@ -524,23 +528,38 @@ class LLMClassifier:
         title = item.get('title', '')[:100]  # 限制标题长度
         summary = item.get('summary', item.get('description', ''))[:300]  # 减少摘要长度
         source = item.get('source', '')
+        url = item.get('url', '')
+        
+        # 检测 URL 中的内容类型提示
+        url_hints = []
+        if '/podcast/' in url or '/podcasts/' in url:
+            url_hints.append("URL indicates PODCAST content")
+        if '/paper/' in url or 'arxiv.org' in url:
+            url_hints.append("URL indicates RESEARCH content")
+        if '/blog/' in url:
+            url_hints.append("URL indicates BLOG/ANALYSIS content")
+        
+        url_hint_text = f"\nURL提示: {', '.join(url_hints)}" if url_hints else ""
         
         # 精简版prompt，大幅减少token，但保持分类准确性
         prompt = f"""分类AI内容。输出JSON格式。
 
 标题: {title}
 摘要: {summary}
-来源: {source}
+来源: {source}{url_hint_text}
 
 类型选项:
 - research: 学术论文、科研报告
 - product: 产品发布、功能更新
-- market: 融资新闻、行业分析、公司竞争、播客分析
+- market: 融资新闻、行业分析、公司动态、播客节目
 - developer: 开源工具、技术框架
-- leader: 必须有明确人物的直接引言或观点（如CEO声明）
+- leader: 知名人士直接发言（必须含引语标记如"说"、"表示"、"称"、"warns"、"says"）
 - community: 社区讨论、趋势话题
 
-提示: 播客和分析文章通常是market类型，只有明确人物直接发言才是leader
+★ leader判断核心规则:
+1. 必须有直接引语标记："XXX说"、"XXX表示"、"XXX warns"、"XXX says"、"据XXX称"
+2. 没有引语标记的公司/人物新闻 → market
+3. 标题格式如"Sam Altman: ..."或"[人名]: ..."通常是leader
 
 输出格式(严格JSON):
 {{"content_type": "类型", "confidence": 0.8, "tech_fields": ["领域"], "reasoning": "原因"}}"""
@@ -554,7 +573,14 @@ class LLMClassifier:
             title = item.get('title', '')[:80]
             summary = item.get('summary', item.get('description', ''))[:120]
             source = item.get('source', '')[:20]
-            items_text.append(f"[{i}] {title}\n    Summary: {summary}\n    Source: {source}")
+            url = item.get('url', '')
+            
+            # 检测 URL 类型提示
+            url_type = ""
+            if 'arxiv.org' in url or '/paper/' in url:
+                url_type = " [PAPER]"
+            
+            items_text.append(f"[{i}] {title}{url_type}\n    Summary: {summary}\n    Source: {source}")
         
         all_items = "\n".join(items_text)
         
@@ -566,16 +592,25 @@ Items to classify:
 
 IMPORTANT: Use ONLY these exact values for content_type:
 - research: Academic papers, scientific studies, technical reports from arxiv/conferences
-- product: Product launches, new features, version releases, API announcements
-- market: Funding news, investments, company analysis, industry competition, market trends, podcasts about companies
+- product: Product launches, new features, version releases, API announcements  
+- market: Funding news, investments, company analysis, industry competition, podcasts, general news
 - developer: Tools, frameworks, models, open source projects, technical tutorials
-- leader: ONLY direct quotes or statements from specific named individuals (CEO, researchers), must have a clear person speaking
+- leader: Contains DIRECT SPEECH from a notable person (must have quote markers)
 - community: Forum discussions, social media trends, community events
 
-CLASSIFICATION TIPS:
-- If the content is ABOUT a company/product without direct quotes from a person -> market
-- Podcasts and analysis articles are usually -> market
-- Only use "leader" when there's a specific person's direct opinion or quote
+★★★ LEADER CLASSIFICATION - CRITICAL RULES ★★★
+Only classify as "leader" when ALL conditions are met:
+1. Contains quote markers like: "said", "says", "warns", "believes", "stated", "according to", "表示", "称", "说"
+2. Title format like "Person Name: ..." or "[Name]: ..." indicates leader
+3. If NO quote markers found -> classify as "market" even if about famous people
+
+Examples:
+- "Sam Altman says AI will change everything" -> leader (has "says")
+- "OpenAI's code red response to Google" -> market (no quote marker)
+- "Sam Altman: We need to move fast" -> leader (has "Name:" format)
+
+Other rules:
+- Items marked [PAPER] -> research
 
 tech_fields options: LLM, Computer Vision, NLP, Robotics, AI Safety, MLOps, Multimodal, Audio/Speech, Healthcare AI, General AI
 
@@ -662,11 +697,11 @@ START from id=1, classify ALL {len(items)} items:"""
                     
                     return response_text
             
-            print(t('llm_ollama_error', code=response.status_code))
+            log.error(t('llm_ollama_error', code=response.status_code))
             return None
                 
         except Exception as e:
-            print(t('llm_ollama_failed', error=str(e)))
+            log.error(t('llm_ollama_failed', error=str(e)))
             return None
     
     def _get_ollama_options(self, is_batch: bool = False) -> Dict:
@@ -712,7 +747,7 @@ START from id=1, classify ALL {len(items)} items:"""
             return response.choices[0].message.content
             
         except Exception as e:
-            print(t('llm_openai_failed', error=str(e)))
+            log.error(t('llm_openai_failed', error=str(e)))
             return None
     
     def _call_anthropic(self, prompt: str) -> Optional[str]:
@@ -732,7 +767,7 @@ START from id=1, classify ALL {len(items)} items:"""
             return response.content[0].text
             
         except Exception as e:
-            print(t('llm_anthropic_failed', error=str(e)))
+            log.error(t('llm_anthropic_failed', error=str(e)))
             return None
     
     def _call_llm(self, prompt: str, is_batch: bool = False) -> Optional[str]:
@@ -790,7 +825,7 @@ START from id=1, classify ALL {len(items)} items:"""
             # JSON解析失败，尝试从文本中提取类别
             return self._extract_category_from_text(response)
         except Exception as e:
-            print(t('llm_parse_failed', error=str(e)))
+            log.warning(t('llm_parse_failed', error=str(e)))
         
         return None
     
@@ -917,7 +952,7 @@ START from id=1, classify ALL {len(items)} items:"""
                 'mode': 'single'
             })
             
-            print(t('llm_fallback', title=item.get('title', '')[:30]))
+            log.warning(t('llm_fallback', title=item.get('title', '')[:30]))
             classified = self.rule_classifier.classify_item(item)
             classified['classified_by'] = 'rule:fallback'
         
@@ -962,12 +997,12 @@ START from id=1, classify ALL {len(items)} items:"""
         cached_count = len(cached_items)
         uncached_count = len(uncached_items)
         
-        print(t('llm_batch_start', total=total))
-        print(t('llm_batch_info', provider=self.provider.value, model=self.model))
-        print(t('llm_batch_cache', workers=self.max_workers, cached=cached_count, total=total))
+        log.start(t('llm_batch_start', total=total))
+        log.ai(t('llm_batch_info', provider=self.provider.value, model=self.model))
+        log.data(t('llm_batch_cache', workers=self.max_workers, cached=cached_count, total=total))
         
         if uncached_count == 0:
-            print(t('llm_all_cached'))
+            log.success(t('llm_all_cached'))
             cached_items.sort(key=lambda x: x[0])
             return [item for _, item in cached_items]
         
@@ -981,11 +1016,11 @@ START from id=1, classify ALL {len(items)} items:"""
         # 选择分类策略
         if use_batch_api and self.batch_size > 1 and self.provider == LLMProvider.OLLAMA:
             # 批量API模式：一次调用分类多条（更快）
-            print(t('llm_batch_mode', batch_size=self.batch_size))
+            log.info(t('llm_batch_mode', batch_size=self.batch_size), emoji="📦")
             classified_uncached = self._classify_batch_mode(uncached_items, uncached_indices, show_progress)
         else:
             # 并发单条模式
-            print(t('llm_concurrent_mode'))
+            log.info(t('llm_concurrent_mode'), emoji="⚡")
             classified_uncached = self._classify_concurrent_mode(uncached_items, uncached_indices, show_progress)
         
         # 合并结果
@@ -1024,6 +1059,9 @@ START from id=1, classify ALL {len(items)} items:"""
             batch_results = self._parse_batch_response(response, len(batch_items))
             
             # 处理结果
+            retry_items = []  # 收集需要重试的条目
+            retry_indices = []
+            
             for i, (item, idx) in enumerate(zip(batch_items, batch_indices)):
                 self.stats['total_calls'] += 1
                 classified = item.copy()
@@ -1053,19 +1091,58 @@ START from id=1, classify ALL {len(items)} items:"""
                             'region': classified['region'],
                             'classified_by': classified['classified_by']  # 保存分类来源
                         }
+                    results.append((idx, classified))
                 else:
-                    # 批量失败，降级到规则分类
-                    self.stats['fallback_calls'] += 1
-                    self.stats['fallback_details'].append({
-                        'title': item.get('title', '')[:50],
-                        'source': item.get('source', ''),
-                        'reason': '批量响应中该条解析失败',
-                        'mode': 'batch'
-                    })
-                    classified = self.rule_classifier.classify_item(item)
-                    classified['classified_by'] = 'rule:batch_fallback'
-                
-                results.append((idx, classified))
+                    # 批量解析失败，加入重试列表
+                    retry_items.append(item)
+                    retry_indices.append(idx)
+            
+            # 对批量失败的条目进行单条重试
+            if retry_items:
+                log.warning(t('llm_batch_retry', count=len(retry_items)))
+                for item, idx in zip(retry_items, retry_indices):
+                    # 尝试单条 LLM 分类
+                    retry_result = self._single_classify_with_llm(item)
+                    
+                    if retry_result:
+                        # 单条重试成功
+                        self.stats['llm_calls'] += 1
+                        classified = item.copy()
+                        classified['content_type'] = retry_result.get('content_type', 'market')
+                        classified['confidence'] = retry_result.get('confidence', 0.7)
+                        classified['tech_categories'] = retry_result.get('tech_fields', ['General AI'])
+                        classified['is_verified'] = retry_result.get('is_verified', True)
+                        classified['llm_reasoning'] = retry_result.get('reasoning', '')
+                        classified['classified_by'] = f"llm:retry:{self.provider.value}/{self.model}"
+                        classified['classified_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        classified['region'] = self.rule_classifier.classify_region(item)
+                        
+                        # 缓存
+                        content_hash = self._get_content_hash(item)
+                        if self.enable_cache:
+                            self.cache[content_hash] = {
+                                'content_type': classified['content_type'],
+                                'confidence': classified['confidence'],
+                                'tech_categories': classified['tech_categories'],
+                                'is_verified': classified.get('is_verified', True),
+                                'llm_reasoning': classified.get('llm_reasoning', ''),
+                                'region': classified['region'],
+                                'classified_by': classified['classified_by']
+                            }
+                        results.append((idx, classified))
+                        log.success(t('llm_retry_success', title=item.get('title', '')[:40]))
+                    else:
+                        # 单条重试也失败，降级到规则分类
+                        self.stats['fallback_calls'] += 1
+                        self.stats['fallback_details'].append({
+                            'title': item.get('title', '')[:50],
+                            'source': item.get('source', ''),
+                            'reason': '批量+单条重试均失败',
+                            'mode': 'batch_retry'
+                        })
+                        classified = self.rule_classifier.classify_item(item)
+                        classified['classified_by'] = 'rule:batch_fallback'
+                        results.append((idx, classified))
             
             if show_progress:
                 completed = min(batch_end, total)
@@ -1074,9 +1151,9 @@ START from id=1, classify ALL {len(items)} items:"""
                 estimated_remaining = batch_time * remaining_batches
                 
                 if remaining_batches > 0:
-                    print(t('llm_progress_eta', completed=completed, total=total, percent=int(completed/total*100), time=f"{batch_time:.1f}", eta=f"{estimated_remaining:.0f}"))
+                    log.info(t('llm_progress_eta', completed=completed, total=total, percent=int(completed/total*100), time=f"{batch_time:.1f}", eta=f"{estimated_remaining:.0f}"), emoji="⏳")
                 else:
-                    print(t('llm_progress', completed=completed, total=total, percent=int(completed/total*100)) + f" | {t('llm_stats_time', time=f'{batch_time:.1f}')}")
+                    log.info(t('llm_progress', completed=completed, total=total, percent=int(completed/total*100)) + f" | {t('llm_stats_time', time=f'{batch_time:.1f}')}", emoji="✅")
         
         return results
     
@@ -1109,19 +1186,103 @@ START from id=1, classify ALL {len(items)} items:"""
                             rate = interval_count / interval_time  # 条/秒
                             remaining = total - completed
                             estimated_remaining = remaining / rate if rate > 0 else 0
-                            print(t('llm_progress_rate', completed=completed, total=total, percent=int(completed/total*100), rate=f"{rate:.1f}", eta=f"{estimated_remaining:.0f}"))
+                            log.info(t('llm_progress_rate', completed=completed, total=total, percent=int(completed/total*100), rate=f"{rate:.1f}", eta=f"{estimated_remaining:.0f}"), emoji="⏳")
                         else:
-                            print(t('llm_progress', completed=completed, total=total, percent=int(completed/total*100)))
+                            log.info(t('llm_progress', completed=completed, total=total, percent=int(completed/total*100)), emoji="📊")
                         
                         last_progress_time = current_time
                         last_progress_count = completed
                         
                 except Exception as e:
-                    print(t('llm_task_failed', error=str(e)))
+                    log.error(t('llm_task_failed', error=str(e)))
                     self.stats['errors'] += 1
         
         return results
     
+    def _single_classify_with_llm(self, item: Dict) -> Optional[Dict]:
+        """对单条内容进行 LLM 分类（用于批量失败后的重试）
+        
+        Args:
+            item: 要分类的条目
+            
+        Returns:
+            分类结果字典，失败返回 None
+        """
+        try:
+            prompt = self._build_classification_prompt(item)
+            response = self._call_llm(prompt, is_batch=False)
+            
+            if not response:
+                return None
+            
+            # 解析单条响应
+            result = self._parse_single_response(response)
+            return result
+            
+        except Exception as e:
+            log.warning(f"Single retry failed: {str(e)}")
+            return None
+    
+    def _parse_single_response(self, response: str) -> Optional[Dict]:
+        """解析单条分类响应"""
+        if not response:
+            return None
+        
+        try:
+            # 预处理：移除markdown代码块标记
+            cleaned = response.strip()
+            if '```json' in cleaned:
+                import re
+                json_blocks = re.findall(r'```json?\s*(.*?)\s*```', cleaned, re.DOTALL)
+                if json_blocks:
+                    cleaned = json_blocks[0]
+            elif '```' in cleaned:
+                import re
+                cleaned = re.sub(r'```\w*\s*', '', cleaned)
+                cleaned = cleaned.replace('```', '')
+            
+            # 查找JSON对象
+            start = cleaned.find('{')
+            end = cleaned.rfind('}') + 1
+            
+            if start >= 0 and end > start:
+                json_str = cleaned[start:end]
+                # 修复常见的JSON格式问题
+                json_str = json_str.replace('，', ',')
+                json_str = json_str.replace('"', '"').replace('"', '"')
+                
+                obj = json.loads(json_str)
+                
+                content_type = obj.get('content_type', obj.get('type', 'market'))
+                if isinstance(content_type, str):
+                    content_type = content_type.lower().strip()
+                    if '(' in content_type:
+                        content_type = content_type.split('(')[0].strip()
+                
+                # 验证content_type
+                valid_types = ['research', 'product', 'market', 'developer', 'leader', 'community']
+                if content_type not in valid_types:
+                    type_mapping = {
+                        'paper': 'research', 'academic': 'research', 'study': 'research',
+                        'release': 'product', 'launch': 'product', 'tool': 'developer',
+                        'news': 'market', 'funding': 'market', 'opinion': 'leader',
+                        'discussion': 'community', 'trend': 'community'
+                    }
+                    content_type = type_mapping.get(content_type, 'market')
+                
+                return {
+                    'content_type': content_type,
+                    'confidence': float(obj.get('confidence', 0.7)),
+                    'tech_fields': obj.get('tech_fields', obj.get('fields', ['General AI'])),
+                    'is_verified': obj.get('is_verified', True),
+                    'reasoning': obj.get('reasoning', obj.get('reason', ''))
+                }
+                
+        except Exception as e:
+            log.warning(f"Parse single response failed: {str(e)}")
+        
+        return None
+
     def _parse_batch_response(self, response: str, expected_count: int) -> List[Optional[Dict]]:
         """解析批量分类响应（增强版）
         
@@ -1253,30 +1414,30 @@ START from id=1, classify ALL {len(items)} items:"""
                     }
             
         except Exception as e:
-            print(t('llm_batch_parse_failed', error=str(e)))
+            log.warning(t('llm_batch_parse_failed', error=str(e)))
         
         return results
     
     def _print_stats(self, elapsed: float):
         """打印统计信息"""
-        print(t('llm_stats'))
-        print(t('llm_stats_total', count=self.stats['total_calls']))
-        print(t('llm_stats_cached', count=self.stats['cache_hits']) + f" ({self.stats['cache_hits']/max(1,self.stats['total_calls']):.0%})")
-        print(f"   LLM: {self.stats['llm_calls']}")
-        print(f"   Fallback: {self.stats['fallback_calls']}")
-        print(t('llm_stats_failed', count=self.stats['errors']))
-        print(t('llm_stats_time', time=f"{elapsed:.1f}s"))
+        log.info(t('llm_stats'), emoji="📊")
+        log.info(t('llm_stats_total', count=self.stats['total_calls']), emoji="  ")
+        log.info(t('llm_stats_cached', count=self.stats['cache_hits']) + f" ({self.stats['cache_hits']/max(1,self.stats['total_calls']):.0%})", emoji="  ")
+        log.info(f"   LLM: {self.stats['llm_calls']}", emoji="  ")
+        log.info(f"   Fallback: {self.stats['fallback_calls']}", emoji="  ")
+        log.info(t('llm_stats_failed', count=self.stats['errors']), emoji="  ")
+        log.info(t('llm_stats_time', time=f"{elapsed:.1f}s"), emoji="  ")
         
         if self.stats['llm_calls'] > 0:
             avg_time = elapsed / self.stats['llm_calls']
-            print(t('llm_stats_avg', time=f"{avg_time:.1f}"))
+            log.info(t('llm_stats_avg', time=f"{avg_time:.1f}"), emoji="  ")
         
         # 显示降级详情
         if self.stats['fallback_details']:
-            print(t('llm_fallback_details', count=len(self.stats['fallback_details'])))
+            log.warning(t('llm_fallback_details', count=len(self.stats['fallback_details'])))
             for i, detail in enumerate(self.stats['fallback_details'], 1):
-                print(t('llm_fallback_item', i=i, mode=detail['mode'], title=detail['title']))
-                print(t('llm_fallback_source', source=detail['source'], reason=detail['reason']))
+                log.info(t('llm_fallback_item', i=i, mode=detail['mode'], title=detail['title']), emoji="  ")
+                log.info(t('llm_fallback_source', source=detail['source'], reason=detail['reason']), emoji="  ")
     
     def get_stats(self) -> Dict:
         """获取统计信息"""
@@ -1287,7 +1448,7 @@ START from id=1, classify ALL {len(items)} items:"""
         self.cache = {}
         if os.path.exists(self.cache_file):
             os.remove(self.cache_file)
-        print(t('llm_cache_cleared'))
+        log.success(t('llm_cache_cleared'))
 
 
 def select_llm_provider() -> Tuple[str, str]:
@@ -1333,7 +1494,7 @@ def select_llm_provider() -> Tuple[str, str]:
     except:
         model = model_list[0]
     
-    print(t('llm_selected', provider=provider, model=model))
+    log.success(t('llm_selected', provider=provider, model=model))
     
     return provider, model
 
@@ -1408,7 +1569,7 @@ def create_llm_classifier(auto_select: bool = False) -> LLMClassifier:
         if os.getenv('ANTHROPIC_API_KEY'):
             return LLMClassifier(provider='anthropic', model='claude-3-haiku-20240307')
         
-        print(t('llm_no_service'))
+        log.error(t('llm_no_service'))
         return None
     else:
         # 交互式选择
@@ -1425,10 +1586,10 @@ if __name__ == "__main__":
     # 检查Ollama状态
     status = check_ollama_status()
     status_text = t('llm_ollama_running_yes') if status['running'] else t('llm_ollama_running_no')
-    print(t('llm_ollama_status', status=status_text))
+    log.info(t('llm_ollama_status', status=status_text), emoji="🔍")
     if status['models']:
-        print(t('llm_available_models', models=', '.join(status['models'])))
-        print(t('llm_recommended_model', model=status['recommended']))
+        log.info(t('llm_available_models', models=', '.join(status['models'])), emoji="📦")
+        log.info(t('llm_recommended_model', model=status['recommended']), emoji="⭐")
     
     # 创建分类器
     if status['running']:
@@ -1444,14 +1605,14 @@ if __name__ == "__main__":
             'source': 'TechCrunch'
         }
         
-        print(t('llm_test_content', title=test_item['title']))
+        log.info(t('llm_test_content', title=test_item['title']), emoji="🧪")
         result = classifier.classify_item(test_item)
         
-        print(t('llm_test_result'))
-        print(t('llm_test_type', type=result.get('content_type')))
-        print(t('llm_test_confidence', confidence=f"{result.get('confidence', 0):.1%}"))
-        print(t('llm_test_tech', tech=result.get('tech_categories')))
-        print(t('llm_test_verified', verified=result.get('is_verified')))
-        print(t('llm_test_reasoning', reasoning=result.get('llm_reasoning')))
+        log.info(t('llm_test_result'), emoji="📋")
+        log.info(t('llm_test_type', type=result.get('content_type')), emoji="  ")
+        log.info(t('llm_test_confidence', confidence=f"{result.get('confidence', 0):.1%}"), emoji="  ")
+        log.info(t('llm_test_tech', tech=result.get('tech_categories')), emoji="  ")
+        log.info(t('llm_test_verified', verified=result.get('is_verified')), emoji="  ")
+        log.info(t('llm_test_reasoning', reasoning=result.get('llm_reasoning')), emoji="  ")
     else:
-        print(t('llm_start_ollama'))
+        log.warning(t('llm_start_ollama'))
