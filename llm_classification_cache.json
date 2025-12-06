@@ -1,0 +1,402 @@
+{
+  "e64a169c20d103476e0b9129e0744bde": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "machine learning",
+      "neural networks"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Europe"
+  },
+  "c70af316b8675fa59cdbb7b4428641ac": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "computer vision",
+      "video generation"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global"
+  },
+  "534a4c2df7a4890f1963e2a782ce8916": {
+    "content_type": "research",
+    "confidence": 0.95,
+    "tech_categories": [
+      "AI",
+      "Multimodal Models",
+      "Text-to-Image"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global"
+  },
+  "feb79b46ae07439d5361d3edf715cdc4": {
+    "content_type": "research",
+    "confidence": 0.9,
+    "tech_categories": [
+      "AI",
+      "Vision-Language Systems",
+      "Reward Models"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "5ad20c8a91b08c76fd416eb415263638": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Image Restoration",
+      "Evolutionary Algorithms"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "de30b0b75794ee2d66ae538ee947bf8b": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Video Generation",
+      "Language-Video Generation"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global"
+  },
+  "1e5f998d5a6109c66e1bbf3067d43131": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "machine learning",
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global"
+  },
+  "981e380c30bf13b583323c4197f3808d": {
+    "content_type": "product",
+    "confidence": 0.9,
+    "tech_categories": [
+      "LLM",
+      "natural language processing"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "6e83c48720e86410995bab0811465ddb": {
+    "content_type": "product",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI",
+      "Trading",
+      "Prediction Markets"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "bc63dfa95cf7124b4f3d0ea635d510b3": {
+    "content_type": "product",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI",
+      "Modeling"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global"
+  },
+  "4485d1f34b7689931ee789125c179093": {
+    "content_type": "product",
+    "confidence": 0.95,
+    "tech_categories": [
+      "AI Model"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global"
+  },
+  "fcc35b21577800ebde4838851d625c3a": {
+    "content_type": "product",
+    "confidence": 0.95,
+    "tech_categories": [
+      "AI Model"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "4eeac5c22647f1cee07ec7ce0740ea3e": {
+    "content_type": "developer",
+    "confidence": 0.9,
+    "tech_categories": [
+      "Software Development",
+      "AI Tools"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "4f2707b7ce273e34c3ec937666e6a239": {
+    "content_type": "product",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI Agents",
+      "Prompt Engineering"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "a3db86349702ba6ab8fa9ae3a48d8aa6": {
+    "content_type": "market",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Developer Tools",
+      "Gift Ideas"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global"
+  },
+  "ef1267373f553eb35ac5a2d04de5e43a": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI ethics",
+      "machine learning"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "ae09ae025d579a1eafb11c4d083a9360": {
+    "content_type": "community",
+    "confidence": 0.8,
+    "tech_categories": [
+      "nonprofit",
+      "AI for social good"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "2567029112bfbf355fc0328dc81aa471": {
+    "content_type": "market",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI",
+      "Enterprise"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "a35bba4da64323f41d662839400582cc": {
+    "content_type": "market",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI",
+      "Enterprise AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "017e6822a604fafb741ef90d398d0a68": {
+    "content_type": "security",
+    "confidence": 0.8,
+    "tech_categories": [
+      "API",
+      "Security"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "b86db4b8722ae754d9ac35568aac95cd": {
+    "content_type": "product",
+    "confidence": 0.8,
+    "tech_categories": [
+      "cybersecurity",
+      "AI security"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "36ae108cb58059ae04394173486afe5f": {
+    "content_type": "market",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI",
+      "robotics",
+      "drones"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global"
+  },
+  "7a7148c662387b3dfef2cf91b2d35d9c": {
+    "content_type": "market",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI infrastructure",
+      "workforce development"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "a1dc61d25ea13585e8f9406f2289a5ee": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "geothermal energy",
+      "AI exploration"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "42468243158888da54bc6bf9d3b060cd": {
+    "content_type": "product",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI Agents",
+      "Cloud Computing"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global"
+  },
+  "ca7f83ff50877b877f0107753d23aa70": {
+    "content_type": "market",
+    "confidence": 0.7,
+    "tech_categories": [
+      "AI",
+      "Product Launch"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "f01eb3bf1b5623f90528dde36e152b34": {
+    "content_type": "market",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI startups",
+      "product development"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "445f6f4b1c9449b5cec31db968970cf9": {
+    "content_type": "leader",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI competition",
+      "OpenAI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "a82a0aaab0f307a9ad896948e6bec1b5": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI",
+      "Natural Language Processing"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global"
+  },
+  "27531e0ab56fec8ff7080570ffe9157c": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI",
+      "Large Language Models"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "cf60292151f90819f8842d6bd2f0bbfc": {
+    "content_type": "leader",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI",
+      "Machine Learning"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "e50f402d91ad358ec95fd652ca7958b1": {
+    "content_type": "leader",
+    "confidence": 0.8,
+    "tech_categories": [
+      "AI",
+      "Machine Learning"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "174f0b597591c680796c8744906f81bc": {
+    "content_type": "leader",
+    "confidence": 0.7,
+    "tech_categories": [
+      "AI",
+      "Machine Learning"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "51a0d99698c4765dfd8d3faf36591e99": {
+    "content_type": "product",
+    "confidence": 0.9,
+    "tech_categories": [
+      "AI",
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "fb269f6ddd392c64cca7dbff3bbe4fc3": {
+    "content_type": "developer",
+    "confidence": 0.85,
+    "tech_categories": [
+      "Web Development",
+      "API"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  },
+  "b39a32e4d15295020a70231dc716ef24": {
+    "content_type": "product",
+    "confidence": 0.95,
+    "tech_categories": [
+      "AI",
+      "recipe",
+      "realtime",
+      "software"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA"
+  }
+}

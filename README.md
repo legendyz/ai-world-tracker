@@ -123,6 +123,43 @@ The application uses intelligent defaults and requires no configuration for basi
 OPENAI_API_KEY=sk-your-api-key
 ```
 
+## 配置文件：config.yaml
+
+集中管理采集、分类、分析、可视化等参数。
+
+### 示例结构
+```yaml
+collector:
+  product_count: 15
+  community_count: 10
+  max_total: 100
+
+classification:
+  mode: llm   # 可选: llm, rule
+  provider: ollama
+  model: Qwen3:8B
+  batch_size: 10
+  max_workers: 4
+
+visualization:
+  theme: default
+
+output:
+  report_dir: ./
+  web_dir: ./web_output/
+```
+
+### 如何扩展
+- 新增参数直接在 config.yaml 添加即可
+- 代码中通过 `from config_manager import config`，然后 `config.get('路径.参数名', 默认值)` 访问
+
+### 依赖
+- 需安装 pyyaml
+
+```
+pip install pyyaml
+```
+
 ## 📊 Content Classification
 
 The classifier categorizes content into six dimensions:

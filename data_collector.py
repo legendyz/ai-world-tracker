@@ -15,6 +15,7 @@ import random
 import difflib
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
+from config_manager import config
 
 
 class AIDataCollector:
@@ -454,13 +455,20 @@ class AIDataCollector:
             'community': []
         }
         
-        # 采集各类数据
-        all_data['research'] = self.collect_research_papers(15)
-        all_data['developer'] = self.collect_developer_content(20)
-        all_data['product'] = self.collect_product_releases(10)
-        all_data['leader'] = self.collect_ai_leaders_quotes(15)
-        all_data['community'] = self.collect_community_trends(15) # 新增
-        all_data['news'] = self.collect_latest_news(25)
+        # 从配置读取采集数量
+        product_count = config.get('collector.product_count', 10)
+        community_count = config.get('collector.community_count', 10)
+        leader_count = config.get('collector.leader_count', 15)
+        research_count = config.get('collector.research_count', 15)
+        developer_count = config.get('collector.developer_count', 20)
+        news_count = config.get('collector.news_count', 25)
+
+        all_data['research'] = self.collect_research_papers(research_count)
+        all_data['developer'] = self.collect_developer_content(developer_count)
+        all_data['product'] = self.collect_product_releases(product_count)
+        all_data['leader'] = self.collect_ai_leaders_quotes(leader_count)
+        all_data['community'] = self.collect_community_trends(community_count)
+        all_data['news'] = self.collect_latest_news(news_count)
         
         # 统计信息
         total_items = sum(len(items) for items in all_data.values())
