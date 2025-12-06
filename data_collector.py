@@ -17,6 +17,13 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from config_manager import config
 
+# 导入国际化模块
+try:
+    from i18n import t, get_language
+except ImportError:
+    def t(key, **kwargs): return key
+    def get_language(): return 'zh'
+
 
 class AIDataCollector:
     """AI数据采集器 - 收集真实最新的AI信息"""
@@ -76,6 +83,81 @@ class AIDataCollector:
                 {'url': 'https://lexfridman.com/feed/podcast/', 'author': 'Lex Fridman', 'title': 'Podcast Host', 'type': 'podcast'},
             ]
         }
+        
+        # 采集历史缓存
+        self.history_cache_file = 'collection_history_cache.json'
+        self.history_cache = self._load_history_cache()
+    
+    def _load_history_cache(self) -> Dict:
+        """加载采集历史缓存"""
+        try:
+            import os
+            if os.path.exists(self.history_cache_file):
+                with open(self.history_cache_file, 'r', encoding='utf-8') as f:
+                    cache = json.load(f)
+                    # 验证缓存格式
+                    if isinstance(cache, dict) and 'urls' in cache and 'titles' in cache:
+                        # 检查缓存是否过期（超过7天）
+                        last_updated = cache.get('last_updated', '')
+                        if last_updated:
+                            try:
+                                last_time = datetime.fromisoformat(last_updated)
+                                if (datetime.now() - last_time).days > 7:
+                                    print(t('dc_cache_expired'))
+                                    return {'urls': set(), 'titles': set(), 'last_updated': ''}
+                            except:
+                                pass
+                        # 转换为 set 以加速查找
+                        cache['urls'] = set(cache['urls'])
+                        cache['titles'] = set(cache['titles'])
+                        print(t('dc_cache_loaded', url_count=len(cache['urls']), title_count=len(cache['titles'])))
+                        return cache
+        except Exception as e:
+            print(t('dc_cache_load_failed', error=str(e)))
+        return {'urls': set(), 'titles': set(), 'last_updated': ''}
+    
+    def _save_history_cache(self):
+        """保存采集历史缓存"""
+        try:
+            # 转换 set 为 list 以便 JSON 序列化
+            cache_to_save = {
+                'urls': list(self.history_cache['urls']),
+                'titles': list(self.history_cache['titles']),
+                'last_updated': datetime.now().isoformat()
+            }
+            with open(self.history_cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cache_to_save, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(t('dc_cache_save_failed', error=str(e)))
+    
+    def _is_in_history(self, item: Dict) -> bool:
+        """检查项目是否在历史缓存中（严格匹配 URL 或标题）"""
+        url = item.get('url', '')
+        title = item.get('title', '')
+        
+        # 严格匹配：URL 完全相同 或 标题完全相同
+        if url and url in self.history_cache['urls']:
+            return True
+        if title and title in self.history_cache['titles']:
+            return True
+        return False
+    
+    def _add_to_history(self, item: Dict):
+        """将项目添加到历史缓存"""
+        url = item.get('url', '')
+        title = item.get('title', '')
+        if url:
+            self.history_cache['urls'].add(url)
+        if title:
+            self.history_cache['titles'].add(title)
+    
+    def clear_history_cache(self):
+        """清除采集历史缓存"""
+        import os
+        self.history_cache = {'urls': set(), 'titles': set(), 'last_updated': ''}
+        if os.path.exists(self.history_cache_file):
+            os.remove(self.history_cache_file)
+        print(t('dc_cache_cleared'))
     
     def collect_research_papers(self, max_results: int = 10) -> List[Dict]:
         """
@@ -87,7 +169,7 @@ class AIDataCollector:
         Returns:
             研究论文列表
         """
-        print("采集AI研究论文...")
+        print(t('dc_collect_research'))
         papers = []
         
         try:
@@ -119,10 +201,10 @@ class AIDataCollector:
                 }
                 papers.append(paper)
                 
-            print(f"   获取 {len(papers)} 篇研究论文")
+            print(t('dc_got_papers', count=len(papers)))
             
         except Exception as e:
-            print(f"   arXiv采集失败: {e}")
+            print(t('dc_arxiv_failed', error=str(e)))
             # 提供备用数据
             papers = self._get_backup_research_data()
         
@@ -138,7 +220,7 @@ class AIDataCollector:
         Returns:
             开发者内容列表
         """
-        print("采集开发者社区内容...")
+        print(t('dc_collect_developer'))
         content = []
         
         # 1. GitHub Trending AI项目
@@ -153,7 +235,7 @@ class AIDataCollector:
         dev_blogs = self._collect_dev_blogs()
         content.extend(dev_blogs[:max_results//3])
         
-        print(f"   获取 {len(content)} 条开发者内容")
+        print(t('dc_got_developer', count=len(content)))
         return content
     
     def collect_product_releases(self, max_results: int = 10) -> List[Dict]:
@@ -166,7 +248,7 @@ class AIDataCollector:
         Returns:
             产品发布列表
         """
-        print("采集AI产品发布...")
+        print(t('dc_collect_products'))
         products = []
         
         # 收集主要AI公司的产品发布信息
@@ -187,13 +269,13 @@ class AIDataCollector:
                 products.extend(company_products)
                 time.sleep(1)  # 避免请求过快
             except Exception as e:
-                print(f"   ⚠️ {company} 产品信息采集失败: {e}")
+                print(t('dc_product_failed', company=company, error=str(e)))
         
         # 按重要性排序并限制数量
         products.sort(key=lambda x: x.get('importance', 0), reverse=True)
         products = products[:max_results]
         
-        print(f"   获取 {len(products)} 条产品发布信息")
+        print(t('dc_got_products', count=len(products)))
         return products
     
     def collect_ai_leaders_quotes(self, max_results: int = 15) -> List[Dict]:
@@ -206,7 +288,7 @@ class AIDataCollector:
         Returns:
             领袖言论列表
         """
-        print("采集AI领袖言论...")
+        print(t('dc_collect_leaders'))
         quotes = []
         
         leaders = {
@@ -273,10 +355,10 @@ class AIDataCollector:
                 time.sleep(0.5) # 避免请求过快
                 
             except Exception as e:
-                print(f"   ⚠️ 采集 {leader_name} 言论失败: {e}")
+                print(t('dc_leader_failed', name=leader_name, error=str(e)))
         
         # 2. 采集个人博客和播客
-        print("   采集领袖博客与播客...")
+        print(t('dc_collect_blogs'))
         for source in self.rss_feeds.get('leader_blogs', []):
             try:
                 feed = feedparser.parse(source['url'])
@@ -315,11 +397,11 @@ class AIDataCollector:
                     }
                     quotes.append(quote)
             except Exception as e:
-                print(f"   ⚠️ 采集博客 {source['author']} 失败: {e}")
+                print(t('dc_blog_failed', author=source['author'], error=str(e)))
 
         # 3. 如果采集数量不足，使用备用数据
         if len(quotes) < 5:
-            print("   ⚠️ 在线采集数量不足，补充备用数据")
+            print(t('dc_fallback_data'))
             quotes.extend(self._get_backup_leaders_data())
             
         # 去重
@@ -334,7 +416,7 @@ class AIDataCollector:
         # 注意：这里简化处理，实际可能需要解析时间字符串
         
         result = unique_quotes[:max_results]
-        print(f"   获取 {len(result)} 条领袖言论")
+        print(t('dc_got_leaders', count=len(result)))
         return result
 
     def collect_latest_news(self, max_results: int = 20) -> List[Dict]:
@@ -347,7 +429,7 @@ class AIDataCollector:
         Returns:
             新闻列表
         """
-        print("采集AI行业新闻...")
+        print(t('dc_collect_news'))
         
         # 从产品发布新闻源采集
         product_news = []
@@ -357,7 +439,7 @@ class AIDataCollector:
                 product_news.extend(feed_news)
                 time.sleep(0.3)
             except Exception as e:
-                print(f"   ⚠️ 产品新闻源 {feed_url} 采集失败: {e}")
+                print(t('dc_product_feed_failed', url=feed_url, error=str(e)))
         
         # 从传统新闻源采集
         general_news = []
@@ -367,7 +449,7 @@ class AIDataCollector:
                 general_news.extend(feed_news)
                 time.sleep(0.5)
             except Exception as e:
-                print(f"   ⚠️ RSS源 {feed_url} 采集失败: {e}")
+                print(t('dc_rss_failed', url=feed_url, error=str(e)))
         
         # 合并两类新闻
         all_news = product_news + general_news
@@ -388,14 +470,14 @@ class AIDataCollector:
         # 按优先级排列：产品发布 > 其他AI新闻
         prioritized_news = product_related + other_news
         result = prioritized_news[:max_results]
-        print(f"   获取 {len(result)} 条AI新闻")
+        print(t('dc_got_news', count=len(result)))
         return result
     
     def collect_community_trends(self, max_results: int = 15) -> List[Dict]:
         """
         采集社区热点 (Product Hunt, Hacker News, Reddit)
         """
-        print("采集社区热点趋势...")
+        print(t('dc_collect_community'))
         trends = []
         
         for feed_url in self.rss_feeds.get('community', []):
@@ -424,7 +506,7 @@ class AIDataCollector:
                     time.sleep(0.2)
                     
             except Exception as e:
-                print(f"   ⚠️ 社区源 {feed_url} 采集失败: {e}")
+                print(t('dc_community_failed', url=feed_url, error=str(e)))
         
         # Deduplicate
         trends = self._deduplicate_items(trends)
@@ -433,7 +515,7 @@ class AIDataCollector:
         trends.sort(key=lambda x: x.get('published', ''), reverse=True)
         
         result = trends[:max_results]
-        print(f"   获取 {len(result)} 条社区热点")
+        print(t('dc_got_community', count=len(result)))
         return result
 
     def collect_all(self) -> Dict[str, List[Dict]]:
@@ -443,7 +525,7 @@ class AIDataCollector:
         Returns:
             分类的数据字典
         """
-        print("AI World Tracker - 开始全量数据采集")
+        print(t('dc_start_collection'))
         print("=" * 50)
         
         all_data = {
@@ -470,11 +552,40 @@ class AIDataCollector:
         all_data['community'] = self.collect_community_trends(community_count)
         all_data['news'] = self.collect_latest_news(news_count)
         
+        # 使用独立的采集历史缓存统计新内容（但不过滤，所有内容都传递给分类模块）
+        new_stats = {}  # 记录每个类别的新内容数量
+        cached_stats = {}  # 记录每个类别的缓存命中数量
+        new_items_for_cache = []  # 记录新采集的项目，稍后添加到缓存
+        
+        for cat in all_data:
+            new_count = 0
+            cached_count = 0
+            for item in all_data[cat]:
+                if self._is_in_history(item):
+                    cached_count += 1
+                else:
+                    new_count += 1
+                    new_items_for_cache.append(item)
+            new_stats[cat] = new_count
+            cached_stats[cat] = cached_count
+        
+        # 将新采集的项目添加到历史缓存
+        for item in new_items_for_cache:
+            self._add_to_history(item)
+        
+        # 保存更新后的缓存
+        if new_items_for_cache:
+            self._save_history_cache()
+        
         # 统计信息
         total_items = sum(len(items) for items in all_data.values())
-        print(f"\n采集完成！总计 {total_items} 条信息:")
+        total_new = sum(new_stats.values())
+        total_cached = sum(cached_stats.values())
+        print(t('dc_collection_done_v2', total=total_items, new=total_new, cached=total_cached))
         for category, items in all_data.items():
-            print(f"   {category}: {len(items)} 条")
+            new_count = new_stats.get(category, 0)
+            cached_count = cached_stats.get(category, 0)
+            print(t('dc_category_stats_v2', category=category, count=len(items), new=new_count, cached=cached_count))
         
         return all_data
     
@@ -521,7 +632,7 @@ class AIDataCollector:
                     projects.append(project)
             
         except Exception as e:
-            print(f"   ⚠️ GitHub API调用失败: {e}")
+            print(t('dc_github_failed', error=str(e)))
             # 使用备用数据
             projects = self._get_backup_github_data()
         
@@ -562,7 +673,7 @@ class AIDataCollector:
                     updates.append(update)
         
         except Exception as e:
-            print(f"   ⚠️ Hugging Face API调用失败: {e}")
+            print(t('dc_hf_failed', error=str(e)))
             updates = self._get_backup_hf_data()
         
         return updates
@@ -578,7 +689,7 @@ class AIDataCollector:
                 blogs.extend(feed_content)
         
         except Exception as e:
-            print(f"   ⚠️ 开发者博客采集失败: {e}")
+            print(t('dc_dev_blog_failed', error=str(e)))
             blogs = self._get_backup_blog_data()
         
         return blogs
@@ -880,7 +991,7 @@ class AIDataCollector:
                     items.append(item)
         
         except Exception as e:
-            print(f"   ⚠️ RSS解析失败 {feed_url}: {e}")
+            print(t('dc_rss_parse_failed', url=feed_url, error=str(e)))
         
         return items
     

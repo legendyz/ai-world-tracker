@@ -27,6 +27,7 @@ from visualizer import DataVisualizer
 from web_publisher import WebPublisher
 from manual_reviewer import ManualReviewer
 from learning_feedback import LearningFeedback, create_feedback_loop
+from i18n import set_language, get_language, t, select_language_interactive
 
 # 用户配置文件
 CONFIG_FILE = 'ai_tracker_config.json'
@@ -37,7 +38,7 @@ try:
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False
-    print("⚠️ LLM分类器未安装，将使用规则分类模式")
+    print(t('llm_not_installed'))
 
 
 class AIWorldTracker:
@@ -53,8 +54,8 @@ class AIWorldTracker:
         self.auto_mode = auto_mode
         
         print("\n" + "="*60)
-        print("     🌍 AI World Tracker - MVP 版本")
-        print("     全球人工智能动态追踪系统")
+        print(f"     {t('app_title')}")
+        print(f"     {t('app_subtitle')}")
         print("="*60 + "\n")
         
         self.collector = DataCollector()
@@ -77,7 +78,7 @@ class AIWorldTracker:
         
         # 自动模式下强制使用规则分类，跳过LLM相关初始化
         if self.auto_mode:
-            print("📋 [自动模式] 使用规则分类模式")
+            print(t('auto_mode'))
             self._load_latest_data()
             return
         
@@ -113,9 +114,9 @@ class AIWorldTracker:
                     self.llm_model = saved_model
                     
                     if saved_mode == 'llm':
-                        print(f"📋 已加载上次配置: LLM模式 ({saved_provider}/{saved_model})")
+                        print(t('config_loaded_llm', provider=saved_provider, model=saved_model))
                     else:
-                        print(f"📋 已加载上次配置: 规则模式")
+                        print(t('config_loaded_rule'))
         except Exception as e:
             # 配置文件损坏或不存在，使用默认值
             pass
@@ -132,12 +133,20 @@ class AIWorldTracker:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
                 json.dump(config, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"⚠️ 保存配置失败: {e}")
+            print(t('config_save_failed', error=str(e)))
     
-    def _try_restore_llm_classifier(self):
-        """尝试恢复上次的LLM分类器"""
+    def _try_restore_llm_classifier(self, clear_cache: bool = False):
+        """尝试恢复上次的LLM分类器
+        
+        Args:
+            clear_cache: 是否在初始化前强制清除缓存文件
+        """
         if self.classification_mode == 'llm' and LLM_AVAILABLE:
             try:
+                # 强制清除缓存文件（如果需要）
+                if clear_cache:
+                    self._force_clear_llm_cache()
+                    
                 # 检查Ollama服务是否可用
                 if self.llm_provider == 'ollama':
                     status = check_ollama_status()
@@ -146,19 +155,31 @@ class AIWorldTracker:
                             provider=LLMProvider.OLLAMA,
                             model=self.llm_model
                         )
-                        print(f"✅ 已恢复LLM分类器: {self.llm_model}")
+                        print(t('llm_restored', model=self.llm_model))
                     else:
-                        print(f"⚠️ 无法恢复LLM模式 (Ollama服务不可用或模型未安装)，切换到规则模式")
+                        print(t('llm_restore_failed'))
                         self.classification_mode = 'rule'
                         self._save_user_config()
                 else:
                     # OpenAI/Anthropic 等云服务，需要用户手动配置
-                    print(f"⚠️ 上次使用的是云端LLM ({self.llm_provider})，需要重新配置")
+                    print(t('llm_cloud_reconfig', provider=self.llm_provider))
                     self.classification_mode = 'rule'
             except Exception as e:
-                print(f"⚠️ 恢复LLM分类器失败: {e}，切换到规则模式")
+                print(t('llm_restore_error', error=str(e)))
                 self.classification_mode = 'rule'
                 self._save_user_config()
+    
+    def _force_clear_llm_cache(self):
+        """强制清除LLM分类缓存文件"""
+        cache_file = 'llm_classification_cache.json'
+        try:
+            if os.path.exists(cache_file):
+                os.remove(cache_file)
+                print(t('llm_cache_force_cleared'))
+            else:
+                print(t('llm_cache_not_found'))
+        except Exception as e:
+            print(t('llm_cache_clear_error', error=str(e)))
     
     def _check_llm_availability(self):
         """检查LLM服务可用性，提供启动帮助"""
@@ -166,34 +187,35 @@ class AIWorldTracker:
         
         if status['running']:
             if status['models']:
-                print(f"✅ Ollama服务运行中，可用模型: {', '.join(status['models'][:3])}")
+                print(t('ollama_running') + ", " + t('ollama_available_models', models=', '.join(status['models'][:3])))
                 if status['recommended']:
                     self.llm_model = status['recommended']
             else:
-                print("⚠️  Ollama服务运行中，但未安装任何模型")
-                print("   请安装模型: ollama pull qwen3:8b")
-                print("   切换分类模式时将无法使用本地LLM分类")
+                print(t('ollama_no_models_warning'))
+                print(t('ollama_install_hint'))
+                print(t('ollama_no_llm_hint'))
         else:
-            print("ℹ️  Ollama服务未运行")
+            print(t('ollama_not_running_info'))
             self._offer_ollama_startup_help()
     
     def _offer_ollama_startup_help(self):
         """提供Ollama启动帮助"""
-        print("\n   如需使用本地LLM分类，请先启动Ollama服务。")
+        print("\n   " + t('ollama_hint'))
         
         # 自动模式下跳过交互式提示
         if self.auto_mode:
-            print("   [自动模式] 跳过Ollama服务启动，将使用规则分类")
+            print("   " + t('ollama_skip_auto'))
             return
         
-        choice = input("   是否尝试启动Ollama服务? (y/n) [n]: ").strip().lower()
+        prompt = "   " + t('ollama_start_prompt')
+        choice = input(prompt).strip().lower()
         
         if choice == 'y':
             import subprocess
             import platform
             
             try:
-                print("\n   🚀 正在启动Ollama服务...")
+                print("\n   " + t('ollama_starting'))
                 
                 # 根据操作系统选择启动方式
                 system = platform.system()
@@ -216,45 +238,46 @@ class AIWorldTracker:
                 
                 # 等待服务启动
                 import time
-                print("   等待服务启动...", end='', flush=True)
+                print("   " + t('ollama_waiting'), end='', flush=True)
                 for i in range(10):
                     time.sleep(1)
                     print('.', end='', flush=True)
                     status = check_ollama_status()
                     if status['running']:
-                        print("\n   ✅ Ollama服务已启动！")
+                        print("\n   " + t('ollama_started'))
                         if status['models']:
-                            print(f"   可用模型: {', '.join(status['models'][:3])}")
+                            print(f"   " + t('ollama_available_models', models=', '.join(status['models'][:3])))
                             if status['recommended']:
                                 self.llm_model = status['recommended']
                         else:
-                            print("   ⚠️  未安装任何模型，请运行: ollama pull qwen3:8b")
-                            print("   切换分类模式时将无法使用本地LLM分类")
+                            print("   " + t('no_models'))
+                            print("   " + t('ollama_no_local_llm'))
                         return
                 
-                print("\n   ⚠️  Ollama服务启动超时，请手动启动: ollama serve")
+                print("\n   " + t('ollama_timeout'))
                 
             except FileNotFoundError:
-                print("\n   ❌ 未找到Ollama命令，请确认已安装Ollama")
-                print("   下载地址: https://ollama.com/download")
-                print("   切换分类模式时将无法使用本地LLM分类")
+                print("\n   " + t('ollama_not_found'))
+                print("   " + t('ollama_download'))
+                print("   " + t('ollama_no_local_llm'))
             except Exception as e:
-                print(f"\n   ❌ 启动Ollama失败: {e}")
-                print("   请手动启动: ollama serve")
+                print(f"\n   " + t('ollama_start_failed', error=str(e)))
+                print("   " + t('ollama_manual_start'))
         else:
-            print("   提示: 切换分类模式时将无法使用本地LLM分类")
-            print("   您可以稍后手动启动: ollama serve")
+            print("   " + t('ollama_no_local_llm'))
+            print("   " + t('ollama_later_hint'))
     
     def _offer_ollama_startup_help_in_menu(self):
         """在菜单中提供Ollama启动帮助（简化版）"""
-        choice = input("是否尝试启动Ollama服务? (y/n) [n]: ").strip().lower()
+        prompt = "Start Ollama service? (y/n) [n]: " if get_language() == 'en' else "是否尝试启动Ollama服务? (y/n) [n]: "
+        choice = input(prompt).strip().lower()
         
         if choice == 'y':
             import subprocess
             import platform
             
             try:
-                print("\n🚀 正在启动Ollama服务...")
+                print("\n" + t('ollama_starting'))
                 
                 system = platform.system()
                 if system == 'Windows':
@@ -273,29 +296,29 @@ class AIWorldTracker:
                     )
                 
                 import time
-                print("等待服务启动...", end='', flush=True)
+                print(t('ollama_waiting'), end='', flush=True)
                 for i in range(10):
                     time.sleep(1)
                     print('.', end='', flush=True)
                     status = check_ollama_status()
                     if status['running']:
-                        print("\n✅ Ollama服务已启动！")
+                        print("\n" + t('ollama_started'))
                         return
                 
-                print("\n⚠️  服务启动超时，请手动启动: ollama serve")
+                print("\n" + t('ollama_timeout'))
                 
             except FileNotFoundError:
-                print("\n❌ 未找到Ollama命令，请确认已安装Ollama")
-                print("下载地址: https://ollama.com/download")
+                print("\n" + t('ollama_not_found'))
+                print(t('ollama_download'))
             except Exception as e:
-                print(f"\n❌ 启动失败: {e}")
+                print(f"\n" + t('ollama_start_failed', error=str(e)))
     
     def _install_ollama_model(self, model_name: str):
         """安装Ollama模型"""
         import subprocess
         
-        print(f"\n📥 正在安装模型 {model_name}...")
-        print("这可能需要几分钟，取决于您的网络速度...\n")
+        print("\n" + t('model_installing', model=model_name))
+        print(t('model_install_wait') + "\n")
         
         try:
             # 实时显示下载进度
@@ -313,15 +336,15 @@ class AIWorldTracker:
             process.wait()
             
             if process.returncode == 0:
-                print(f"\n✅ 模型 {model_name} 安装成功！")
+                print("\n" + t('model_installed', model=model_name))
                 self.llm_model = model_name
             else:
-                print(f"\n❌ 模型安装失败 (返回码: {process.returncode})")
+                print("\n" + t('model_install_failed', code=process.returncode))
                 
         except FileNotFoundError:
-            print("\n❌ 未找到Ollama命令，请确认已安装Ollama")
+            print("\n" + t('ollama_not_found'))
         except Exception as e:
-            print(f"\n❌ 安装失败: {e}")
+            print("\n" + t('model_install_error', error=str(e)))
     
     def _load_latest_data(self):
         """尝试加载最新的数据文件"""
@@ -331,7 +354,7 @@ class AIWorldTracker:
                 return
             
             latest_file = max(files)
-            print(f"📥 发现历史数据，正在加载: {latest_file}...")
+            print(t('loading_history', file=latest_file))
             
             with open(latest_file, 'r', encoding='utf-8') as f:
                 saved_data = json.load(f)
@@ -351,9 +374,9 @@ class AIWorldTracker:
                 # 验证文件是否存在
                 self.chart_files = {k: v for k, v in self.chart_files.items() if os.path.exists(v)}
             
-            print(f"✅ 已加载 {len(self.data)} 条历史数据")
+            print(t('history_loaded', count=len(self.data)))
         except Exception as e:
-            print(f"⚠️ 加载历史数据失败: {e}")
+            print(t('history_load_failed', error=str(e)))
     
     def run_full_pipeline(self):
         """运行完整数据处理流程"""
@@ -361,11 +384,11 @@ class AIWorldTracker:
         start_time = time.time()
         timing_stats = {}  # 收集耗时统计
         
-        print("🚀 启动完整数据处理流程...\n")
+        print(t('start_pipeline'))
         
         # 步骤1: 数据采集
         step_start = time.time()
-        print("【步骤 1/5】数据采集")
+        print(t('step_collect'))
         raw_data = self.collector.collect_all()
         
         # 合并所有数据
@@ -374,30 +397,30 @@ class AIWorldTracker:
             all_items.extend(items)
         
         timing_stats['data_collection'] = round(time.time() - step_start, 1)
-        print(f"\n📦 共采集 {len(all_items)} 条原始数据\n")
+        print(f"\n{t('collected_items', count=len(all_items))}\n")
         
         # 步骤2: 内容分类（根据当前模式选择分类器）
         step_start = time.time()
-        print("【步骤 2/5】内容分类")
+        print(t('step_classify'))
         self.data = self._classify_data(all_items)
         timing_stats['classification'] = round(time.time() - step_start, 1)
-        print(f"⏱️ 分类总耗时: {timing_stats['classification']} 秒")
+        print(t('classification_time', time=timing_stats['classification']))
         
         # 步骤3: 智能分析
         step_start = time.time()
-        print("\n【步骤 3/5】智能分析")
+        print(f"\n{t('step_analyze')}")
         self.trends = self.analyzer.analyze_trends(self.data)
         timing_stats['analysis'] = round(time.time() - step_start, 1)
         
         # 步骤4: 数据可视化
         step_start = time.time()
-        print("\n【步骤 4/5】数据可视化")
+        print(f"\n{t('step_visualize')}")
         self.chart_files = self.visualizer.visualize_all(self.trends)
         timing_stats['visualization'] = round(time.time() - step_start, 1)
         
         # 步骤5: 生成Web页面
         step_start = time.time()
-        print("\n【步骤 5/5】生成Web页面")
+        print(f"\n{t('step_web')}")
         web_file = self.web_publisher.generate_html_page(self.data, self.trends, self.chart_files)
         timing_stats['web_generation'] = round(time.time() - step_start, 1)
         
@@ -411,12 +434,12 @@ class AIWorldTracker:
         self._save_results(report, web_file, timing_stats)
         
         print("\n" + "="*60)
-        print("✨ 处理完成！")
+        print(t('process_complete'))
         print("="*60)
-        print(f"\n📊 已生成 {len([f for f in self.chart_files.values() if f])} 个可视化图表")
-        print(f"📄 分析报告已保存")
-        print(f"💾 数据已保存到 JSON 文件")
-        print(f"🌐 Web页面已生成\n")
+        print(f"\n{t('charts_generated', count=len([f for f in self.chart_files.values() if f]))}")
+        print(t('report_saved'))
+        print(t('data_saved'))
+        print(t('web_generated') + "\n")
         
         return report
     
@@ -427,18 +450,18 @@ class AIWorldTracker:
             mode_str = self._get_mode_display()
             
             print("\n" + "="*60)
-            print("📋 主菜单")
-            print(f"   当前分类模式: {mode_str}")
+            print(t('menu_title'))
+            print(f"   {t('menu_current_mode')}: {mode_str}")
             print("="*60)
-            print("1. 🚀 自动更新数据与报告 (Auto Update & Generate)")
-            print("2. 🌐 生成并打开 Web 页面 (Generate & Open Web Page)")
-            print("3. 📝 人工审核分类 (Manual Review)")
-            print("4. 🎓 学习反馈分析 (Learning Feedback)")
-            print("5. ⚙️  切换分类模式 (Switch Classification Mode)")
-            print("0. 退出程序")
+            print(t('menu_option_1'))
+            print(t('menu_option_2'))
+            print(t('menu_option_3'))
+            print(t('menu_option_4'))
+            print(t('menu_option_5'))
+            print(t('menu_option_0'))
             print("="*60)
             
-            choice = input("\n请选择功能 (0-5): ").strip()
+            choice = input(f"\n{t('menu_choice')}: ").strip()
             
             if choice == '1':
                 self.run_full_pipeline()
@@ -451,42 +474,49 @@ class AIWorldTracker:
             elif choice == '5':
                 self._switch_classification_mode()
             elif choice == '0':
-                print("\n👋 感谢使用 AI World Tracker！再见！\n")
+                print(f"\n{t('menu_goodbye')}\n")
                 break
             else:
-                print("\n❌ 无效选择，请重试")
+                print(f"\n{t('menu_invalid')}")
     
     def _get_mode_display(self) -> str:
         """获取当前模式的显示字符串"""
         if self.classification_mode == 'llm':
+            if get_language() == 'en':
+                return f"🤖 LLM Mode ({self.llm_provider}/{self.llm_model})"
             return f"🤖 LLM模式 ({self.llm_provider}/{self.llm_model})"
         else:
+            if get_language() == 'en':
+                return "📝 Rule Mode (Rule-based)"
             return "📝 规则模式 (Rule-based)"
     
     def _switch_classification_mode(self):
         """切换分类模式"""
         print("\n" + "="*60)
-        print("⚙️  切换分类模式")
+        print(t('switch_mode_title'))
         print("="*60)
         
-        print(f"\n当前模式: {self._get_mode_display()}")
-        print("\n可用模式:")
-        print("  1. 📝 规则模式 (Rule-based) - 快速、免费、无需网络")
+        print(f"\n{t('current_mode')}: {self._get_mode_display()}")
+        print(f"\n{t('available_modes')}:")
+        print(f"  1. {t('mode_rule_desc')}")
         
         if LLM_AVAILABLE:
-            print("  2. 🤖 LLM模式 (Ollama本地) - 高精度、语义理解")
-            print("  3. 🤖 LLM模式 (OpenAI) - 最高精度、需要API密钥")
-            print("  4. 🤖 LLM模式 (Anthropic) - 高精度、需要API密钥")
+            print(f"  2. {t('mode_ollama_desc')}")
+            print(f"  3. {t('mode_openai_desc')}")
+            print(f"  4. {t('mode_anthropic_desc')}")
+            print(f"  5. {t('clear_llm_cache')}")
         else:
-            print("  ⚠️  LLM模式不可用 (未安装llm_classifier模块)")
+            print(f"  {t('llm_not_available')}")
         
-        choice = input("\n请选择模式 (1-4): ").strip()
+        print(f"  6. {t('clear_collection_cache')}")
+        
+        choice = input(f"\n{t('select_model')} (1-6): ").strip()
         
         if choice == '1':
             self.classification_mode = 'rule'
             self.llm_classifier = None
             self._save_user_config()
-            print("\n✅ 已切换到规则模式")
+            print(f"\n{t('switched_to_rule')}")
         
         elif choice == '2' and LLM_AVAILABLE:
             self._setup_ollama_mode()
@@ -497,32 +527,43 @@ class AIWorldTracker:
         elif choice == '4' and LLM_AVAILABLE:
             self._setup_anthropic_mode()
         
+        elif choice == '5' and LLM_AVAILABLE:
+            self._force_clear_llm_cache()
+            # 重新加载LLM分类器（如果当前是LLM模式）
+            if self.llm_classifier:
+                print(t('reinit_llm_classifier'))
+                self._try_restore_llm_classifier(clear_cache=False)  # 不需要再清除，已经清除了
+        
+        elif choice == '6':
+            self.collector.clear_history_cache()
+        
         else:
-            print("\n❌ 无效选择")
+            print(f"\n{t('invalid_choice')}")
     
     def _setup_ollama_mode(self):
         """设置Ollama模式"""
         status = check_ollama_status()
         
         if not status['running']:
-            print("\n⚠️ Ollama服务未运行！")
+            print("\n" + t('ollama_not_running'))
             self._offer_ollama_startup_help_in_menu()
             
             # 重新检查状态
             status = check_ollama_status()
             if not status['running']:
-                print("\n❌ 无法连接到Ollama服务，请手动启动后重试")
+                print("\n" + t('ollama_cannot_connect'))
                 return
         
-        print(f"\n✅ Ollama服务运行中")
-        print(f"\n可用的本地模型:")
+        print(f"\n" + t('ollama_running'))
+        print(f"\n{t('available_models')}:")
         
         models = status['models']
         if not models:
-            print("  ⚠️ 未找到已安装的模型")
-            print("  请先安装模型: ollama pull qwen3:8b")
+            print("  " + t('no_models'))
+            print("  " + t('install_model_hint'))
             
-            choice = input("\n是否现在安装推荐模型 qwen3:8b? (y/n) [n]: ").strip().lower()
+            prompt = "\nInstall recommended model qwen3:8b now? (y/n) [n]: " if get_language() == 'en' else "\n是否现在安装推荐模型 qwen3:8b? (y/n) [n]: "
+            choice = input(prompt).strip().lower()
             if choice == 'y':
                 self._install_ollama_model('qwen3:8b')
                 # 重新获取模型列表
@@ -530,15 +571,17 @@ class AIWorldTracker:
                 models = status['models']
             
             if not models:
-                print("\n❌ 没有可用的模型，无法切换到LLM模式")
+                print("\n" + t('no_available_models'))
                 return
         
         # 显示可用模型
+        recommended_label = " ⭐ " + ("recommended" if get_language() == 'en' else "推荐")
         for i, model in enumerate(models, 1):
-            recommended = " ⭐ 推荐" if model == status['recommended'] else ""
+            recommended = recommended_label if model == status['recommended'] else ""
             print(f"  {i}. {model}{recommended}")
         
-        model_choice = input(f"\n请选择模型 (1-{len(models)}) [默认: 1]: ").strip() or '1'
+        prompt = f"\n{t('select_model')} (1-{len(models)}) [" + ("default: 1" if get_language() == 'en' else "默认: 1") + "]: "
+        model_choice = input(prompt).strip() or '1'
         
         try:
             idx = int(model_choice) - 1
@@ -560,15 +603,16 @@ class AIWorldTracker:
                 batch_size=5    # 启用批量分类
             )
             self._save_user_config()
-            print(f"\n✅ 已切换到LLM模式: Ollama/{selected_model}")
+            print(f"\n" + t('switched_to_llm', provider='Ollama', model=selected_model))
             
             # 预热模型
-            warmup = input("\n是否现在预热模型? (Y/n): ").strip().lower()
+            warmup_prompt = "\nWarm up the model now? (Y/n): " if get_language() == 'en' else "\n是否现在预热模型? (Y/n): "
+            warmup = input(warmup_prompt).strip().lower()
             if warmup != 'n':
                 self.llm_classifier.warmup_model()
                 
         except Exception as e:
-            print(f"\n❌ 初始化LLM分类器失败: {e}")
+            print(f"\n" + t('llm_init_failed', error=str(e)))
             self.classification_mode = 'rule'
             self._save_user_config()
     
@@ -577,18 +621,20 @@ class AIWorldTracker:
         api_key = os.getenv('OPENAI_API_KEY')
         
         if not api_key:
-            print("\n⚠️ 未设置 OPENAI_API_KEY 环境变量")
-            api_key = input("请输入OpenAI API密钥 (或按Enter取消): ").strip()
+            print("\n" + t('api_key_missing', key='OPENAI_API_KEY'))
+            prompt = "Enter OpenAI API key (or press Enter to cancel): " if get_language() == 'en' else "请输入OpenAI API密钥 (或按Enter取消): "
+            api_key = input(prompt).strip()
             if not api_key:
                 return
         
-        print("\n可用的OpenAI模型:")
+        print("\n" + t('available_openai_models'))
         models = list(AVAILABLE_MODELS[LLMProvider.OPENAI].keys())
         for i, model in enumerate(models, 1):
             info = AVAILABLE_MODELS[LLMProvider.OPENAI][model]
             print(f"  {i}. {info['name']} - {info['description']}")
         
-        model_choice = input(f"\n请选择模型 (1-{len(models)}) [默认: 1]: ").strip() or '1'
+        prompt = f"\n{t('select_model')} (1-{len(models)}) [" + ("default: 1" if get_language() == 'en' else "默认: 1") + "]: "
+        model_choice = input(prompt).strip() or '1'
         
         try:
             idx = int(model_choice) - 1
@@ -609,9 +655,9 @@ class AIWorldTracker:
                 max_workers=3
             )
             self._save_user_config()
-            print(f"\n✅ 已切换到LLM模式: OpenAI/{selected_model}")
+            print(f"\n" + t('switched_to_llm', provider='OpenAI', model=selected_model))
         except Exception as e:
-            print(f"\n❌ 初始化LLM分类器失败: {e}")
+            print(f"\n" + t('llm_init_failed', error=str(e)))
             self.classification_mode = 'rule'
             self._save_user_config()
     
@@ -620,18 +666,20 @@ class AIWorldTracker:
         api_key = os.getenv('ANTHROPIC_API_KEY')
         
         if not api_key:
-            print("\n⚠️ 未设置 ANTHROPIC_API_KEY 环境变量")
-            api_key = input("请输入Anthropic API密钥 (或按Enter取消): ").strip()
+            print("\n" + t('api_key_missing', key='ANTHROPIC_API_KEY'))
+            prompt = "Enter Anthropic API key (or press Enter to cancel): " if get_language() == 'en' else "请输入Anthropic API密钥 (或按Enter取消): "
+            api_key = input(prompt).strip()
             if not api_key:
                 return
         
-        print("\n可用的Anthropic模型:")
+        print("\n" + t('available_anthropic_models'))
         models = list(AVAILABLE_MODELS[LLMProvider.ANTHROPIC].keys())
         for i, model in enumerate(models, 1):
             info = AVAILABLE_MODELS[LLMProvider.ANTHROPIC][model]
             print(f"  {i}. {info['name']} - {info['description']}")
         
-        model_choice = input(f"\n请选择模型 (1-{len(models)}) [默认: 1]: ").strip() or '1'
+        prompt = f"\n{t('select_model')} (1-{len(models)}) [" + ("default: 1" if get_language() == 'en' else "默认: 1") + "]: "
+        model_choice = input(prompt).strip() or '1'
         
         try:
             idx = int(model_choice) - 1
@@ -652,24 +700,24 @@ class AIWorldTracker:
                 max_workers=3
             )
             self._save_user_config()
-            print(f"\n✅ 已切换到LLM模式: Anthropic/{selected_model}")
+            print(f"\n" + t('switched_to_llm', provider='Anthropic', model=selected_model))
         except Exception as e:
-            print(f"\n❌ 初始化LLM分类器失败: {e}")
+            print(f"\n" + t('llm_init_failed', error=str(e)))
             self.classification_mode = 'rule'
             self._save_user_config()
     
     def _classify_data(self, items: list) -> list:
         """根据当前模式分类数据"""
         if self.classification_mode == 'llm' and self.llm_classifier:
-            print(f"\n🤖 使用LLM分类 ({self.llm_provider}/{self.llm_model})")
+            print(f"\n" + t('using_llm', provider=self.llm_provider, model=self.llm_model))
             return self.llm_classifier.classify_batch(items)
         else:
-            print("\n📝 使用规则分类")
+            print("\n" + t('using_rule'))
             return self.classifier.classify_batch(items)
     
     def _collect_only(self):
         """仅采集数据"""
-        print("\n🔄 开始数据采集...\n")
+        print("\n" + t('collecting') + "\n")
         raw_data = self.collector.collect_all()
         
         all_items = []
@@ -677,16 +725,16 @@ class AIWorldTracker:
             all_items.extend(items)
         
         self.data = self.classifier.classify_batch(all_items)
-        print(f"\n✅ 采集并分类完成！共 {len(self.data)} 条数据")
+        print(f"\n" + t('collect_done', count=len(self.data)))
     
     def _show_statistics(self):
         """显示数据统计"""
         if not self.data:
-            print("\n⚠️ 暂无数据，请先运行数据采集")
+            print("\n" + t('no_data'))
             return
         
-        print("\n📊 数据统计概览:")
-        print(f"   总数据量: {len(self.data)} 条")
+        print("\n" + t('stats_overview'))
+        print("   " + t('stats_total', count=len(self.data)))
         
         # 内容类型统计
         type_count = {}
@@ -694,9 +742,9 @@ class AIWorldTracker:
             ct = item.get('content_type', 'unknown')
             type_count[ct] = type_count.get(ct, 0) + 1
         
-        print("\n   内容类型:")
+        print("\n   " + t('stats_by_type'))
         for ctype, count in type_count.items():
-            print(f"   - {ctype}: {count} 条")
+            print("   " + t('stats_item', name=ctype, count=count))
         
         # 地区统计
         region_count = {}
@@ -704,31 +752,31 @@ class AIWorldTracker:
             region = item.get('region', 'unknown')
             region_count[region] = region_count.get(region, 0) + 1
         
-        print("\n   地区分布:")
+        print("\n   " + t('stats_by_region'))
         for region, count in region_count.items():
-            print(f"   - {region}: {count} 条")
+            print("   " + t('stats_item', name=region, count=count))
     
     def _generate_visualizations(self):
         """生成可视化图表"""
         if not self.data:
-            print("\n⚠️ 暂无数据，请先运行数据采集")
+            print("\n" + t('no_data'))
             return
         
         if not self.trends:
-            print("\n🔄 正在分析数据...")
+            print("\n" + t('analyzing'))
             self.trends = self.analyzer.analyze_trends(self.data)
         
-        print("\n🎨 正在生成可视化图表...")
+        print("\n" + t('generating_charts'))
         self.chart_files = self.visualizer.visualize_all(self.trends)
     
     def _show_report(self):
         """显示分析报告"""
         if not self.data:
-            print("\n⚠️ 暂无数据，请先运行数据采集")
+            print("\n" + t('no_data'))
             return
         
         if not self.trends:
-            print("\n🔄 正在生成分析...")
+            print("\n" + t('generating_analysis'))
             self.trends = self.analyzer.analyze_trends(self.data)
         
         report = self.analyzer.generate_report(self.data, self.trends)
@@ -737,111 +785,123 @@ class AIWorldTracker:
     def _filter_data(self):
         """按条件筛选数据"""
         if not self.data:
-            print("\n⚠️ 暂无数据，请先运行数据采集")
+            print("\n" + t('no_data'))
             return
         
-        print("\n🔍 数据筛选:")
-        print("1. 按内容类型 (research/product/market)")
-        print("2. 按地区 (China/USA/Europe/Global)")
-        print("3. 按技术领域")
+        print("\n" + t('filter_title'))
+        print(t('filter_by_type'))
+        print(t('filter_by_region'))
+        print(t('filter_by_tech'))
         
-        filter_choice = input("\n选择筛选方式 (1-3): ").strip()
+        filter_prompt = "\nSelect filter method (1-3): " if get_language() == 'en' else "\n选择筛选方式 (1-3): "
+        filter_choice = input(filter_prompt).strip()
         
         if filter_choice == '1':
-            ctype = input("输入内容类型 (research/product/market): ").strip()
+            ctype_prompt = "Enter content type (research/product/market): " if get_language() == 'en' else "输入内容类型 (research/product/market): "
+            ctype = input(ctype_prompt).strip()
             filtered = self.classifier.get_filtered_items(self.data, content_type=ctype)
         elif filter_choice == '2':
-            region = input("输入地区 (China/USA/Europe/Global): ").strip()
+            region_prompt = "Enter region (China/USA/Europe/Global): " if get_language() == 'en' else "输入地区 (China/USA/Europe/Global): "
+            region = input(region_prompt).strip()
             filtered = self.classifier.get_filtered_items(self.data, region=region)
         elif filter_choice == '3':
-            tech = input("输入技术领域 (如: NLP, Computer Vision): ").strip()
+            tech_prompt = "Enter tech field (e.g., NLP, Computer Vision): " if get_language() == 'en' else "输入技术领域 (如: NLP, Computer Vision): "
+            tech = input(tech_prompt).strip()
             filtered = self.classifier.get_filtered_items(self.data, tech_category=tech)
         else:
-            print("❌ 无效选择")
+            print(t('invalid_choice'))
             return
         
-        print(f"\n✅ 筛选结果: {len(filtered)} 条数据\n")
+        print(f"\n" + t('filter_result', count=len(filtered)) + "\n")
         
         # 显示前5条
         for i, item in enumerate(filtered[:5], 1):
             print(f"{i}. {item.get('title', 'No title')}")
-            print(f"   类型: {item.get('content_type')} | 地区: {item.get('region')}")
-            print(f"   来源: {item.get('source')} | 日期: {item.get('published', 'N/A')}\n")
+            type_label = "Type" if get_language() == 'en' else "类型"
+            region_label = "Region" if get_language() == 'en' else "地区"
+            source_label = "Source" if get_language() == 'en' else "来源"
+            date_label = "Date" if get_language() == 'en' else "日期"
+            print(f"   {type_label}: {item.get('content_type')} | {region_label}: {item.get('region')}")
+            print(f"   {source_label}: {item.get('source')} | {date_label}: {item.get('published', 'N/A')}\n")
         
         if len(filtered) > 5:
-            print(f"   ... 还有 {len(filtered) - 5} 条结果")
+            print("   " + t('filter_more', count=len(filtered) - 5))
     
     def _generate_web_page(self):
         """生成Web页面"""
         if not self.data:
-            print("\n⚠️ 暂无数据，请先运行数据采集")
+            print("\n" + t('no_data'))
             return
         
         if not self.trends:
-            print("\n🔄 正在生成分析...")
+            print("\n" + t('generating_analysis'))
             self.trends = self.analyzer.analyze_trends(self.data)
         
         if not self.chart_files:
-            print("\n🎨 正在生成图表...")
+            print("\n" + t('generating_charts'))
             self.chart_files = self.visualizer.visualize_all(self.trends)
         
-        print("\n🌐 正在生成Web页面...")
+        print("\n" + t('generating_web'))
         web_file = self.web_publisher.generate_html_page(self.data, self.trends, self.chart_files)
         
         # 询问是否在浏览器中打开
         try:
             import webbrowser
-            choice = input("\n是否在浏览器中打开Web页面? (Y/N): ").strip().lower()
+            prompt = "\nOpen web page in browser? (Y/N): " if get_language() == 'en' else "\n是否在浏览器中打开Web页面? (Y/N): "
+            choice = input(prompt).strip().lower()
             if choice in ['y', 'yes', '是']:
                 webbrowser.open(f'file://{os.path.abspath(web_file)}')
-                print("🚀 已在浏览器中打开Web页面")
+                print(t('opened_browser'))
         except Exception as e:
-            print(f"⚠️ 无法自动打开浏览器: {e}")
-            print(f"请手动打开文件: {os.path.abspath(web_file)}")
+            print(t('browser_error', error=str(e)))
+            print(t('manual_open', file=os.path.abspath(web_file)))
     
     def _manual_review(self):
         """人工审核分类"""
         if not self.data:
-            print("\n⚠️ 暂无数据，请先运行数据采集")
+            print("\n" + t('no_data'))
             return
         
         print("\n" + "="*60)
-        print("📝 人工审核模式")
+        print(t('manual_review_title'))
         print("="*60)
         
         # 检查需要审核的内容
         review_items = self.reviewer.get_items_for_review(self.data, min_confidence=0.6)
         
-        print(f"\n📊 数据统计:")
-        print(f"   总内容数: {len(self.data)} 条")
-        print(f"   需要审核: {len(review_items)} 条 ({len(review_items)/len(self.data):.1%})")
+        print(f"\n" + t('review_stats'))
+        print("   " + t('review_total', count=len(self.data)))
+        print("   " + t('review_need', count=len(review_items), percent=f"{len(review_items)/len(self.data):.1%}"))
         
         if not review_items:
-            print("\n✅ 所有内容分类置信度都很高，无需审核！")
+            print("\n" + t('review_not_needed'))
             return
         
         # 显示需要审核的内容概览
-        print("\n需要审核的内容:")
+        print("\n" + t('review_list'))
+        conf_label = "confidence" if get_language() == 'en' else "置信度"
         for i, item in enumerate(review_items[:5], 1):
-            print(f"   {i}. {item.get('title', 'N/A')[:50]}... (置信度: {item.get('confidence', 0):.1%})")
+            print(f"   {i}. {item.get('title', 'N/A')[:50]}... ({conf_label}: {item.get('confidence', 0):.1%})")
         
         if len(review_items) > 5:
-            print(f"   ... 还有 {len(review_items)-5} 条")
+            print("   " + t('review_more', count=len(review_items)-5))
         
-        print("\n审核选项:")
-        print("   1. 批量审核所有低置信度内容")
-        print("   2. 设置自定义置信度阈值")
-        print("   3. 仅查看需要审核的内容列表")
-        print("   0. 返回主菜单")
+        print("\n" + t('review_options'))
+        print("   " + t('review_opt_1'))
+        print("   " + t('review_opt_2'))
+        print("   " + t('review_opt_3'))
+        print("   " + t('review_opt_0'))
         
-        choice = input("\n请选择 (0-3): ").strip()
+        choice_prompt = "\nPlease select (0-3): " if get_language() == 'en' else "\n请选择 (0-3): "
+        choice = input(choice_prompt).strip()
         
         if choice == '1':
             # 批量审核
             self.data = self.reviewer.batch_review(self.data, min_confidence=0.6)
             
             # 保存审核后的数据
-            save = input("\n是否保存审核后的数据? (Y/N): ").strip().lower()
+            save_prompt = "\nSave reviewed data? (Y/N): " if get_language() == 'en' else "\n是否保存审核后的数据? (Y/N): "
+            save = input(save_prompt).strip().lower()
             if save == 'y':
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                 filename = f'ai_tracker_data_reviewed_{timestamp}.json'
@@ -855,67 +915,72 @@ class AIWorldTracker:
                         'data': self.data,
                         'trends': self.trends
                     }, f, ensure_ascii=False, indent=2)
-                print(f"✅ 已保存到: {filename}")
+                print(t('review_saved', file=filename))
             
             # 保存审核历史
             self.reviewer.save_review_history()
             
             # 显示审核摘要
             summary = self.reviewer.get_review_summary()
-            print(f"\n📊 审核摘要:")
-            print(f"   总审核数: {summary['total']} 条")
+            print(f"\n" + t('review_summary'))
+            print("   " + t('review_summary_total', count=summary['total']))
             for action, count in summary['actions'].items():
-                print(f"   - {action}: {count} 次")
+                print(f"   - {action}: {count}")
             
             # 询问是否重新生成分析和Web页面
             print("\n" + "="*60)
-            regenerate = input("\n是否基于审核后的数据重新生成报告和Web页面? (Y/N): ").strip().lower()
+            regen_prompt = "\nRegenerate report and web page based on reviewed data? (Y/N): " if get_language() == 'en' else "\n是否基于审核后的数据重新生成报告和Web页面? (Y/N): "
+            regenerate = input(regen_prompt).strip().lower()
             if regenerate == 'y':
                 self._regenerate_after_review()
         
         elif choice == '2':
             # 自定义阈值
             try:
-                threshold = float(input("\n请输入置信度阈值 (0.0-1.0, 如 0.7): ").strip())
+                threshold_prompt = "\nEnter confidence threshold (0.0-1.0, e.g., 0.7): " if get_language() == 'en' else "\n请输入置信度阈值 (0.0-1.0, 如 0.7): "
+                threshold = float(input(threshold_prompt).strip())
                 if 0 <= threshold <= 1:
                     self.data = self.reviewer.batch_review(self.data, min_confidence=threshold)
                 else:
-                    print("❌ 阈值必须在 0.0-1.0 之间")
+                    print(t('review_threshold_error'))
             except ValueError:
-                print("❌ 无效输入")
+                print(t('review_input_error'))
         
         elif choice == '3':
             # 仅查看列表
             print("\n" + "="*70)
-            print("需要审核的内容列表:")
+            print(t('review_list_title'))
             print("="*70)
+            cat_label = "Category" if get_language() == 'en' else "分类"
+            conf_label = "Confidence" if get_language() == 'en' else "置信度"
+            source_label = "Source" if get_language() == 'en' else "来源"
             for i, item in enumerate(review_items, 1):
                 print(f"\n[{i}] {item.get('title', 'N/A')}")
-                print(f"    分类: {item.get('content_type')} | 置信度: {item.get('confidence', 0):.1%}")
-                print(f"    来源: {item.get('source', 'N/A')}")
+                print(f"    {cat_label}: {item.get('content_type')} | {conf_label}: {item.get('confidence', 0):.1%}")
+                print(f"    {source_label}: {item.get('source', 'N/A')}")
         
         elif choice == '0':
             return
         else:
-            print("❌ 无效选择")
+            print(t('invalid_choice'))
     
     def _regenerate_after_review(self):
         """审核后重新生成分析和Web页面"""
         print("\n" + "="*60)
-        print("🔄 重新生成报告和可视化")
+        print(t('regenerate_title'))
         print("="*60)
         
         try:
             # 步骤1: 重新分析
-            print("\n【1/3】重新分析趋势...")
+            print("\n" + t('regenerate_step1'))
             self.trends = self.analyzer.analyze_trends(self.data)
             
             # 步骤2: 重新生成图表
-            print("【2/3】重新生成图表...")
+            print(t('regenerate_step2'))
             self.chart_files = self.visualizer.visualize_all(self.trends)
             
             # 步骤3: 重新生成Web页面
-            print("【3/3】重新生成Web页面...")
+            print(t('regenerate_step3'))
             web_file = self.web_publisher.generate_html_page(self.data, self.trends, self.chart_files)
             
             # 生成报告
@@ -939,25 +1004,26 @@ class AIWorldTracker:
             with open(report_file, 'w', encoding='utf-8') as f:
                 f.write(report)
             
-            print("\n✅ 重新生成完成！")
-            print(f"   数据文件: {data_file}")
-            print(f"   报告文件: {report_file}")
-            print(f"   Web页面: {web_file}")
+            print("\n" + t('regenerate_done'))
+            print("   " + t('regenerate_data', file=data_file))
+            print("   " + t('regenerate_report', file=report_file))
+            print("   " + t('regenerate_web', file=web_file))
             
             # 询问是否打开
             import webbrowser
-            choice = input("\n是否在浏览器中打开更新后的Web页面? (Y/N): ").strip().lower()
+            open_prompt = "\nOpen updated web page in browser? (Y/N): " if get_language() == 'en' else "\n是否在浏览器中打开更新后的Web页面? (Y/N): "
+            choice = input(open_prompt).strip().lower()
             if choice == 'y':
                 webbrowser.open(f'file://{os.path.abspath(web_file)}')
-                print("🚀 已在浏览器中打开")
+                print(t('regenerate_opened'))
         
         except Exception as e:
-            print(f"\n❌ 重新生成失败: {e}")
+            print("\n" + t('regenerate_failed', error=str(e)))
     
     def _learning_feedback(self):
         """学习反馈分析"""
         print("\n" + "="*60)
-        print("🎓 学习反馈系统")
+        print(t('learning_title'))
         print("="*60)
         
         # 查找审核历史文件和审核后数据文件
@@ -967,37 +1033,38 @@ class AIWorldTracker:
         data_files = sorted(glob.glob('ai_tracker_data_reviewed_*.json'), reverse=True)
         
         if not review_files:
-            print("\n⚠️ 未找到审核历史文件")
-            print("请先完成人工审核（菜单选项5）")
+            print("\n" + t('learning_no_history'))
+            print(t('learning_do_review'))
             return
         
         if not data_files:
-            print("\n⚠️ 未找到审核后的数据文件")
-            print("请先完成人工审核并保存数据")
+            print("\n" + t('learning_no_data'))
+            print(t('learning_do_save'))
             return
         
-        print(f"\n📁 找到审核记录:")
-        print(f"   审核历史: {len(review_files)} 个文件")
-        print(f"   审核数据: {len(data_files)} 个文件")
+        print(f"\n" + t('learning_found'))
+        print("   " + t('learning_history_count', count=len(review_files)))
+        print("   " + t('learning_data_count', count=len(data_files)))
         
         # 显示最近的文件
-        print(f"\n最近的审核:")
+        print(f"\n" + t('learning_recent'))
         for i, (review_file, data_file) in enumerate(zip(review_files[:3], data_files[:3]), 1):
             print(f"   {i}. {review_file}")
         
-        print("\n选项:")
-        print("   1. 分析最近一次审核")
-        print("   2. 选择特定审核文件")
-        print("   0. 返回")
+        print("\n" + t('learning_options'))
+        print("   " + t('learning_opt_1'))
+        print("   " + t('learning_opt_2'))
+        print("   " + t('learning_opt_0'))
         
-        choice = input("\n请选择 (0-2): ").strip()
+        choice_prompt = "\nPlease select (0-2): " if get_language() == 'en' else "\n请选择 (0-2): "
+        choice = input(choice_prompt).strip()
         
         if choice == '1':
             # 分析最近一次
             review_file = review_files[0]
             data_file = data_files[0]
             
-            print(f"\n📊 正在分析: {review_file}")
+            print(f"\n" + t('learning_analyzing', file=review_file))
             
             try:
                 report_file = create_feedback_loop(
@@ -1006,25 +1073,27 @@ class AIWorldTracker:
                     self.classifier
                 )
                 
-                print(f"\n✅ 学习分析完成！")
-                print(f"详细报告已保存到: {report_file}")
+                print(f"\n" + t('learning_done'))
+                print(t('learning_report', file=report_file))
                 
                 # 询问是否查看建议
-                view = input("\n是否查看改进建议? (Y/N): ").strip().lower()
+                view_prompt = "\nView improvement suggestions? (Y/N): " if get_language() == 'en' else "\n是否查看改进建议? (Y/N): "
+                view = input(view_prompt).strip().lower()
                 if view == 'y':
                     self._show_improvement_suggestions(report_file)
                 
             except Exception as e:
-                print(f"\n❌ 分析失败: {e}")
+                print(f"\n" + t('learning_failed', error=str(e)))
         
         elif choice == '2':
             # 选择特定文件
-            print("\n可用的审核历史文件:")
+            print("\n" + t('learning_files'))
             for i, file in enumerate(review_files, 1):
                 print(f"   {i}. {file}")
             
             try:
-                idx = int(input("\n选择文件编号: ").strip()) - 1
+                file_prompt = "\nSelect file number: " if get_language() == 'en' else "\n选择文件编号: "
+                idx = int(input(file_prompt).strip()) - 1
                 if 0 <= idx < len(review_files):
                     review_file = review_files[idx]
                     data_file = data_files[idx] if idx < len(data_files) else data_files[0]
@@ -1035,16 +1104,16 @@ class AIWorldTracker:
                         self.classifier
                     )
                     
-                    print(f"\n✅ 学习分析完成！报告: {report_file}")
+                    print(f"\n" + t('learning_done') + " " + t('learning_report', file=report_file))
                 else:
-                    print("❌ 无效选择")
+                    print(t('invalid_choice'))
             except (ValueError, IndexError) as e:
-                print(f"❌ 输入错误: {e}")
+                print(t('review_input_error') + f": {e}")
         
         elif choice == '0':
             return
         else:
-            print("❌ 无效选择")
+            print(t('invalid_choice'))
     
     def _show_improvement_suggestions(self, report_file: str):
         """显示改进建议"""
@@ -1055,41 +1124,41 @@ class AIWorldTracker:
             suggestions = report.get('improvement_suggestions', [])
             
             if not suggestions:
-                print("\n✅ 当前分类器表现良好，暂无改进建议")
+                print("\n" + t('learning_good'))
                 return
             
             print("\n" + "="*70)
-            print("💡 改进建议详情")
+            print(t('learning_suggestions'))
             print("="*70)
             
             for i, sug in enumerate(suggestions, 1):
-                print(f"\n建议 {i}:")
-                print(f"   类型: {sug.get('type')}")
+                print(f"\n" + t('learning_sug_num', i=i))
+                print("   " + t('learning_sug_type', type=sug.get('type')))
                 
                 if sug.get('category'):
-                    print(f"   分类: {sug.get('category')}")
+                    print("   " + t('learning_sug_cat', cat=sug.get('category')))
                 
                 if sug.get('issue'):
-                    print(f"   问题: {sug.get('issue')}")
+                    print("   " + t('learning_sug_issue', issue=sug.get('issue')))
                 
                 if sug.get('suggestion'):
-                    print(f"   建议: {sug.get('suggestion')}")
+                    print("   " + t('learning_sug_suggestion', suggestion=sug.get('suggestion')))
                 
                 if sug.get('keywords'):
                     keywords_str = ', '.join(sug['keywords'])
-                    print(f"   建议添加关键词: {keywords_str}")
+                    print("   " + t('learning_sug_keywords', keywords=keywords_str))
                 
                 if sug.get('severity'):
-                    print(f"   严重程度: {sug.get('severity')}")
+                    print("   " + t('learning_sug_severity', severity=sug.get('severity')))
             
             print("\n" + "="*70)
-            print("📝 说明:")
-            print("   这些建议基于人工审核结果自动生成")
-            print("   可以手动编辑 content_classifier.py 应用这些改进")
+            print(t('learning_note'))
+            print("   " + t('learning_note_1'))
+            print("   " + t('learning_note_2'))
             print("="*70)
             
         except Exception as e:
-            print(f"❌ 读取报告失败: {e}")
+            print(t('learning_read_error', error=str(e)))
     
     def _save_results(self, report: str, web_file: Optional[str] = None, timing_stats: Optional[Dict] = None):
         """保存结果到文件"""
@@ -1120,43 +1189,48 @@ class AIWorldTracker:
                 'trends': self.trends
             }, f, ensure_ascii=False, indent=2)
         
-        print(f"💾 数据已保存: {data_file}")
+        print(t('data_saved_to', file=data_file))
         
         # 保存文本报告
         report_file = f'ai_tracker_report_{timestamp}.txt'
         with open(report_file, 'w', encoding='utf-8') as f:
             f.write(report)
         
-        print(f"📄 报告已保存: {report_file}")
+        print(t('report_saved_to', file=report_file))
         
         if web_file:
-            print(f"🌐 Web页面已生成: {web_file}")
+            print(t('web_saved_to', file=web_file))
 
 
 def main():
     """主函数"""
     try:
         # 检查是否为自动模式
-        auto_mode = len(sys.argv) > 1 and sys.argv[1] == '--auto'
+        auto_mode = '--auto' in sys.argv
+        
+        # 语言设置：自动模式强制英文，交互模式让用户选择
+        if auto_mode:
+            set_language('en')
+        else:
+            select_language_interactive()
         
         tracker = AIWorldTracker(auto_mode=auto_mode)
         
         # 检查命令行参数
-        if len(sys.argv) > 1:
-            if sys.argv[1] == '--auto':
-                # 自动运行完整流程
-                tracker.run_full_pipeline()
-            elif sys.argv[1] == '--help':
-                print("\nAI World Tracker - 使用说明")
-                print("\n参数:")
-                print("  --auto    自动运行完整流程")
-                print("  --help    显示帮助信息")
-                print("\n无参数:     进入交互式菜单\n")
+        if '--auto' in sys.argv:
+            # 自动运行完整流程
+            tracker.run_full_pipeline()
+        elif '--help' in sys.argv:
+            print(f"\n{t('app_title')} - {t('help_usage')}")
+            print(f"\n{t('help_params')}")
+            print(f"  --auto    {t('help_auto')}")
+            print(f"  --help    {t('help_info')}")
+            print(f"\n{t('help_no_params')}\n")
         else:
             # 交互式菜单
             tracker.show_menu()
     except Exception as e:
-        print(f"\n❌ 程序运行出错: {e}")
+        print(f"\n" + t('program_error', error=str(e)))
         import traceback
         traceback.print_exc()
         sys.exit(1)

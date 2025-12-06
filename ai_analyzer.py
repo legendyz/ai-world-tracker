@@ -8,22 +8,31 @@ from collections import Counter
 from datetime import datetime
 import os
 
+# 导入国际化模块
+try:
+    from i18n import t, get_language
+except ImportError:
+    def t(key, **kwargs): return key
+    def get_language(): return 'zh'
+
 
 class AIAnalyzer:
     """AI内容智能分析器"""
     
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: str = None, verbose: bool = False):
         """
         初始化分析器
         
         Args:
             api_key: OpenAI API密钥（可选）
+            verbose: 是否显示初始化信息
         """
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         self.use_ai = bool(self.api_key)
         
-        if not self.use_ai:
-            print("⚠️ 未提供OpenAI API密钥，将使用规则基础的分析方法")
+        # 只在 verbose 模式下显示提示
+        if verbose and not self.use_ai:
+            print(t('ai_no_api_key'))
     
     def generate_summary(self, item: Dict) -> str:
         """
@@ -63,7 +72,7 @@ class AIAnalyzer:
             return response.choices[0].message.content.strip()
             
         except Exception as e:
-            print(f"⚠️ AI摘要生成失败: {e}，使用规则方法")
+            print(t('ai_summary_failed', error=str(e)))
             return self._generate_rule_based_summary(item)
     
     def _generate_rule_based_summary(self, item: Dict) -> str:
@@ -83,7 +92,7 @@ class AIAnalyzer:
         Returns:
             趋势分析结果
         """
-        print("\n📊 正在分析AI趋势...")
+        print("\n" + t('ai_analyzing'))
         
         # 技术热点统计
         tech_counter = Counter()
@@ -124,20 +133,21 @@ class AIAnalyzer:
     
     def _print_trends(self, trends: Dict):
         """打印趋势分析结果"""
-        print("\n✨ 趋势分析完成！\n")
+        print("\n" + t('ai_analysis_done') + "\n")
         
-        print("🔥 技术热点 TOP 5:")
+        print(t('ai_top_tech'))
         for tech, count in list(trends['tech_hotspots'].items())[:5]:
             bar = '█' * (count * 2)
             print(f"   {tech:20s} {bar} {count}")
         
-        print("\n📈 内容类型分布:")
+        print("\n" + t('ai_content_dist'))
+        item_label = t('ai_items')
         for ctype, count in trends['content_distribution'].items():
-            print(f"   {ctype:15s}: {count} 条")
+            print(f"   {ctype:15s}: {count} {item_label}")
         
-        print("\n🌍 地区分布:")
+        print("\n" + t('ai_region_dist'))
         for region, count in trends['region_distribution'].items():
-            print(f"   {region:15s}: {count} 条")
+            print(f"   {region:15s}: {count} {item_label}")
     
     def get_top_items(self, items: List[Dict], category: str = 'tech_categories', top_n: int = 5) -> List[Dict]:
         """

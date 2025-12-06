@@ -32,6 +32,13 @@ from enum import Enum
 # 导入规则分类器作为备份
 from content_classifier import ContentClassifier
 
+# 导入国际化模块
+try:
+    from i18n import t, get_language
+except ImportError:
+    def t(key, **kwargs): return key
+    def get_language(): return 'zh'
+
 
 # 模型保活时间（秒）
 MODEL_KEEP_ALIVE_SECONDS = 5 * 60  # 5分钟
@@ -177,7 +184,8 @@ class LLMConfig:
 class OllamaOptions:
     """Ollama推理选项 - 根据GPU自适应配置"""
     temperature: float = 0.1
-    num_predict: int = 150  # 减少输出长度，加快响应
+    num_predict: int = 200  # 单条分类输出长度
+    num_predict_batch: int = 500  # 批量分类输出长度（每条约80 tokens）
     num_ctx: int = 2048
     num_thread: int = 4
     num_gpu: int = 0  # 0表示自动，-1表示禁用GPU
@@ -191,13 +199,15 @@ class OllamaOptions:
             # GPU加速配置 - 优化速度
             options.num_gpu = 999  # 使用所有GPU层
             options.num_ctx = 4096  # GPU可以处理更大上下文（支持批量）
-            options.num_predict = 150  # 减少输出，加快速度
+            options.num_predict = 200  # 单条分类
+            options.num_predict_batch = 600  # 批量分类（5条*80tokens+余量）
             options.num_thread = 4  # GPU模式下CPU线程不需要太多
         else:
-            # CPU模式优化配置 - 牺牲质量换速度
+            # CPU模式优化配置
             options.num_gpu = 0  # 禁用GPU
-            options.num_ctx = 1024  # 减少上下文以提升速度
-            options.num_predict = 100  # CPU模式更短输出
+            options.num_ctx = 2048  # 增加上下文以支持批量
+            options.num_predict = 150  # 单条分类
+            options.num_predict_batch = 500  # 批量分类
             # 根据CPU核心数设置线程
             try:
                 import multiprocessing
@@ -287,7 +297,8 @@ class LLMClassifier:
             'cache_hits': 0,
             'llm_calls': 0,
             'fallback_calls': 0,
-            'errors': 0
+            'errors': 0,
+            'fallback_details': []  # 记录每条降级的详细信息
         }
         
         # 验证配置
@@ -302,20 +313,22 @@ class LLMClassifier:
     
     def _print_init_info(self):
         """打印初始化信息"""
-        print(f"🤖 LLM分类器初始化完成")
-        print(f"   提供商: {self.provider.value}")
-        print(f"   模型: {self.model}")
-        print(f"   缓存: {'启用' if self.enable_cache else '禁用'}")
+        print(t('llm_init_done'))
+        print(t('llm_provider', provider=self.provider.value))
+        print(t('llm_model_name', model=self.model))
+        cache_status = t('llm_cache_enabled') if self.enable_cache else t('llm_cache_disabled')
+        print(t('llm_cache_status', status=cache_status))
         
         if self.gpu_info:
             if self.gpu_info.ollama_gpu_supported:
-                print(f"   🚀 GPU加速: 启用 ({self.gpu_info.gpu_name})")
+                print(t('llm_gpu_enabled', gpu_name=self.gpu_info.gpu_name))
                 if self.gpu_info.vram_mb:
-                    print(f"   显存: {self.gpu_info.vram_mb} MB")
+                    print(t('llm_vram', vram=self.gpu_info.vram_mb))
             else:
-                print(f"   💻 运行模式: CPU ({self.gpu_info.gpu_name or '未检测到GPU'})")
+                gpu_name = self.gpu_info.gpu_name or t('llm_no_gpu_detected')
+                print(t('llm_cpu_mode', gpu_name=gpu_name))
                 if self.ollama_options:
-                    print(f"   CPU线程: {self.ollama_options.num_thread}")
+                    print(t('llm_cpu_threads', threads=self.ollama_options.num_thread))
     
     def get_gpu_info(self) -> Optional[GPUInfo]:
         """获取GPU信息"""
@@ -334,10 +347,10 @@ class LLMClassifier:
             return True
         
         if self.is_warmed_up:
-            print("   ✓ 模型已预热")
+            print(t('llm_model_warmed'))
             return True
         
-        print(f"🔥 正在预热模型 {self.model}...")
+        print(t('llm_warming_model', model=self.model))
         start_time = time.time()
         
         try:
@@ -363,15 +376,15 @@ class LLMClassifier:
             if response.status_code == 200:
                 elapsed = time.time() - start_time
                 self.is_warmed_up = True
-                print(f"   ✅ 模型预热完成 (耗时 {elapsed:.1f}s)")
-                print(f"   ⏰ 模型将保持活跃 {MODEL_KEEP_ALIVE_SECONDS // 60} 分钟")
+                print(t('llm_warmup_done', time=f'{elapsed:.1f}'))
+                print(t('llm_keep_alive', minutes=MODEL_KEEP_ALIVE_SECONDS // 60))
                 return True
             else:
-                print(f"   ⚠️ 模型预热失败: HTTP {response.status_code}")
+                print(t('llm_warmup_failed_http', code=response.status_code))
                 return False
                 
         except Exception as e:
-            print(f"   ⚠️ 模型预热失败: {e}")
+            print(t('llm_warmup_failed', error=str(e)))
             return False
     
     def set_keep_alive(self, seconds: int = MODEL_KEEP_ALIVE_SECONDS):
@@ -401,10 +414,10 @@ class LLMClassifier:
             )
             
             if response.status_code == 200:
-                print(f"   ⏰ 模型保活时间已设置为 {seconds // 60} 分钟")
+                print(t('llm_keepalive_set', minutes=seconds // 60))
                 
         except Exception as e:
-            print(f"   ⚠️ 设置保活失败: {e}")
+            print(t('llm_keepalive_failed', error=str(e)))
     
     def unload_model(self):
         """立即卸载模型（释放显存/内存）"""
@@ -427,10 +440,10 @@ class LLMClassifier:
             
             if response.status_code == 200:
                 self.is_warmed_up = False
-                print(f"   🔻 模型 {self.model} 已卸载")
+                print(t('llm_model_unloaded', model=self.model))
                 
         except Exception as e:
-            print(f"   ⚠️ 卸载模型失败: {e}")
+            print(t('llm_unload_failed', error=str(e)))
 
     def _get_api_key(self) -> Optional[str]:
         """从环境变量获取API密钥"""
@@ -445,10 +458,10 @@ class LLMClassifier:
         if self.provider == LLMProvider.OLLAMA:
             # 检查Ollama服务是否运行
             if not self._check_ollama_service():
-                print("⚠️ Ollama服务未运行，请先启动: ollama serve")
+                print(t('llm_ollama_not_running'))
         elif self.provider in [LLMProvider.OPENAI, LLMProvider.ANTHROPIC]:
             if not self.api_key:
-                print(f"⚠️ 未设置 {self.provider.value.upper()}_API_KEY 环境变量")
+                print(t('llm_api_key_missing', provider=self.provider.value.upper()))
     
     def _check_ollama_service(self) -> bool:
         """检查Ollama服务是否运行"""
@@ -463,14 +476,33 @@ class LLMClassifier:
         """加载缓存"""
         if not self.enable_cache:
             return
-        try:
-            if os.path.exists(self.cache_file):
+        
+        # 直接删除旧缓存文件，确保从零开始
+        if os.path.exists(self.cache_file):
+            try:
                 with open(self.cache_file, 'r', encoding='utf-8') as f:
-                    self.cache = json.load(f)
-                print(f"📦 已加载 {len(self.cache)} 条缓存")
-        except Exception as e:
-            print(f"⚠️ 加载缓存失败: {e}")
-            self.cache = {}
+                    loaded_cache = json.load(f)
+                
+                # 检查缓存格式是否正确（必须包含 classified_by 字段）
+                if loaded_cache:
+                    first_entry = next(iter(loaded_cache.values()), None)
+                    if first_entry and 'classified_by' not in first_entry:
+                        # 旧格式缓存，删除文件
+                        os.remove(self.cache_file)
+                        print(t('llm_cache_outdated'))
+                        self.cache = {}
+                        return
+                
+                self.cache = loaded_cache
+                print(t('llm_cache_loaded', count=len(self.cache)))
+            except Exception as e:
+                print(f"⚠️ Cache load failed: {e}")
+                # 删除损坏的缓存文件
+                try:
+                    os.remove(self.cache_file)
+                except:
+                    pass
+                self.cache = {}
     
     def _save_cache(self):
         """保存缓存"""
@@ -480,7 +512,7 @@ class LLMClassifier:
             with open(self.cache_file, 'w', encoding='utf-8') as f:
                 json.dump(self.cache, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"⚠️ 保存缓存失败: {e}")
+            print(t('llm_cache_save_failed', error=str(e)))
     
     def _get_content_hash(self, item: Dict) -> str:
         """计算内容的MD5哈希"""
@@ -508,32 +540,51 @@ class LLMClassifier:
         return prompt
     
     def _build_batch_prompt(self, items: List[Dict]) -> str:
-        """构建批量分类提示词（一次处理多条）"""
+        """构建批量分类提示词（优化版，提高解析成功率）"""
         items_text = []
         for i, item in enumerate(items, 1):
             title = item.get('title', '')[:80]
-            summary = item.get('summary', item.get('description', ''))[:150]
-            items_text.append(f"[{i}] {title}\n    {summary}")
+            summary = item.get('summary', item.get('description', ''))[:120]
+            source = item.get('source', '')[:20]
+            items_text.append(f"[{i}] {title}\n    Summary: {summary}\n    Source: {source}")
         
         all_items = "\n".join(items_text)
         
-        prompt = f"""批量分类以下{len(items)}条AI内容。每条输出一行JSON。
+        # 使用更明确的格式指令
+        prompt = f"""Classify these {len(items)} AI news items. Output ONLY valid JSON, one per line.
 
+Items to classify:
 {all_items}
 
-类型: research/product/market/developer/leader/community
+IMPORTANT: Use ONLY these exact values for content_type:
+- research (academic papers, studies)
+- product (product releases, launches)
+- market (funding, investments, news)
+- developer (tools, models, open source)
+- leader (opinions, quotes)
+- community (discussions, trends)
 
-输出{len(items)}行JSON(每行对应一条,按顺序):
-{{"id": 1, "content_type": "类型", "confidence": 0.8, "tech_fields": ["领域"]}}"""
+tech_fields options: LLM, Computer Vision, NLP, Robotics, AI Safety, MLOps, Multimodal, Audio/Speech, Healthcare AI, General AI
+
+Output format - EXACTLY {len(items)} lines starting from id=1:
+{{"id":1,"content_type":"TYPE","confidence":0.8,"tech_fields":["FIELD"]}}
+{{"id":2,"content_type":"TYPE","confidence":0.8,"tech_fields":["FIELD"]}}
+...continue until id={len(items)}
+
+START from id=1, classify ALL {len(items)} items:"""
         
         return prompt
     
-    def _call_ollama(self, prompt: str) -> Optional[str]:
+    def _call_ollama(self, prompt: str, is_batch: bool = False) -> Optional[str]:
         """调用Ollama API
         
         支持两种模式:
         1. 对于 Qwen3 等支持 think 参数的模型，使用 Chat API + think=false 获得快速响应
         2. 对于其他模型，使用 Generate API 并解析 thinking 字段（如有）
+        
+        Args:
+            prompt: 提示词
+            is_batch: 是否为批量分类模式（需要更多输出tokens）
         """
         try:
             import requests
@@ -547,7 +598,7 @@ class LLMClassifier:
             if use_chat_api:
                 # 使用 Chat API + think=false 关闭思考模式，大幅提升速度
                 # 根据GPU检测结果自适应配置
-                options = self._get_ollama_options()
+                options = self._get_ollama_options(is_batch=is_batch)
                 
                 response = requests.post(
                     'http://localhost:11434/api/chat',
@@ -562,7 +613,7 @@ class LLMClassifier:
                         'keep_alive': keep_alive,  # 保持模型活跃
                         'options': options
                     },
-                    timeout=60 if self.gpu_info and self.gpu_info.ollama_gpu_supported else 90
+                    timeout=90 if is_batch else (60 if self.gpu_info and self.gpu_info.ollama_gpu_supported else 90)
                 )
                 
                 if response.status_code == 200:
@@ -598,19 +649,24 @@ class LLMClassifier:
                     
                     return response_text
             
-            print(f"⚠️ Ollama API错误: {response.status_code}")
+            print(t('llm_ollama_error', code=response.status_code))
             return None
                 
         except Exception as e:
-            print(f"⚠️ Ollama调用失败: {e}")
+            print(t('llm_ollama_failed', error=str(e)))
             return None
     
-    def _get_ollama_options(self) -> Dict:
-        """获取Ollama推理选项（根据GPU自适应配置）"""
+    def _get_ollama_options(self, is_batch: bool = False) -> Dict:
+        """获取Ollama推理选项（根据GPU自适应配置）
+        
+        Args:
+            is_batch: 是否为批量分类模式（需要更多输出tokens）
+        """
         if self.ollama_options:
+            num_predict = self.ollama_options.num_predict_batch if is_batch else self.ollama_options.num_predict
             return {
                 'temperature': self.ollama_options.temperature,
-                'num_predict': self.ollama_options.num_predict,
+                'num_predict': num_predict,
                 'num_ctx': self.ollama_options.num_ctx,
                 'num_thread': self.ollama_options.num_thread,
                 'num_gpu': self.ollama_options.num_gpu
@@ -619,8 +675,8 @@ class LLMClassifier:
             # 默认配置
             return {
                 'temperature': 0.1,
-                'num_predict': 200,
-                'num_ctx': 1024,
+                'num_predict': 500 if is_batch else 200,
+                'num_ctx': 2048,
                 'num_thread': 4
             }
     
@@ -643,7 +699,7 @@ class LLMClassifier:
             return response.choices[0].message.content
             
         except Exception as e:
-            print(f"⚠️ OpenAI调用失败: {e}")
+            print(t('llm_openai_failed', error=str(e)))
             return None
     
     def _call_anthropic(self, prompt: str) -> Optional[str]:
@@ -663,13 +719,18 @@ class LLMClassifier:
             return response.content[0].text
             
         except Exception as e:
-            print(f"⚠️ Anthropic调用失败: {e}")
+            print(t('llm_anthropic_failed', error=str(e)))
             return None
     
-    def _call_llm(self, prompt: str) -> Optional[str]:
-        """调用LLM（根据提供商选择）"""
+    def _call_llm(self, prompt: str, is_batch: bool = False) -> Optional[str]:
+        """调用LLM（根据提供商选择）
+        
+        Args:
+            prompt: 提示词
+            is_batch: 是否为批量分类模式
+        """
         if self.provider == LLMProvider.OLLAMA:
-            return self._call_ollama(prompt)
+            return self._call_ollama(prompt, is_batch=is_batch)
         elif self.provider == LLMProvider.OPENAI:
             return self._call_openai(prompt)
         elif self.provider == LLMProvider.ANTHROPIC:
@@ -716,7 +777,7 @@ class LLMClassifier:
             # JSON解析失败，尝试从文本中提取类别
             return self._extract_category_from_text(response)
         except Exception as e:
-            print(f"⚠️ 响应解析失败: {e}")
+            print(t('llm_parse_failed', error=str(e)))
         
         return None
     
@@ -828,14 +889,22 @@ class LLMClassifier:
                     'tech_categories': classified['tech_categories'],
                     'is_verified': classified['is_verified'],
                     'llm_reasoning': classified['llm_reasoning'],
-                    'region': classified['region']
+                    'region': classified['region'],
+                    'classified_by': classified['classified_by']  # 保存分类来源
                 }
         else:
             # LLM失败，降级到规则分类
             self.stats['fallback_calls'] += 1
             self.stats['errors'] += 1
+            fallback_reason = 'LLM响应解析失败'
+            self.stats['fallback_details'].append({
+                'title': item.get('title', '')[:50],
+                'source': item.get('source', ''),
+                'reason': fallback_reason,
+                'mode': 'single'
+            })
             
-            print(f"⚠️ LLM分类失败，降级到规则分类: {item.get('title', '')[:30]}...")
+            print(t('llm_fallback', title=item.get('title', '')[:30]))
             classified = self.rule_classifier.classify_item(item)
             classified['classified_by'] = 'rule:fallback'
         
@@ -869,6 +938,9 @@ class LLMClassifier:
                 classified = item.copy()
                 classified.update(self.cache[content_hash])
                 classified['from_cache'] = True
+                # 确保有 classified_by 字段（兼容旧缓存）
+                if 'classified_by' not in classified:
+                    classified['classified_by'] = 'llm:cached'
                 cached_items.append((i, classified))
             else:
                 uncached_items.append(item)
@@ -877,12 +949,12 @@ class LLMClassifier:
         cached_count = len(cached_items)
         uncached_count = len(uncached_items)
         
-        print(f"\n🤖 开始LLM批量分类 ({total} 条内容)")
-        print(f"   提供商: {self.provider.value} | 模型: {self.model}")
-        print(f"   并发数: {self.max_workers} | 缓存命中: {cached_count}/{total}")
+        print(t('llm_batch_start', total=total))
+        print(t('llm_batch_info', provider=self.provider.value, model=self.model))
+        print(t('llm_batch_cache', workers=self.max_workers, cached=cached_count, total=total))
         
         if uncached_count == 0:
-            print(f"   ✨ 全部命中缓存，跳过LLM调用")
+            print(t('llm_all_cached'))
             cached_items.sort(key=lambda x: x[0])
             return [item for _, item in cached_items]
         
@@ -896,11 +968,11 @@ class LLMClassifier:
         # 选择分类策略
         if use_batch_api and self.batch_size > 1 and self.provider == LLMProvider.OLLAMA:
             # 批量API模式：一次调用分类多条（更快）
-            print(f"   模式: 批量分类 (每批 {self.batch_size} 条)")
+            print(t('llm_batch_mode', batch_size=self.batch_size))
             classified_uncached = self._classify_batch_mode(uncached_items, uncached_indices, show_progress)
         else:
             # 并发单条模式
-            print(f"   模式: 并发单条")
+            print(t('llm_concurrent_mode'))
             classified_uncached = self._classify_concurrent_mode(uncached_items, uncached_indices, show_progress)
         
         # 合并结果
@@ -935,7 +1007,7 @@ class LLMClassifier:
             
             # 构建批量prompt
             prompt = self._build_batch_prompt(batch_items)
-            response = self._call_llm(prompt)
+            response = self._call_llm(prompt, is_batch=True)  # 使用批量模式（更多输出tokens）
             batch_results = self._parse_batch_response(response, len(batch_items))
             
             # 处理结果
@@ -965,11 +1037,18 @@ class LLMClassifier:
                             'tech_categories': classified['tech_categories'],
                             'is_verified': classified.get('is_verified', True),
                             'llm_reasoning': classified.get('llm_reasoning', ''),
-                            'region': classified['region']
+                            'region': classified['region'],
+                            'classified_by': classified['classified_by']  # 保存分类来源
                         }
                 else:
                     # 批量失败，降级到规则分类
                     self.stats['fallback_calls'] += 1
+                    self.stats['fallback_details'].append({
+                        'title': item.get('title', '')[:50],
+                        'source': item.get('source', ''),
+                        'reason': '批量响应中该条解析失败',
+                        'mode': 'batch'
+                    })
                     classified = self.rule_classifier.classify_item(item)
                     classified['classified_by'] = 'rule:batch_fallback'
                 
@@ -982,9 +1061,9 @@ class LLMClassifier:
                 estimated_remaining = batch_time * remaining_batches
                 
                 if remaining_batches > 0:
-                    print(f"   进度: {completed}/{total} ({completed/total:.0%}) | 本批耗时: {batch_time:.1f}秒 | 预计剩余: {estimated_remaining:.0f}秒")
+                    print(t('llm_progress_eta', completed=completed, total=total, percent=int(completed/total*100), time=f"{batch_time:.1f}", eta=f"{estimated_remaining:.0f}"))
                 else:
-                    print(f"   进度: {completed}/{total} ({completed/total:.0%}) | 本批耗时: {batch_time:.1f}秒")
+                    print(t('llm_progress', completed=completed, total=total, percent=int(completed/total*100)) + f" | {t('llm_stats_time', time=f'{batch_time:.1f}')}")
         
         return results
     
@@ -1017,77 +1096,174 @@ class LLMClassifier:
                             rate = interval_count / interval_time  # 条/秒
                             remaining = total - completed
                             estimated_remaining = remaining / rate if rate > 0 else 0
-                            print(f"   进度: {completed}/{total} ({completed/total:.0%}) | 速度: {rate:.1f}条/秒 | 预计剩余: {estimated_remaining:.0f}秒")
+                            print(t('llm_progress_rate', completed=completed, total=total, percent=int(completed/total*100), rate=f"{rate:.1f}", eta=f"{estimated_remaining:.0f}"))
                         else:
-                            print(f"   进度: {completed}/{total} ({completed/total:.0%})")
+                            print(t('llm_progress', completed=completed, total=total, percent=int(completed/total*100)))
                         
                         last_progress_time = current_time
                         last_progress_count = completed
                         
                 except Exception as e:
-                    print(f"⚠️ 分类任务失败: {e}")
+                    print(t('llm_task_failed', error=str(e)))
                     self.stats['errors'] += 1
         
         return results
     
     def _parse_batch_response(self, response: str, expected_count: int) -> List[Optional[Dict]]:
-        """解析批量分类响应"""
+        """解析批量分类响应（增强版）
+        
+        支持多种LLM输出格式：
+        1. 每行一个JSON
+        2. Markdown代码块包裹的JSON
+        3. 带序号的JSON列表
+        4. JSON数组格式
+        """
         results = [None] * expected_count
         
         if not response:
             return results
         
         try:
-            # 尝试按行解析JSON
-            lines = response.strip().split('\n')
+            # 预处理：移除markdown代码块标记
+            cleaned = response.strip()
+            if '```json' in cleaned:
+                # 提取```json ... ```之间的内容
+                import re
+                json_blocks = re.findall(r'```json?\s*(.*?)\s*```', cleaned, re.DOTALL)
+                if json_blocks:
+                    cleaned = '\n'.join(json_blocks)
+            elif '```' in cleaned:
+                # 移除通用代码块标记
+                cleaned = re.sub(r'```\w*\s*', '', cleaned)
+                cleaned = cleaned.replace('```', '')
+            
             json_objects = []
             
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
+            # 方法1：尝试解析为JSON数组
+            try:
+                arr = json.loads(cleaned)
+                if isinstance(arr, list):
+                    json_objects = arr
+            except json.JSONDecodeError:
+                pass
+            
+            # 方法2：按行解析JSON
+            if not json_objects:
+                lines = cleaned.split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
                     
-                # 查找JSON
-                start = line.find('{')
-                end = line.rfind('}') + 1
-                
-                if start >= 0 and end > start:
+                    # 移除行首的序号（如 "1." 或 "[1]"）
+                    import re
+                    line = re.sub(r'^[\[\(]?\d+[\]\)\.:]?\s*', '', line)
+                    
+                    # 查找JSON对象
+                    start = line.find('{')
+                    end = line.rfind('}') + 1
+                    
+                    if start >= 0 and end > start:
+                        json_str = line[start:end]
+                        # 修复常见的JSON格式问题
+                        json_str = json_str.replace('，', ',')  # 中文逗号
+                        json_str = json_str.replace('"', '"').replace('"', '"')  # 中文引号
+                        json_str = json_str.replace(''', "'").replace(''', "'")
+                        
+                        try:
+                            obj = json.loads(json_str)
+                            json_objects.append(obj)
+                        except json.JSONDecodeError:
+                            # 尝试更宽松的解析
+                            try:
+                                # 修复缺少引号的键名
+                                import re
+                                fixed = re.sub(r'(\w+):', r'"\1":', json_str)
+                                obj = json.loads(fixed)
+                                json_objects.append(obj)
+                            except:
+                                continue
+            
+            # 方法3：查找所有独立的JSON对象（处理多个JSON在一行的情况）
+            if not json_objects:
+                import re
+                pattern = r'\{[^{}]*\}'
+                matches = re.findall(pattern, cleaned)
+                for match in matches:
                     try:
-                        obj = json.loads(line[start:end])
+                        obj = json.loads(match)
                         json_objects.append(obj)
-                    except json.JSONDecodeError:
+                    except:
                         continue
             
-            # 匹配到结果
-            for obj in json_objects:
-                idx = obj.get('id', len([r for r in results if r is not None]) + 1) - 1
-                if 0 <= idx < expected_count:
+            # 匹配结果到对应索引
+            for i, obj in enumerate(json_objects):
+                # 优先使用id字段
+                idx = obj.get('id')
+                if idx is not None:
+                    idx = int(idx) - 1  # id从1开始
+                else:
+                    # 没有id字段，按顺序分配
+                    idx = i
+                
+                if 0 <= idx < expected_count and results[idx] is None:
+                    content_type = obj.get('content_type', obj.get('type', 'market'))
+                    if isinstance(content_type, str):
+                        content_type = content_type.lower().strip()
+                        # 处理带括号的格式，如 "developer(tools/models)" -> "developer"
+                        if '(' in content_type:
+                            content_type = content_type.split('(')[0].strip()
+                    
+                    # 验证content_type是否有效
+                    valid_types = ['research', 'product', 'market', 'developer', 'leader', 'community']
+                    if content_type not in valid_types:
+                        # 尝试映射
+                        type_mapping = {
+                            'paper': 'research', 'academic': 'research', 'study': 'research',
+                            'papers': 'research', 'releases': 'product',
+                            'release': 'product', 'launch': 'product', 'tool': 'developer',
+                            'tools': 'developer', 'models': 'developer', 'tools/models': 'developer',
+                            'news': 'market', 'funding': 'market', 'investment': 'market',
+                            'funding/news': 'market',
+                            'opinion': 'leader', 'quote': 'leader', 'insight': 'leader',
+                            'opinions': 'leader',
+                            'discussion': 'community', 'trend': 'community', 'trends': 'community'
+                        }
+                        content_type = type_mapping.get(content_type, 'market')
+                    
                     results[idx] = {
-                        'content_type': obj.get('content_type', 'market').lower(),
+                        'content_type': content_type,
                         'confidence': float(obj.get('confidence', 0.7)),
-                        'tech_fields': obj.get('tech_fields', ['General AI']),
+                        'tech_fields': obj.get('tech_fields', obj.get('fields', ['General AI'])),
                         'is_verified': obj.get('is_verified', True),
-                        'reasoning': obj.get('reasoning', '')
+                        'reasoning': obj.get('reasoning', obj.get('reason', ''))
                     }
             
         except Exception as e:
-            print(f"⚠️ 批量响应解析失败: {e}")
+            print(t('llm_batch_parse_failed', error=str(e)))
         
         return results
     
     def _print_stats(self, elapsed: float):
         """打印统计信息"""
-        print(f"\n📊 分类统计:")
-        print(f"   总请求: {self.stats['total_calls']}")
-        print(f"   缓存命中: {self.stats['cache_hits']} ({self.stats['cache_hits']/max(1,self.stats['total_calls']):.0%})")
-        print(f"   LLM调用: {self.stats['llm_calls']}")
-        print(f"   规则降级: {self.stats['fallback_calls']}")
-        print(f"   错误数: {self.stats['errors']}")
-        print(f"   耗时: {elapsed:.1f}秒")
+        print(t('llm_stats'))
+        print(t('llm_stats_total', count=self.stats['total_calls']))
+        print(t('llm_stats_cached', count=self.stats['cache_hits']) + f" ({self.stats['cache_hits']/max(1,self.stats['total_calls']):.0%})")
+        print(f"   LLM: {self.stats['llm_calls']}")
+        print(f"   Fallback: {self.stats['fallback_calls']}")
+        print(t('llm_stats_failed', count=self.stats['errors']))
+        print(t('llm_stats_time', time=f"{elapsed:.1f}s"))
         
         if self.stats['llm_calls'] > 0:
             avg_time = elapsed / self.stats['llm_calls']
-            print(f"   平均每条: {avg_time:.1f}秒")
+            print(t('llm_stats_avg', time=f"{avg_time:.1f}"))
+        
+        # 显示降级详情
+        if self.stats['fallback_details']:
+            print(t('llm_fallback_details', count=len(self.stats['fallback_details'])))
+            for i, detail in enumerate(self.stats['fallback_details'], 1):
+                print(t('llm_fallback_item', i=i, mode=detail['mode'], title=detail['title']))
+                print(t('llm_fallback_source', source=detail['source'], reason=detail['reason']))
     
     def get_stats(self) -> Dict:
         """获取统计信息"""
@@ -1098,7 +1274,7 @@ class LLMClassifier:
         self.cache = {}
         if os.path.exists(self.cache_file):
             os.remove(self.cache_file)
-        print("🗑️ 缓存已清空")
+        print(t('llm_cache_cleared'))
 
 
 def select_llm_provider() -> Tuple[str, str]:
@@ -1109,21 +1285,22 @@ def select_llm_provider() -> Tuple[str, str]:
         (provider, model)
     """
     print("\n" + "="*60)
-    print("🤖 选择LLM提供商")
+    print(t('llm_select_provider'))
     print("="*60)
     
-    print("\n可用的提供商:")
-    print("  1. Ollama (本地免费) ⭐ 推荐")
-    print("  2. OpenAI (需要API密钥)")
-    print("  3. Anthropic (需要API密钥)")
+    print(t('llm_available_providers'))
+    print(t('llm_provider_ollama'))
+    print(t('llm_provider_openai'))
+    print(t('llm_provider_anthropic'))
     
-    provider_choice = input("\n请选择提供商 (1-3) [默认: 1]: ").strip() or '1'
+    prompt = "Select provider (1-3) [default: 1]: " if get_language() == 'en' else "请选择提供商 (1-3) [默认: 1]: "
+    provider_choice = input(f"\n{prompt}").strip() or '1'
     
     provider_map = {'1': 'ollama', '2': 'openai', '3': 'anthropic'}
     provider = provider_map.get(provider_choice, 'ollama')
     
     # 选择模型
-    print(f"\n可用的 {provider.upper()} 模型:")
+    print(t('llm_available_models_for', provider=provider.upper()))
     
     provider_enum = LLMProvider(provider)
     models = AVAILABLE_MODELS.get(provider_enum, {})
@@ -1134,7 +1311,8 @@ def select_llm_provider() -> Tuple[str, str]:
         print(f"  {i}. {info['name']}{recommended}")
         print(f"     {info['description']}")
     
-    model_choice = input(f"\n请选择模型 (1-{len(model_list)}) [默认: 1]: ").strip() or '1'
+    model_prompt = f"Select model (1-{len(model_list)}) [default: 1]: " if get_language() == 'en' else f"请选择模型 (1-{len(model_list)}) [默认: 1]: "
+    model_choice = input(f"\n{model_prompt}").strip() or '1'
     
     try:
         model_idx = int(model_choice) - 1
@@ -1142,7 +1320,7 @@ def select_llm_provider() -> Tuple[str, str]:
     except:
         model = model_list[0]
     
-    print(f"\n✅ 已选择: {provider} / {model}")
+    print(t('llm_selected', provider=provider, model=model))
     
     return provider, model
 
@@ -1217,7 +1395,7 @@ def create_llm_classifier(auto_select: bool = False) -> LLMClassifier:
         if os.getenv('ANTHROPIC_API_KEY'):
             return LLMClassifier(provider='anthropic', model='claude-3-haiku-20240307')
         
-        print("⚠️ 未找到可用的LLM服务，将使用规则分类")
+        print(t('llm_no_service'))
         return None
     else:
         # 交互式选择
@@ -1228,15 +1406,16 @@ def create_llm_classifier(auto_select: bool = False) -> LLMClassifier:
 if __name__ == "__main__":
     # 测试代码
     print("="*60)
-    print("LLM分类器测试")
+    print(t('llm_test_title'))
     print("="*60)
     
     # 检查Ollama状态
     status = check_ollama_status()
-    print(f"\nOllama状态: {'运行中 ✅' if status['running'] else '未运行 ❌'}")
+    status_text = t('llm_ollama_running_yes') if status['running'] else t('llm_ollama_running_no')
+    print(t('llm_ollama_status', status=status_text))
     if status['models']:
-        print(f"可用模型: {', '.join(status['models'])}")
-        print(f"推荐模型: {status['recommended']}")
+        print(t('llm_available_models', models=', '.join(status['models'])))
+        print(t('llm_recommended_model', model=status['recommended']))
     
     # 创建分类器
     if status['running']:
@@ -1252,14 +1431,14 @@ if __name__ == "__main__":
             'source': 'TechCrunch'
         }
         
-        print(f"\n测试内容: {test_item['title']}")
+        print(t('llm_test_content', title=test_item['title']))
         result = classifier.classify_item(test_item)
         
-        print(f"\n分类结果:")
-        print(f"  类型: {result.get('content_type')}")
-        print(f"  置信度: {result.get('confidence', 0):.1%}")
-        print(f"  技术领域: {result.get('tech_categories')}")
-        print(f"  可信: {result.get('is_verified')}")
-        print(f"  理由: {result.get('llm_reasoning')}")
+        print(t('llm_test_result'))
+        print(t('llm_test_type', type=result.get('content_type')))
+        print(t('llm_test_confidence', confidence=f"{result.get('confidence', 0):.1%}"))
+        print(t('llm_test_tech', tech=result.get('tech_categories')))
+        print(t('llm_test_verified', verified=result.get('is_verified')))
+        print(t('llm_test_reasoning', reasoning=result.get('llm_reasoning')))
     else:
-        print("\n⚠️ 请先启动Ollama服务: ollama serve")
+        print(t('llm_start_ollama'))

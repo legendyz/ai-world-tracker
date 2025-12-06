@@ -1,402 +1,1212 @@
 {
   "e64a169c20d103476e0b9129e0744bde": {
     "content_type": "research",
-    "confidence": 0.8,
+    "confidence": 0.9,
     "tech_categories": [
-      "machine learning",
-      "neural networks"
+      "LLM",
+      "Computer Vision"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "Europe"
+    "region": "Europe",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "c70af316b8675fa59cdbb7b4428641ac": {
     "content_type": "research",
-    "confidence": 0.8,
+    "confidence": 0.9,
     "tech_categories": [
-      "computer vision",
-      "video generation"
+      "Computer Vision",
+      "Multimodal"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "Global"
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
-  "534a4c2df7a4890f1963e2a782ce8916": {
-    "content_type": "research",
-    "confidence": 0.95,
-    "tech_categories": [
-      "AI",
-      "Multimodal Models",
-      "Text-to-Image"
-    ],
-    "is_verified": true,
-    "llm_reasoning": "",
-    "region": "Global"
-  },
-  "feb79b46ae07439d5361d3edf715cdc4": {
+  "a23843e87c20902724191e5c68aadea8": {
     "content_type": "research",
     "confidence": 0.9,
     "tech_categories": [
-      "AI",
-      "Vision-Language Systems",
-      "Reward Models"
+      "LLM",
+      "Computer Vision"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "2bc4adb71f843d81fe10d34180c7dd93": {
+    "content_type": "research",
+    "confidence": 0.9,
+    "tech_categories": [
+      "Healthcare AI",
+      "Computer Vision"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "2c95bbfb848930b31a6c01d2fbc93027": {
+    "content_type": "research",
+    "confidence": 0.9,
+    "tech_categories": [
+      "Computer Vision",
+      "Multimodal"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "534a4c2df7a4890f1963e2a782ce8916": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Multimodal",
+      "Computer Vision"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "feb79b46ae07439d5361d3edf715cdc4": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Multimodal",
+      "NLP"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "9b12f820e71873edbf88132b8149c499": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Computer Vision",
+      "Artificial Creativity"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "3ef501ae6c05ae92c813b23c93eacbd7": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Computer Vision",
+      "Diffusion Models"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "ea3b54bde723a771f466889042bad9f5": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM",
+      "NLP"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "5ad20c8a91b08c76fd416eb415263638": {
     "content_type": "research",
     "confidence": 0.8,
     "tech_categories": [
-      "Image Restoration",
-      "Evolutionary Algorithms"
+      "Computer Vision"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "de30b0b75794ee2d66ae538ee947bf8b": {
     "content_type": "research",
     "confidence": 0.8,
     "tech_categories": [
-      "Video Generation",
-      "Language-Video Generation"
+      "Multimodal"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "Global"
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
-  "1e5f998d5a6109c66e1bbf3067d43131": {
+  "e39318a2bba87799c36d796465a5f468": {
     "content_type": "research",
     "confidence": 0.8,
     "tech_categories": [
-      "machine learning",
+      "NLP"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "4f63948c438c82a9a3a8b32f667865aa": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Computer Vision"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "2d1fb570f827fc76b1aa3ec82cfaecc0": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Robotics"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "1e5f998d5a6109c66e1bbf3067d43131": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
       "LLM"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "Global"
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "981e380c30bf13b583323c4197f3808d": {
-    "content_type": "product",
-    "confidence": 0.9,
+    "content_type": "developer",
+    "confidence": 0.8,
     "tech_categories": [
-      "LLM",
-      "natural language processing"
+      "LLM"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "c89c9f0e98ecf431e1072187f793c8cf": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "045228e9cb28f630440ce0407d11bd45": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "RL",
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "56ebbed9c082a4f2e95a68611f6435d3": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "General AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "6e83c48720e86410995bab0811465ddb": {
-    "content_type": "product",
+    "content_type": "developer",
     "confidence": 0.8,
     "tech_categories": [
-      "AI",
-      "Trading",
-      "Prediction Markets"
+      "LLM",
+      "NLP"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
-  "bc63dfa95cf7124b4f3d0ea635d510b3": {
-    "content_type": "product",
+  "7cdfb8c2910e9a673f44b35d8d1c34c6": {
+    "content_type": "developer",
     "confidence": 0.8,
     "tech_categories": [
-      "AI",
-      "Modeling"
+      "NLP"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "Global"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
-  "4485d1f34b7689931ee789125c179093": {
-    "content_type": "product",
-    "confidence": 0.95,
+  "7ac14f84d387d2081f71e5283131d5b9": {
+    "content_type": "developer",
+    "confidence": 0.8,
     "tech_categories": [
-      "AI Model"
+      "NLP"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "Global"
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
-  "fcc35b21577800ebde4838851d625c3a": {
-    "content_type": "product",
-    "confidence": 0.95,
+  "dba2f31ff0a1d5d0c5d58a52c67c994e": {
+    "content_type": "developer",
+    "confidence": 0.8,
     "tech_categories": [
-      "AI Model"
+      "NLP"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "36c70860d9e636eb3b92287e32de6a66": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "NLP"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "d0bdf47b23d52ed8e061f174e41f0f88": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "467376a5447418ceb4356dc0f9d4c773": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "4eeac5c22647f1cee07ec7ce0740ea3e": {
     "content_type": "developer",
-    "confidence": 0.9,
-    "tech_categories": [
-      "Software Development",
-      "AI Tools"
-    ],
-    "is_verified": true,
-    "llm_reasoning": "",
-    "region": "USA"
-  },
-  "4f2707b7ce273e34c3ec937666e6a239": {
-    "content_type": "product",
     "confidence": 0.8,
     "tech_categories": [
-      "AI Agents",
-      "Prompt Engineering"
+      "LLM"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "b33ff280ee9544019e8cac2879919729": {
+    "content_type": "community",
+    "confidence": 0.8,
+    "tech_categories": [
+      "General AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "4f2707b7ce273e34c3ec937666e6a239": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "a3db86349702ba6ab8fa9ae3a48d8aa6": {
     "content_type": "market",
     "confidence": 0.8,
+    "tech_categories": [],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "2a0725e28530f21b96e60dc8f4734725": {
+    "content_type": "leader",
+    "confidence": 0.8,
     "tech_categories": [
-      "Developer Tools",
-      "Gift Ideas"
+      "LLM"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "Global"
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "7a7148c662387b3dfef2cf91b2d35d9c": {
+    "content_type": "product",
+    "confidence": 0.8,
+    "tech_categories": [
+      "General AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "c52fb448fa0f3bf01c1c29505314107d": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "ef1267373f553eb35ac5a2d04de5e43a": {
     "content_type": "research",
     "confidence": 0.8,
     "tech_categories": [
-      "AI ethics",
-      "machine learning"
+      "AI Safety"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "ae09ae025d579a1eafb11c4d083a9360": {
-    "content_type": "community",
+    "content_type": "market",
     "confidence": 0.8,
     "tech_categories": [
-      "nonprofit",
-      "AI for social good"
+      "General AI"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "f3d3c845875e3c40ee07999d509a9853": {
+    "content_type": "product",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM",
+      "Multimodal"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "0d11846459ae236b8b46cf15386d37a9": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Healthcare AI",
+      "AI Safety"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "823e4eb0440ee6f40fb02cebbd0ae1dd": {
+    "content_type": "product",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "2567029112bfbf355fc0328dc81aa471": {
     "content_type": "market",
     "confidence": 0.8,
     "tech_categories": [
-      "AI",
-      "Enterprise"
+      "General AI"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "a35bba4da64323f41d662839400582cc": {
     "content_type": "market",
     "confidence": 0.8,
     "tech_categories": [
-      "AI",
-      "Enterprise AI"
+      "LLM"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "017e6822a604fafb741ef90d398d0a68": {
-    "content_type": "security",
+    "content_type": "developer",
     "confidence": 0.8,
     "tech_categories": [
-      "API",
-      "Security"
+      "MLOps"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "ca7f83ff50877b877f0107753d23aa70": {
+    "content_type": "product",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Multimodal"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "410643feade3bd1a84726af0df0ed219": {
+    "content_type": "research",
+    "confidence": 0.8,
+    "tech_categories": [
+      "General AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "b6cce2eb9adb86c5745fc08880cf6ff5": {
+    "content_type": "product",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Computer Vision",
+      "Multimodal"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "890f667b5c4b6a0f0bf29e99edcbf60d": {
+    "content_type": "market",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Multimodal"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "13c5dd65d85d6e075f1aee5546d66b38": {
+    "content_type": "market",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Healthcare AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Europe",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "814ba7fb51919d6a99dc41b98c235db5": {
+    "content_type": "market",
+    "confidence": 0.8,
+    "tech_categories": [
+      "General AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "b86db4b8722ae754d9ac35568aac95cd": {
     "content_type": "product",
     "confidence": 0.8,
     "tech_categories": [
-      "cybersecurity",
-      "AI security"
+      "AI Safety",
+      "Cybersecurity"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "36ae108cb58059ae04394173486afe5f": {
     "content_type": "market",
     "confidence": 0.8,
     "tech_categories": [
-      "AI",
-      "robotics",
-      "drones"
+      "Robotics",
+      "AI Safety"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "Global"
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
-  "7a7148c662387b3dfef2cf91b2d35d9c": {
+  "1acc54ef04dd75d6bfc1a210676fd3ad": {
     "content_type": "market",
     "confidence": 0.8,
     "tech_categories": [
-      "AI infrastructure",
-      "workforce development"
+      "LLM",
+      "MLOps"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "8477973f01a67973d8fb04a2a6b436fd": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "a1dc61d25ea13585e8f9406f2289a5ee": {
     "content_type": "research",
     "confidence": 0.8,
     "tech_categories": [
-      "geothermal energy",
-      "AI exploration"
+      "LLM"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "de113cd3f6251c96b343b89e5a417382": {
+    "content_type": "product",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Multimodal"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "8109300a3cc4fb8f23ed4c5f2d57614d": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "MLOps"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "42468243158888da54bc6bf9d3b060cd": {
     "content_type": "product",
     "confidence": 0.8,
     "tech_categories": [
-      "AI Agents",
-      "Cloud Computing"
+      "LLM",
+      "Multimodal"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "Global"
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
-  "ca7f83ff50877b877f0107753d23aa70": {
-    "content_type": "market",
-    "confidence": 0.7,
+  "c4cb8974edf20085f7e25e8176320ec0": {
+    "content_type": "product",
+    "confidence": 0.8,
     "tech_categories": [
-      "AI",
-      "Product Launch"
+      "LLM",
+      "Multimodal"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "f01eb3bf1b5623f90528dde36e152b34": {
     "content_type": "market",
     "confidence": 0.8,
     "tech_categories": [
-      "AI startups",
-      "product development"
+      "LLM"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "445f6f4b1c9449b5cec31db968970cf9": {
     "content_type": "leader",
     "confidence": 0.8,
     "tech_categories": [
-      "AI competition",
-      "OpenAI"
+      "LLM",
+      "AI Safety"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "58d181e3d3b00222cd7a0543f59fd0cd": {
+    "content_type": "leader",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "cce53f6c75c490dfe9f5701d7b9a1024": {
+    "content_type": "product",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "a82a0aaab0f307a9ad896948e6bec1b5": {
     "content_type": "research",
     "confidence": 0.8,
     "tech_categories": [
-      "AI",
-      "Natural Language Processing"
+      "AI Safety"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "Global"
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "27531e0ab56fec8ff7080570ffe9157c": {
     "content_type": "research",
     "confidence": 0.8,
     "tech_categories": [
-      "AI",
-      "Large Language Models"
+      "LLM",
+      "AI Safety"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "284adbdf2b8feb3c0595bc231b5b4d9a": {
+    "content_type": "leader",
+    "confidence": 0.8,
+    "tech_categories": [
+      "General AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "51b351c2768e49465c17c93a8155ad34": {
+    "content_type": "leader",
+    "confidence": 0.8,
+    "tech_categories": [
+      "General AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "China",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "cf60292151f90819f8842d6bd2f0bbfc": {
     "content_type": "leader",
     "confidence": 0.8,
     "tech_categories": [
-      "AI",
-      "Machine Learning"
+      "General AI"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "e50f402d91ad358ec95fd652ca7958b1": {
     "content_type": "leader",
     "confidence": 0.8,
     "tech_categories": [
-      "AI",
-      "Machine Learning"
+      "General AI"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "174f0b597591c680796c8744906f81bc": {
     "content_type": "leader",
-    "confidence": 0.7,
+    "confidence": 0.8,
     "tech_categories": [
-      "AI",
-      "Machine Learning"
+      "General AI"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "1efe9359734998ea478eb8c80c91343e": {
+    "content_type": "leader",
+    "confidence": 0.8,
+    "tech_categories": [
+      "General AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "179ea87c9b79dd5d408b53450925eb00": {
+    "content_type": "leader",
+    "confidence": 0.8,
+    "tech_categories": [
+      "General AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "China",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "51a0d99698c4765dfd8d3faf36591e99": {
     "content_type": "product",
     "confidence": 0.9,
     "tech_categories": [
-      "AI",
       "LLM"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
-  "fb269f6ddd392c64cca7dbff3bbe4fc3": {
+  "47a93acc9d7a399e97fc1b3125bd1aeb": {
     "content_type": "developer",
     "confidence": 0.85,
     "tech_categories": [
-      "Web Development",
-      "API"
+      "LLM"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "fa2aa918ac8f1fa3afae480dcc2020af": {
+    "content_type": "product",
+    "confidence": 0.9,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "2fe6c5ed285199461bbc76e305da84d3": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "240babe8f49502a12a2b228f3de543f2": {
+    "content_type": "product",
+    "confidence": 0.9,
+    "tech_categories": [
+      "General AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   },
   "b39a32e4d15295020a70231dc716ef24": {
     "content_type": "product",
-    "confidence": 0.95,
+    "confidence": 0.9,
     "tech_categories": [
-      "AI",
-      "recipe",
-      "realtime",
-      "software"
+      "General AI"
     ],
     "is_verified": true,
     "llm_reasoning": "",
-    "region": "USA"
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "b16e3767a8d341a8e29c0fbb6df7d152": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM",
+      "Robotics"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "f550ecff7fa2edcdc982442d2dc25a72": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "4c059fc85aff9f97e42d71d7e5a65e9d": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "f8414a8798732a1a06c2e9c052682aff": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "2de87fca53b5441a4a0c83fbdf437d4d": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "4b4192a42abb333018cd21020ada5b95": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "e6ec048b534a19a101d0b0a86ca837a3": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "1c006fdbb7264f3199def3de36ecdc15": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "efcd118064b9e8489ee141203088d480": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "24bc0e28db0423cee60eb1318edc71a2": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "fc9fbfe8b38ae4a234846ff1318d9d0a": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "8bc28d04f3eeedb4b4bee6befffe4bca": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "c7471a696be2ce0cb74e8eea94a72885": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "f59b2686bec77cc16c2adef80d6ccc93": {
+    "content_type": "leader",
+    "confidence": 0.8,
+    "tech_categories": [
+      "General AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "66e1b00082495c2fbda411d86d2a364e": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Computer Vision"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "6a780b165a30707d37cc076824704c9e": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Audio/Speech"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "daa6a7fcd05e25f4dd646f2048a9f48a": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "7f967856dffbab5efe797de96c5fea49": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "a917269156420d1414237ff522fdd757": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "Computer Vision"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "c07948a7ef94f5712f27d93fe998c94b": {
+    "content_type": "developer",
+    "confidence": 0.95,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "38add23979dacdc07aa709d3917b3631": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "c21ae393b5b83d4ec3aefab26ef074c8": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "aba92d7edb5f81e8cbf38f6391ab55e3": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "68898c8c50ff806669bff460464f4fa6": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "bbc23d1f0906250ea9932edbed014241": {
+    "content_type": "developer",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "424d051dda46c8ef4e1910da4e8e46c3": {
+    "content_type": "developer",
+    "confidence": 0.9,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "4866346eb54053caf77c0ea210cf2009": {
+    "content_type": "leader",
+    "confidence": 0.9,
+    "tech_categories": [
+      "General AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "db0114baef8bcef3ed69fbf307114f41": {
+    "content_type": "leader",
+    "confidence": 0.9,
+    "tech_categories": [
+      "AI Safety"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "cf42b82727ca1dbf4fa210f360e101d5": {
+    "content_type": "leader",
+    "confidence": 0.9,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "Global",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "5885f27c4ed19985016d7c0a8ad3f4db": {
+    "content_type": "leader",
+    "confidence": 0.9,
+    "tech_categories": [
+      "LLM",
+      "General AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "37e76bfb2247d2a690e6abee28f653ed": {
+    "content_type": "leader",
+    "confidence": 0.8,
+    "tech_categories": [
+      "General AI"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "China",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
+  },
+  "b90d8c46a383a5e5fa5877d35ced0668": {
+    "content_type": "product",
+    "confidence": 0.8,
+    "tech_categories": [
+      "LLM"
+    ],
+    "is_verified": true,
+    "llm_reasoning": "",
+    "region": "USA",
+    "classified_by": "llm:batch:ollama/qwen3:8b"
   }
 }
