@@ -22,6 +22,7 @@ import hashlib
 import time
 import subprocess
 import platform
+import threading
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -30,6 +31,10 @@ from enum import Enum
 
 # 导入规则分类器作为备份
 from content_classifier import ContentClassifier
+
+
+# 模型保活时间（秒）
+MODEL_KEEP_ALIVE_SECONDS = 5 * 60  # 5分钟
 
 
 class LLMProvider(Enum):
@@ -172,7 +177,7 @@ class LLMConfig:
 class OllamaOptions:
     """Ollama推理选项 - 根据GPU自适应配置"""
     temperature: float = 0.1
-    num_predict: int = 200
+    num_predict: int = 150  # 减少输出长度，加快响应
     num_ctx: int = 2048
     num_thread: int = 4
     num_gpu: int = 0  # 0表示自动，-1表示禁用GPU
@@ -183,16 +188,16 @@ class OllamaOptions:
         options = cls()
         
         if gpu_info.ollama_gpu_supported:
-            # GPU加速配置
+            # GPU加速配置 - 优化速度
             options.num_gpu = 999  # 使用所有GPU层
-            options.num_ctx = 4096  # GPU可以处理更大上下文
-            options.num_predict = 300
+            options.num_ctx = 4096  # GPU可以处理更大上下文（支持批量）
+            options.num_predict = 150  # 减少输出，加快速度
             options.num_thread = 4  # GPU模式下CPU线程不需要太多
         else:
-            # CPU模式优化配置
+            # CPU模式优化配置 - 牺牲质量换速度
             options.num_gpu = 0  # 禁用GPU
             options.num_ctx = 1024  # 减少上下文以提升速度
-            options.num_predict = 200
+            options.num_predict = 100  # CPU模式更短输出
             # 根据CPU核心数设置线程
             try:
                 import multiprocessing
@@ -233,8 +238,9 @@ class LLMClassifier:
                  model: str = 'qwen3:8b',
                  api_key: Optional[str] = None,
                  enable_cache: bool = True,
-                 max_workers: int = 3,
-                 auto_detect_gpu: bool = True):
+                 max_workers: int = 3,  # 默认并发数
+                 auto_detect_gpu: bool = True,
+                 batch_size: int = 5):  # 新增批量分类大小
         """
         初始化LLM分类器
         
@@ -243,20 +249,25 @@ class LLMClassifier:
             model: 模型名称
             api_key: API密钥（Ollama不需要）
             enable_cache: 是否启用缓存
-            max_workers: 并发工作线程数
+            max_workers: 并发工作线程数 (默认5，GPU模式可更高)
             auto_detect_gpu: 是否自动检测GPU并优化配置
+            batch_size: 批量分类时每批的数量 (用于减少LLM调用次数)
         """
         self.provider = LLMProvider(provider)
         self.model = model
         self.api_key = api_key or self._get_api_key()
         self.enable_cache = enable_cache
         self.max_workers = max_workers
+        self.batch_size = batch_size
         
         # GPU检测与自适应配置
         self.gpu_info: Optional[GPUInfo] = None
         self.ollama_options: Optional[OllamaOptions] = None
         if auto_detect_gpu and self.provider == LLMProvider.OLLAMA:
             self._setup_gpu_acceleration()
+            # GPU模式下可以提高并发数
+            if self.gpu_info and self.gpu_info.ollama_gpu_supported:
+                self.max_workers = max(max_workers, 6)  # GPU模式提高并发至6
         
         # 缓存
         self.cache: Dict[str, Dict] = {}
@@ -265,6 +276,10 @@ class LLMClassifier:
         
         # 规则分类器（作为备份）
         self.rule_classifier = ContentClassifier()
+        
+        # 模型预热状态
+        self.is_warmed_up = False
+        self._keep_alive_timer: Optional[threading.Timer] = None
         
         # 统计
         self.stats = {
@@ -306,6 +321,117 @@ class LLMClassifier:
         """获取GPU信息"""
         return self.gpu_info
     
+    def warmup_model(self) -> bool:
+        """
+        预热模型：发送一个简单请求让模型加载到内存/显存
+        
+        Returns:
+            bool: 预热是否成功
+        """
+        if self.provider != LLMProvider.OLLAMA:
+            # 云端API不需要预热
+            self.is_warmed_up = True
+            return True
+        
+        if self.is_warmed_up:
+            print("   ✓ 模型已预热")
+            return True
+        
+        print(f"🔥 正在预热模型 {self.model}...")
+        start_time = time.time()
+        
+        try:
+            import requests
+            
+            # 发送一个简单的请求来加载模型
+            # 使用 keep_alive 参数让模型保持活跃
+            response = requests.post(
+                'http://localhost:11434/api/generate',
+                json={
+                    'model': self.model,
+                    'prompt': 'Hi',  # 最简单的prompt
+                    'stream': False,
+                    'keep_alive': f'{MODEL_KEEP_ALIVE_SECONDS}s',  # 保活时间
+                    'options': {
+                        'num_predict': 1,  # 只生成1个token
+                        'num_ctx': 512
+                    }
+                },
+                timeout=120  # 首次加载可能较慢
+            )
+            
+            if response.status_code == 200:
+                elapsed = time.time() - start_time
+                self.is_warmed_up = True
+                print(f"   ✅ 模型预热完成 (耗时 {elapsed:.1f}s)")
+                print(f"   ⏰ 模型将保持活跃 {MODEL_KEEP_ALIVE_SECONDS // 60} 分钟")
+                return True
+            else:
+                print(f"   ⚠️ 模型预热失败: HTTP {response.status_code}")
+                return False
+                
+        except Exception as e:
+            print(f"   ⚠️ 模型预热失败: {e}")
+            return False
+    
+    def set_keep_alive(self, seconds: int = MODEL_KEEP_ALIVE_SECONDS):
+        """
+        设置模型保活时间
+        
+        Args:
+            seconds: 保活秒数
+        """
+        if self.provider != LLMProvider.OLLAMA:
+            return
+        
+        try:
+            import requests
+            
+            # 发送保活请求
+            response = requests.post(
+                'http://localhost:11434/api/generate',
+                json={
+                    'model': self.model,
+                    'prompt': '',  # 空prompt
+                    'stream': False,
+                    'keep_alive': f'{seconds}s',
+                    'options': {'num_predict': 0}
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                print(f"   ⏰ 模型保活时间已设置为 {seconds // 60} 分钟")
+                
+        except Exception as e:
+            print(f"   ⚠️ 设置保活失败: {e}")
+    
+    def unload_model(self):
+        """立即卸载模型（释放显存/内存）"""
+        if self.provider != LLMProvider.OLLAMA:
+            return
+        
+        try:
+            import requests
+            
+            response = requests.post(
+                'http://localhost:11434/api/generate',
+                json={
+                    'model': self.model,
+                    'prompt': '',
+                    'stream': False,
+                    'keep_alive': '0s'  # 立即卸载
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                self.is_warmed_up = False
+                print(f"   🔻 模型 {self.model} 已卸载")
+                
+        except Exception as e:
+            print(f"   ⚠️ 卸载模型失败: {e}")
+
     def _get_api_key(self) -> Optional[str]:
         """从环境变量获取API密钥"""
         if self.provider == LLMProvider.OPENAI:
@@ -362,39 +488,43 @@ class LLMClassifier:
         return hashlib.md5(content.encode()).hexdigest()
     
     def _build_classification_prompt(self, item: Dict) -> str:
-        """构建分类提示词"""
-        title = item.get('title', '')
-        summary = item.get('summary', item.get('description', ''))[:500]
+        """构建分类提示词（精简版，减少token消耗）"""
+        title = item.get('title', '')[:100]  # 限制标题长度
+        summary = item.get('summary', item.get('description', ''))[:300]  # 减少摘要长度
         source = item.get('source', '')
         
-        prompt = f"""你是一个AI内容分类专家。请分析以下内容并进行分类。
+        # 精简版prompt，大幅减少token
+        prompt = f"""分类AI内容。输出JSON格式。
 
-【待分类内容】
 标题: {title}
 摘要: {summary}
 来源: {source}
 
-【分类任务】
-1. 内容类型 (content_type): 从以下选项中选择一个
-   - research: 学术研究、论文、技术报告
-   - product: 产品发布、功能更新、新服务上线
-   - market: 融资、收购、行业分析、政策法规
-   - developer: 开源项目、SDK、开发工具、教程
-   - leader: AI领袖言论、采访、演讲
-   - community: 社区讨论、热点话题
+类型选项: research(论文研究), product(产品发布), market(市场融资), developer(开源工具), leader(领袖言论), community(社区讨论)
 
-2. 置信度 (confidence): 0.0-1.0之间的数值
+输出格式(严格JSON):
+{{"content_type": "类型", "confidence": 0.8, "tech_fields": ["领域"], "reasoning": "原因"}}"""
+        
+        return prompt
+    
+    def _build_batch_prompt(self, items: List[Dict]) -> str:
+        """构建批量分类提示词（一次处理多条）"""
+        items_text = []
+        for i, item in enumerate(items, 1):
+            title = item.get('title', '')[:80]
+            summary = item.get('summary', item.get('description', ''))[:150]
+            items_text.append(f"[{i}] {title}\n    {summary}")
+        
+        all_items = "\n".join(items_text)
+        
+        prompt = f"""批量分类以下{len(items)}条AI内容。每条输出一行JSON。
 
-3. 技术领域 (tech_fields): 可多选
-   - NLP, Computer Vision, Generative AI, Reinforcement Learning, MLOps, AI Ethics, General AI
+{all_items}
 
-4. 内容可信度 (is_verified): true/false，是否为可信内容（非谣言/传闻）
+类型: research/product/market/developer/leader/community
 
-5. 分类理由 (reasoning): 简短说明分类原因（20字以内）
-
-【输出格式】
-请严格按照JSON格式输出，不要包含其他内容:
-{{"content_type": "xxx", "confidence": 0.xx, "tech_fields": ["xxx"], "is_verified": true, "reasoning": "xxx"}}"""
+输出{len(items)}行JSON(每行对应一条,按顺序):
+{{"id": 1, "content_type": "类型", "confidence": 0.8, "tech_fields": ["领域"]}}"""
         
         return prompt
     
@@ -411,6 +541,9 @@ class LLMClassifier:
             # 检测是否为支持 think 参数的模型（如 Qwen3）
             use_chat_api = 'qwen3' in self.model.lower()
             
+            # 保活时间设置
+            keep_alive = f'{MODEL_KEEP_ALIVE_SECONDS}s'
+            
             if use_chat_api:
                 # 使用 Chat API + think=false 关闭思考模式，大幅提升速度
                 # 根据GPU检测结果自适应配置
@@ -426,6 +559,7 @@ class LLMClassifier:
                         ],
                         'stream': False,
                         'think': False,  # 关闭思考模式
+                        'keep_alive': keep_alive,  # 保持模型活跃
                         'options': options
                     },
                     timeout=60 if self.gpu_info and self.gpu_info.ollama_gpu_supported else 90
@@ -445,6 +579,7 @@ class LLMClassifier:
                         'model': self.model,
                         'prompt': prompt,
                         'stream': False,
+                        'keep_alive': keep_alive,  # 保持模型活跃
                         'options': options
                     },
                     timeout=120 if self.gpu_info and self.gpu_info.ollama_gpu_supported else 180
@@ -706,34 +841,158 @@ class LLMClassifier:
         
         return classified
     
-    def classify_batch(self, items: List[Dict], show_progress: bool = True) -> List[Dict]:
+    def classify_batch(self, items: List[Dict], show_progress: bool = True, 
+                       use_batch_api: bool = True) -> List[Dict]:
         """
-        批量分类
+        批量分类（支持两种模式）
         
         Args:
             items: 内容项列表
             show_progress: 是否显示进度
+            use_batch_api: 是否使用批量API（一次调用分类多条，更快）
             
         Returns:
             分类后的内容项列表
         """
         total = len(items)
+        
+        # 先检查缓存，分离已缓存和未缓存的内容
+        cached_items = []
+        uncached_items = []
+        uncached_indices = []
+        
+        for i, item in enumerate(items):
+            content_hash = self._get_content_hash(item)
+            if self.enable_cache and content_hash in self.cache:
+                self.stats['cache_hits'] += 1
+                self.stats['total_calls'] += 1
+                classified = item.copy()
+                classified.update(self.cache[content_hash])
+                classified['from_cache'] = True
+                cached_items.append((i, classified))
+            else:
+                uncached_items.append(item)
+                uncached_indices.append(i)
+        
+        cached_count = len(cached_items)
+        uncached_count = len(uncached_items)
+        
         print(f"\n🤖 开始LLM批量分类 ({total} 条内容)")
         print(f"   提供商: {self.provider.value} | 模型: {self.model}")
-        print(f"   并发数: {self.max_workers} | 缓存: {'启用' if self.enable_cache else '禁用'}")
+        print(f"   并发数: {self.max_workers} | 缓存命中: {cached_count}/{total}")
+        
+        if uncached_count == 0:
+            print(f"   ✨ 全部命中缓存，跳过LLM调用")
+            cached_items.sort(key=lambda x: x[0])
+            return [item for _, item in cached_items]
+        
+        # 模型预热（仅Ollama且未预热时）
+        if self.provider == LLMProvider.OLLAMA and not self.is_warmed_up:
+            self.warmup_model()
         
         start_time = time.time()
-        classified_items = []
+        classified_uncached = []
         
-        # 使用线程池并发处理
+        # 选择分类策略
+        if use_batch_api and self.batch_size > 1 and self.provider == LLMProvider.OLLAMA:
+            # 批量API模式：一次调用分类多条（更快）
+            print(f"   模式: 批量分类 (每批 {self.batch_size} 条)")
+            classified_uncached = self._classify_batch_mode(uncached_items, uncached_indices, show_progress)
+        else:
+            # 并发单条模式
+            print(f"   模式: 并发单条")
+            classified_uncached = self._classify_concurrent_mode(uncached_items, uncached_indices, show_progress)
+        
+        # 合并结果
+        all_items = cached_items + classified_uncached
+        all_items.sort(key=lambda x: x[0])
+        result = [item for _, item in all_items]
+        
+        # 保存缓存
+        self._save_cache()
+        
+        # 统计
+        elapsed = time.time() - start_time
+        self._print_stats(elapsed)
+        
+        return result
+    
+    def _classify_batch_mode(self, items: List[Dict], indices: List[int], 
+                             show_progress: bool) -> List[Tuple[int, Dict]]:
+        """批量分类模式：一次LLM调用处理多条内容"""
+        results = []
+        total = len(items)
+        
+        # 分批处理
+        for batch_start in range(0, total, self.batch_size):
+            batch_end = min(batch_start + self.batch_size, total)
+            batch_items = items[batch_start:batch_end]
+            batch_indices = indices[batch_start:batch_end]
+            
+            # 构建批量prompt
+            prompt = self._build_batch_prompt(batch_items)
+            response = self._call_llm(prompt)
+            batch_results = self._parse_batch_response(response, len(batch_items))
+            
+            # 处理结果
+            for i, (item, idx) in enumerate(zip(batch_items, batch_indices)):
+                self.stats['total_calls'] += 1
+                classified = item.copy()
+                
+                if batch_results and i < len(batch_results) and batch_results[i]:
+                    result = batch_results[i]
+                    self.stats['llm_calls'] += 1
+                    
+                    classified['content_type'] = result.get('content_type', 'market')
+                    classified['confidence'] = result.get('confidence', 0.7)
+                    classified['tech_categories'] = result.get('tech_fields', ['General AI'])
+                    classified['is_verified'] = result.get('is_verified', True)
+                    classified['llm_reasoning'] = result.get('reasoning', '')
+                    classified['classified_by'] = f"llm:batch:{self.provider.value}/{self.model}"
+                    classified['classified_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    classified['region'] = self.rule_classifier.classify_region(item)
+                    
+                    # 缓存
+                    content_hash = self._get_content_hash(item)
+                    if self.enable_cache:
+                        self.cache[content_hash] = {
+                            'content_type': classified['content_type'],
+                            'confidence': classified['confidence'],
+                            'tech_categories': classified['tech_categories'],
+                            'is_verified': classified.get('is_verified', True),
+                            'llm_reasoning': classified.get('llm_reasoning', ''),
+                            'region': classified['region']
+                        }
+                else:
+                    # 批量失败，降级到规则分类
+                    self.stats['fallback_calls'] += 1
+                    classified = self.rule_classifier.classify_item(item)
+                    classified['classified_by'] = 'rule:batch_fallback'
+                
+                results.append((idx, classified))
+            
+            if show_progress:
+                completed = min(batch_end, total)
+                print(f"   进度: {completed}/{total} ({completed/total:.0%})")
+        
+        return results
+    
+    def _classify_concurrent_mode(self, items: List[Dict], indices: List[int],
+                                   show_progress: bool) -> List[Tuple[int, Dict]]:
+        """并发单条分类模式"""
+        results = []
+        total = len(items)
+        
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {executor.submit(self.classify_item, item): i for i, item in enumerate(items)}
+            futures = {executor.submit(self.classify_item, item): (i, idx) 
+                      for i, (item, idx) in enumerate(zip(items, indices))}
             
             completed = 0
             for future in as_completed(futures):
                 try:
                     result = future.result()
-                    classified_items.append((futures[future], result))
+                    _, idx = futures[future]
+                    results.append((idx, result))
                     completed += 1
                     
                     if show_progress and completed % 5 == 0:
@@ -743,18 +1002,52 @@ class LLMClassifier:
                     print(f"⚠️ 分类任务失败: {e}")
                     self.stats['errors'] += 1
         
-        # 按原顺序排序
-        classified_items.sort(key=lambda x: x[0])
-        classified_items = [item for _, item in classified_items]
+        return results
+    
+    def _parse_batch_response(self, response: str, expected_count: int) -> List[Optional[Dict]]:
+        """解析批量分类响应"""
+        results = [None] * expected_count
         
-        # 保存缓存
-        self._save_cache()
+        if not response:
+            return results
         
-        # 统计
-        elapsed = time.time() - start_time
-        self._print_stats(elapsed)
+        try:
+            # 尝试按行解析JSON
+            lines = response.strip().split('\n')
+            json_objects = []
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                # 查找JSON
+                start = line.find('{')
+                end = line.rfind('}') + 1
+                
+                if start >= 0 and end > start:
+                    try:
+                        obj = json.loads(line[start:end])
+                        json_objects.append(obj)
+                    except json.JSONDecodeError:
+                        continue
+            
+            # 匹配到结果
+            for obj in json_objects:
+                idx = obj.get('id', len([r for r in results if r is not None]) + 1) - 1
+                if 0 <= idx < expected_count:
+                    results[idx] = {
+                        'content_type': obj.get('content_type', 'market').lower(),
+                        'confidence': float(obj.get('confidence', 0.7)),
+                        'tech_fields': obj.get('tech_fields', ['General AI']),
+                        'is_verified': obj.get('is_verified', True),
+                        'reasoning': obj.get('reasoning', '')
+                    }
+            
+        except Exception as e:
+            print(f"⚠️ 批量响应解析失败: {e}")
         
-        return classified_items
+        return results
     
     def _print_stats(self, elapsed: float):
         """打印统计信息"""

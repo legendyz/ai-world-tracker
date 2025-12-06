@@ -518,10 +518,17 @@ class AIWorldTracker:
                 provider='ollama',
                 model=selected_model,
                 enable_cache=True,
-                max_workers=3
+                max_workers=3,  # 默认并发数，GPU模式自动提升至6
+                batch_size=5    # 启用批量分类
             )
             self._save_user_config()
             print(f"\n✅ 已切换到LLM模式: Ollama/{selected_model}")
+            
+            # 预热模型
+            warmup = input("\n是否现在预热模型? (Y/n): ").strip().lower()
+            if warmup != 'n':
+                self.llm_classifier.warmup_model()
+                
         except Exception as e:
             print(f"\n❌ 初始化LLM分类器失败: {e}")
             self.classification_mode = 'rule'
