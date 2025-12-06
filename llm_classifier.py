@@ -927,8 +927,8 @@ class LLMClassifier:
         # 分批处理
         batch_num = 0
         for batch_start in range(0, total, self.batch_size):
-            batch_start_time = time.time()
             batch_num += 1
+            batch_start_time = time.time()
             batch_end = min(batch_start + self.batch_size, total)
             batch_items = items[batch_start:batch_end]
             batch_indices = indices[batch_start:batch_end]
