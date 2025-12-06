@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2025-12-06 (Main Branch)
+
+### Added
+- **Unified Logging System** (`logger.py`)
+  - Colored console output with ANSI codes
+  - Rotating file handler (10MB max, 5 backups)
+  - LogHelper class with emoji support methods
+  - Singleton pattern for global logger management
+  - Configurable log levels and output destinations
+
+- **Test Organization**
+  - Created `tests/` directory structure
+  - Added `pytest.ini` configuration file
+  - Moved all 18 test files to `tests/`
+  - Added `__init__.py` with path setup
+
+- **Unified Configuration Management**
+  - Merged `config_manager.py` into `config.py`
+  - Support for YAML configuration file (`config.yaml`)
+  - Support for `.env` file and environment variables
+  - Priority: ENV > .env > YAML > defaults
+  - Added `CollectorConfig` dataclass for data collection settings
+  - Added `reload()` method for runtime configuration refresh
+
+### Changed
+- Configuration access unified through `from config import config`
+- Test files organized under `tests/` directory
+- Removed deprecated `config_manager.py`
+- Removed outdated `PROJECT_STATUS.md` and `QUICK_START.md`
+
+### Fixed
+- Configuration module import consistency across all modules
+
+---
+
 ## [2.0.0] - 2025-12-06 (Main Branch)
 
 ### Added
@@ -30,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Configuration Management** (`config.py`)
   - Unified configuration interface
-  - Multi-source priority: ENV > .env > defaults
+  - Multi-source priority: ENV > .env > YAML > defaults
   - Secure API key management
   - Provider-agnostic design
 
@@ -45,8 +80,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **New Modules**
   - `llm_classifier.py`: Core LLM classification engine
   - `config.py`: Configuration management
+  - `logger.py`: Unified logging system
   - `i18n.py`: Internationalization support
-  - `config_manager.py`: YAML configuration loader
 
 ### Changed
 - Menu structure reorganized with settings sub-menu
@@ -120,6 +155,12 @@ This version is ideal for:
 - Better error handling for network requests
 - Extended data source support
 - Collection rate optimization
+
+### Synced with Main
+- All v2.0.1 features merged from main branch
+- Unified logging system
+- Test organization
+- Configuration management updates
 
 ### Status
 - **Beta**: Not recommended for production use
