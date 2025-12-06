@@ -17,7 +17,7 @@ import sys
 import json
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict
 
 # 导入自定义模块
 from data_collector import DataCollector
@@ -43,7 +43,15 @@ except ImportError:
 class AIWorldTracker:
     """AI世界追踪器主应用"""
     
-    def __init__(self):
+    def __init__(self, auto_mode: bool = False):
+        """
+        初始化AI世界追踪器
+        
+        Args:
+            auto_mode: 是否为自动模式，自动模式下跳过交互式提示
+        """
+        self.auto_mode = auto_mode
+        
         print("\n" + "="*60)
         print("     🌍 AI World Tracker - MVP 版本")
         print("     全球人工智能动态追踪系统")
@@ -67,13 +75,19 @@ class AIWorldTracker:
         self.llm_provider = 'ollama'
         self.llm_model = 'qwen3:8b'
         
+        # 自动模式下强制使用规则分类，跳过LLM相关初始化
+        if self.auto_mode:
+            print("📋 [自动模式] 使用规则分类模式")
+            self._load_latest_data()
+            return
+        
         # 加载用户配置（包括上次的分类模式）
         self._load_user_config()
         
         # 尝试加载最新数据
         self._load_latest_data()
         
-        # 检查LLM可用性
+        # 检查LLM可用性（自动模式下跳过交互式提示）
         if LLM_AVAILABLE:
             self._check_llm_availability()
         
@@ -166,6 +180,12 @@ class AIWorldTracker:
     def _offer_ollama_startup_help(self):
         """提供Ollama启动帮助"""
         print("\n   如需使用本地LLM分类，请先启动Ollama服务。")
+        
+        # 自动模式下跳过交互式提示
+        if self.auto_mode:
+            print("   [自动模式] 跳过Ollama服务启动，将使用规则分类")
+            return
+        
         choice = input("   是否尝试启动Ollama服务? (y/n) [n]: ").strip().lower()
         
         if choice == 'y':
@@ -337,10 +357,15 @@ class AIWorldTracker:
     
     def run_full_pipeline(self):
         """运行完整数据处理流程"""
+        import time
+        start_time = time.time()
+        timing_stats = {}  # 收集耗时统计
+        
         print("🚀 启动完整数据处理流程...\n")
         
         # 步骤1: 数据采集
-        print("【步骤 1/4】数据采集")
+        step_start = time.time()
+        print("【步骤 1/5】数据采集")
         raw_data = self.collector.collect_all()
         
         # 合并所有数据
@@ -348,29 +373,41 @@ class AIWorldTracker:
         for category, items in raw_data.items():
             all_items.extend(items)
         
+        timing_stats['data_collection'] = round(time.time() - step_start, 1)
         print(f"\n📦 共采集 {len(all_items)} 条原始数据\n")
         
         # 步骤2: 内容分类（根据当前模式选择分类器）
+        step_start = time.time()
         print("【步骤 2/5】内容分类")
         self.data = self._classify_data(all_items)
+        timing_stats['classification'] = round(time.time() - step_start, 1)
         
         # 步骤3: 智能分析
+        step_start = time.time()
         print("\n【步骤 3/5】智能分析")
         self.trends = self.analyzer.analyze_trends(self.data)
+        timing_stats['analysis'] = round(time.time() - step_start, 1)
         
         # 步骤4: 数据可视化
+        step_start = time.time()
         print("\n【步骤 4/5】数据可视化")
         self.chart_files = self.visualizer.visualize_all(self.trends)
+        timing_stats['visualization'] = round(time.time() - step_start, 1)
         
         # 步骤5: 生成Web页面
+        step_start = time.time()
         print("\n【步骤 5/5】生成Web页面")
         web_file = self.web_publisher.generate_html_page(self.data, self.trends, self.chart_files)
+        timing_stats['web_generation'] = round(time.time() - step_start, 1)
+        
+        # 计算总耗时
+        timing_stats['total'] = round(time.time() - start_time, 1)
         
         # 生成报告
         report = self.analyzer.generate_report(self.data, self.trends)
         
-        # 保存数据和报告
-        self._save_results(report, web_file)
+        # 保存数据和报告（包含耗时统计）
+        self._save_results(report, web_file, timing_stats)
         
         print("\n" + "="*60)
         print("✨ 处理完成！")
@@ -1053,18 +1090,31 @@ class AIWorldTracker:
         except Exception as e:
             print(f"❌ 读取报告失败: {e}")
     
-    def _save_results(self, report: str, web_file: Optional[str] = None):
+    def _save_results(self, report: str, web_file: Optional[str] = None, timing_stats: Optional[Dict] = None):
         """保存结果到文件"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        # 构建metadata
+        metadata = {
+            'timestamp': timestamp,
+            'total_items': len(self.data),
+            'classification_mode': self.classification_mode
+        }
+        
+        # 添加耗时统计（如果有）
+        if timing_stats:
+            metadata['timing'] = timing_stats
+        
+        # 如果是LLM模式，记录模型信息
+        if self.classification_mode == 'llm':
+            metadata['llm_provider'] = self.llm_provider
+            metadata['llm_model'] = self.llm_model
         
         # 保存JSON数据
         data_file = f'ai_tracker_data_{timestamp}.json'
         with open(data_file, 'w', encoding='utf-8') as f:
             json.dump({
-                'metadata': {
-                    'timestamp': timestamp,
-                    'total_items': len(self.data)
-                },
+                'metadata': metadata,
                 'data': self.data,
                 'trends': self.trends
             }, f, ensure_ascii=False, indent=2)
@@ -1085,7 +1135,10 @@ class AIWorldTracker:
 def main():
     """主函数"""
     try:
-        tracker = AIWorldTracker()
+        # 检查是否为自动模式
+        auto_mode = len(sys.argv) > 1 and sys.argv[1] == '--auto'
+        
+        tracker = AIWorldTracker(auto_mode=auto_mode)
         
         # 检查命令行参数
         if len(sys.argv) > 1:
