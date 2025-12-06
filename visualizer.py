@@ -3,8 +3,11 @@
 生成各类图表展示AI趋势和数据
 """
 
-import matplotlib.pyplot as plt
 import matplotlib
+# 在导入 pyplot 之前设置后端为 Agg（非交互式），避免 CI 环境问题
+matplotlib.use('Agg')
+
+import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from typing import Dict, List
 from datetime import datetime
@@ -15,7 +18,6 @@ import platform
 def configure_chinese_fonts():
     """配置中文字体支持"""
     import warnings
-    import matplotlib
     # 忽略字体警告
     warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
     

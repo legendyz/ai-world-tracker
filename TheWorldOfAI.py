@@ -949,7 +949,8 @@ class AIWorldTracker:
                     print(f"   建议: {sug.get('suggestion')}")
                 
                 if sug.get('keywords'):
-                    print(f"   建议添加关键词: {', '.join(sug['keywords'])}")
+                    keywords_str = ', '.join(sug['keywords'])
+                    print(f"   建议添加关键词: {keywords_str}")
                 
                 if sug.get('severity'):
                     print(f"   严重程度: {sug.get('severity')}")
@@ -994,22 +995,28 @@ class AIWorldTracker:
 
 def main():
     """主函数"""
-    tracker = AIWorldTracker()
-    
-    # 检查命令行参数
-    if len(sys.argv) > 1:
-        if sys.argv[1] == '--auto':
-            # 自动运行完整流程
-            tracker.run_full_pipeline()
-        elif sys.argv[1] == '--help':
-            print("\nAI World Tracker - 使用说明")
-            print("\n参数:")
-            print("  --auto    自动运行完整流程")
-            print("  --help    显示帮助信息")
-            print("\n无参数:     进入交互式菜单\n")
-    else:
-        # 交互式菜单
-        tracker.show_menu()
+    try:
+        tracker = AIWorldTracker()
+        
+        # 检查命令行参数
+        if len(sys.argv) > 1:
+            if sys.argv[1] == '--auto':
+                # 自动运行完整流程
+                tracker.run_full_pipeline()
+            elif sys.argv[1] == '--help':
+                print("\nAI World Tracker - 使用说明")
+                print("\n参数:")
+                print("  --auto    自动运行完整流程")
+                print("  --help    显示帮助信息")
+                print("\n无参数:     进入交互式菜单\n")
+        else:
+            # 交互式菜单
+            tracker.show_menu()
+    except Exception as e:
+        print(f"\n❌ 程序运行出错: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":

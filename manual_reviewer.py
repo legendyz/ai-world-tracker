@@ -83,9 +83,11 @@ class ManualReviewer:
         print(f"置信度: {item.get('confidence', 0):.1%}")
         
         if item.get('secondary_labels'):
-            print(f"次要标签: {', '.join(item['secondary_labels'])}")
+            secondary_labels_str = ', '.join(item['secondary_labels'])
+            print(f"次要标签: {secondary_labels_str}")
         
-        print(f"技术领域: {', '.join(item.get('tech_categories', ['N/A']))}")
+        tech_categories_str = ', '.join(item.get('tech_categories', ['N/A']))
+        print(f"技术领域: {tech_categories_str}")
         print(f"地区: {item.get('region', 'N/A')}")
         
         # 显示操作选项

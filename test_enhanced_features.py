@@ -49,11 +49,13 @@ for i, item in enumerate(results, 1):
     
     # 显示次要标签
     if item.get('secondary_labels'):
-        print(f"  ├─ 次要分类: {', '.join(item['secondary_labels'])} ⭐")
+        secondary_str = ', '.join(item['secondary_labels'])
+        print(f"  ├─ 次要分类: {secondary_str} ⭐")
     else:
         print(f"  ├─ 次要分类: 无")
     
-    print(f"  ├─ 技术领域: {', '.join(item['tech_categories'])}")
+    tech_str = ', '.join(item['tech_categories'])
+    print(f"  ├─ 技术领域: {tech_str}")
     print(f"  ├─ 地区: {item['region']}")
     
     if item.get('needs_review'):

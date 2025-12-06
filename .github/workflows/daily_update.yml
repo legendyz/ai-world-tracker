@@ -38,8 +38,14 @@ jobs:
         
     - name: Run AI World Tracker
       run: |
-        python TheWorldOfAI.py --auto
+        python TheWorldOfAI.py --auto 2>&1 || {
+          echo "::warning::Main script failed, checking error details..."
+          exit 1
+        }
       timeout-minutes: 5
+      continue-on-error: false
+      env:
+        PYTHONUNBUFFERED: "1"
         
     - name: Update Root Index
       run: |

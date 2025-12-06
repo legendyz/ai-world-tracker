@@ -799,8 +799,10 @@ if __name__ == "__main__":
         print(f"\n  标题: {item['title']}")
         print(f"  类型: {item['content_type']} (置信度: {item['confidence']:.1%})")
         if item.get('secondary_labels'):
-            print(f"  次要: {', '.join(item['secondary_labels'])}")
-        print(f"  领域: {', '.join(item['tech_categories'])}")
+            secondary_str = ', '.join(item['secondary_labels'])
+            print(f"  次要: {secondary_str}")
+        tech_str = ', '.join(item['tech_categories'])
+        print(f"  领域: {tech_str}")
         print(f"  地区: {item['region']}")
         if item.get('needs_review'):
             print(f"  ⚠️  需要人工审核")

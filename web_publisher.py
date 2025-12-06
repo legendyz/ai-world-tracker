@@ -146,7 +146,7 @@ class WebPublisher:
         {self._render_charts(chart_files)}
         
         <!-- 3. Industry Leaders' Update -->
-        {self._render_section('🗣️ Industry Leaders\' Update', 'leader', categorized_data['leader'], is_grid=True)}
+        {self._render_section("🗣️ Industry Leaders' Update", 'leader', categorized_data['leader'], is_grid=True)}
         
         <!-- 4. Product News -->
         {self._render_section('🚀 Product News', 'product', categorized_data['product'], is_grid=True)}
