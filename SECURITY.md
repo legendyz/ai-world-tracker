@@ -4,12 +4,11 @@
 
 We actively maintain and provide security updates for the following versions:
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.2.x   | :white_check_mark: |
-| 1.1.x   | :white_check_mark: |
-| 1.0.x   | :warning: Limited  |
-| < 1.0   | :x:                |
+| Version | Branch | Supported |
+|---------|--------|-----------|
+| 2.0.x | `main` | ✅ Active |
+| 1.0.x | `ai-world-tracker-v1` | ⚠️ Security fixes only |
+| Beta | `feature/data-collection-v2` | ❌ Not for production |
 
 ## 🚨 Reporting a Vulnerability
 
@@ -33,46 +32,66 @@ We take the security of AI World Tracker seriously. If you discover a security v
 - **Updates**: We will provide regular updates on the status of your report
 - **Credit**: We will give appropriate credit to security researchers (unless you prefer to remain anonymous)
 
-### ⚠️ Common Security Considerations
+## ⚠️ Security Considerations
 
-#### Data Collection Security
+### LLM Integration Security (v2.0+)
+
+- **API Keys**: Store API keys in environment variables, never in code
+- **Local LLM (Ollama)**: Runs entirely on local machine, no data sent externally
+- **Cloud LLM**: Data is sent to OpenAI/Anthropic servers when using their APIs
+- **Caching**: Classification cache stored locally in JSON format
+
+### Data Collection Security
+
 - **Network Requests**: All external API calls use HTTPS when available
 - **Rate Limiting**: Built-in respect for API rate limits to prevent abuse
 - **Input Validation**: RSS feed URLs and data are validated before processing
+- **No Authentication Data**: No user credentials stored or transmitted
 
-#### Data Handling
+### Data Handling
+
 - **No Sensitive Data**: We do not collect or store personal user information
 - **Local Storage**: All data is stored locally on your machine
-- **No Authentication**: No user accounts or authentication data to compromise
+- **Public Data Only**: Only publicly available information is collected
 
-#### Dependencies
+### Dependencies
+
 - **Regular Updates**: We regularly review and update dependencies
 - **Vulnerability Scanning**: Dependencies are checked for known vulnerabilities
 - **Minimal Surface**: We use only necessary dependencies to reduce attack surface
 
-### 🔧 Security Best Practices for Users
+## 🔧 Security Best Practices for Users
 
-1. **Environment Setup**:
-   ```bash
-   # Use virtual environments
-   python -m venv venv
-   source venv/bin/activate  # Linux/macOS
-   
-   # Keep dependencies updated
-   pip install --upgrade -r requirements.txt
-   ```
+### Environment Setup
 
-2. **Network Security**:
-   - Run from trusted networks
-   - Consider using VPN for enhanced privacy
-   - Monitor outbound connections if in sensitive environments
+```bash
+# Use virtual environments
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+.\venv\Scripts\activate   # Windows
 
-3. **Data Protection**:
-   - Review generated files before sharing
-   - Be aware that collected data includes public information from various sources
-   - Consider data retention policies for your use case
+# Keep dependencies updated
+pip install --upgrade -r requirements.txt
+```
 
-### 🚫 Out of Scope
+### API Key Management
+
+```bash
+# Store API keys in environment variables
+export OPENAI_API_KEY="your-key"
+export ANTHROPIC_API_KEY="your-key"
+
+# Or use .env file (add to .gitignore)
+echo "OPENAI_API_KEY=your-key" >> .env
+```
+
+### Network Security
+
+- Run from trusted networks
+- Consider using VPN for enhanced privacy
+- Monitor outbound connections if in sensitive environments
+
+## 🚫 Out of Scope
 
 The following are generally **not** considered security vulnerabilities:
 - Issues requiring physical access to the user's machine
@@ -81,7 +100,7 @@ The following are generally **not** considered security vulnerabilities:
 - Rate limiting or API quota exhaustion
 - Performance issues or denial of service against public APIs
 
-### 📋 Security Checklist for Contributors
+## 📋 Security Checklist for Contributors
 
 When contributing code, please ensure:
 - [ ] No hardcoded secrets or API keys
@@ -90,23 +109,12 @@ When contributing code, please ensure:
 - [ ] Use of HTTPS for all external communications
 - [ ] No execution of untrusted code or commands
 - [ ] Proper handling of temporary files and cleanup
+- [ ] LLM prompts do not expose sensitive system information
 
-### 🔄 Security Update Process
+## 🔄 Security Update Process
 
 1. **Assessment**: Evaluate the severity and impact
 2. **Fix Development**: Develop and test the security fix
 3. **Testing**: Thoroughly test the fix in multiple environments
 4. **Release**: Create a security release with clear changelog
 5. **Notification**: Notify users through GitHub releases and documentation
-
-### 📞 Contact Information
-
-- **Security Email**: security@ai-world-tracker.com
-- **GitHub Security Advisories**: Preferred for coordinated disclosure
-- **General Issues**: Use GitHub Issues for non-security related problems
-
----
-
-**Thank you for helping keep AI World Tracker secure!** 🛡️
-
-*Last Updated: December 2, 2025*
