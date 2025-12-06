@@ -46,13 +46,16 @@ class AIAnalyzer:
             from openai import OpenAI
             client = OpenAI(api_key=self.api_key)
             
-            content = f"标题: {item.get('title', '')}\n内容: {item.get('summary', item.get('description', ''))}"
+            title = item.get('title', '')
+            summary = item.get('summary', item.get('description', ''))
+            content = f"标题: {title}\n内容: {summary}"
+            prompt = f"请总结以下内容（不超过100字）：\n{content}"
             
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": "你是一个AI资讯分析助手，请用简洁的中文总结AI相关内容的要点。"},
-                    {"role": "user", "content": f"请总结以下内容（不超过100字）：\n{content}"}
+                    {"role": "user", "content": prompt}
                 ],
                 max_tokens=200
             )
