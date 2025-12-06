@@ -1,0 +1,22 @@
+# AI World Tracker 全局配置
+
+collector:
+  product_count: 15
+  community_count: 10
+  max_total: 100
+
+classification:
+  mode: llm   # 可选: llm, rule
+  provider: ollama
+  model: Qwen3:8B
+  batch_size: 10
+  max_workers: 4
+
+visualization:
+  theme: default
+
+output:
+  report_dir: ./
+  web_dir: ./web_output/
+
+# 其他参数可继续扩展

@@ -1,0 +1,830 @@
+"""
+多语言支持模块 - i18n
+支持中文(zh)和英文(en)
+"""
+
+# 当前语言设置
+_current_language = 'zh'
+
+# 语言包
+LANG_PACKS = {
+    'zh': {
+        # 主程序
+        'app_title': '🌍 AI World Tracker - MVP 版本',
+        'app_subtitle': '全球人工智能动态追踪系统',
+        'auto_mode': '📋 [自动模式] 使用规则分类模式',
+        'start_pipeline': '🚀 启动完整数据处理流程...',
+        'step_collect': '【步骤 1/5】数据采集',
+        'step_classify': '【步骤 2/5】内容分类',
+        'step_analyze': '【步骤 3/5】智能分析',
+        'step_visualize': '【步骤 4/5】数据可视化',
+        'step_web': '【步骤 5/5】生成Web页面',
+        'collected_items': '📦 共采集 {count} 条原始数据',
+        'classification_time': '⏱️ 分类总耗时: {time} 秒',
+        'process_complete': '✨ 处理完成！',
+        'charts_generated': '📊 已生成 {count} 个可视化图表',
+        'report_saved': '📄 分析报告已保存',
+        'data_saved': '💾 数据已保存到 JSON 文件',
+        'web_generated': '🌐 Web页面已生成',
+        
+        # 菜单
+        'menu_title': '📋 主菜单',
+        'menu_current_mode': '当前分类模式',
+        'menu_option_1': '1. 🚀 自动更新数据与报告 (Auto Update & Generate)',
+        'menu_option_2': '2. 🌐 生成并打开 Web 页面 (Generate & Open Web Page)',
+        'menu_option_3': '3. 📝 人工审核分类 (Manual Review)',
+        'menu_option_4': '4. 🎓 学习反馈分析 (Learning Feedback)',
+        'menu_option_5': '5. ⚙️  切换分类模式 (Switch Classification Mode)',
+        'menu_option_0': '0. 退出程序',
+        'menu_choice': '请选择操作 (0-5)',
+        'menu_goodbye': '👋 感谢使用 AI World Tracker！再见！',
+        'menu_invalid': '❌ 无效选择，请重试',
+        
+        # 分类模式
+        'switch_mode_title': '⚙️  切换分类模式',
+        'current_mode': '当前模式',
+        'available_modes': '可用模式',
+        'mode_rule_desc': '📝 规则模式 (Rule-based) - 快速、免费、无需网络',
+        'mode_ollama_desc': '🤖 LLM模式 (Ollama本地) - 高精度、语义理解',
+        'mode_openai_desc': '🤖 LLM模式 (OpenAI) - 最高精度、需要API密钥',
+        'mode_anthropic_desc': '🤖 LLM模式 (Anthropic) - 高精度、需要API密钥',
+        'clear_llm_cache': '🗑️ 清除LLM分类缓存',
+        'clear_collection_cache': '🗑️ 清除采集历史缓存',
+        'reinit_llm_classifier': '🔄 正在重新初始化LLM分类器...',
+        'llm_not_available': '⚠️  LLM模式不可用 (未安装llm_classifier模块)',
+        'llm_not_installed': '⚠️ LLM分类器未安装，将使用规则分类模式',
+        'switched_to_rule': '✅ 已切换到规则模式',
+        'switched_to_llm': '✅ 已切换到LLM模式: {provider}/{model}',
+        'invalid_choice': '❌ 无效选择',
+        
+        # Ollama相关
+        'ollama_not_running': '⚠️ Ollama服务未运行！',
+        'ollama_running': '✅ Ollama服务运行中',
+        'ollama_available_models': '可用模型: {models}',
+        'available_models': '可用的本地模型',
+        'no_models': '⚠️ 未找到已安装的模型',
+        'install_model_hint': '请先安装模型: ollama pull qwen3:8b',
+        'no_available_models': '❌ 没有可用的模型，无法切换到LLM模式',
+        'select_model': '请选择模型',
+        'model_recommended': ' (推荐)',
+        'ollama_starting': '🚀 正在启动Ollama服务...',
+        'ollama_waiting': '等待服务启动...',
+        'ollama_started': '✅ Ollama服务已启动！',
+        'ollama_timeout': '⚠️  Ollama服务启动超时，请手动启动: ollama serve',
+        'ollama_not_found': '❌ 未找到Ollama命令，请确认已安装Ollama',
+        'ollama_download': '下载地址: https://ollama.com/download',
+        'ollama_start_failed': '❌ 启动Ollama失败: {error}',
+        'ollama_manual_start': '请手动启动: ollama serve',
+        'ollama_cannot_connect': '❌ 无法连接到Ollama服务，请手动启动后重试',
+        'ollama_no_local_llm': '切换分类模式时将无法使用本地LLM分类',
+        'ollama_no_models_warning': '⚠️  Ollama服务运行中，但未安装任何模型',
+        'ollama_install_hint': '   请安装模型: ollama pull qwen3:8b',
+        'ollama_no_llm_hint': '   切换分类模式时将无法使用本地LLM分类',
+        'ollama_not_running_info': 'ℹ️  Ollama服务未运行',
+        'ollama_hint': '如需使用本地LLM分类，请先启动Ollama服务。',
+        'ollama_skip_auto': '[自动模式] 跳过Ollama服务启动，将使用规则分类',
+        'ollama_later_hint': '您可以稍后手动启动: ollama serve',
+        'ollama_start_prompt': '是否尝试启动Ollama服务? (y/n) [n]: ',
+        
+        # 帮助信息
+        'help_usage': '使用说明',
+        'help_params': '参数:',
+        'help_auto': '自动运行完整流程 (英文输出)',
+        'help_info': '显示帮助信息',
+        'help_no_params': '无参数:     进入交互式菜单',
+        
+        # 模型安装
+        'model_installing': '📥 正在安装模型 {model}...',
+        'model_install_wait': '这可能需要几分钟，取决于您的网络速度...',
+        'model_installed': '✅ 模型 {model} 安装成功！',
+        'model_install_failed': '❌ 模型安装失败 (返回码: {code})',
+        'model_install_error': '❌ 安装失败: {error}',
+        
+        # 配置加载
+        'config_loaded_llm': '📋 已加载上次配置: LLM模式 ({provider}/{model})',
+        'config_loaded_rule': '📋 已加载上次配置: 规则模式',
+        'config_save_failed': '⚠️ 保存配置失败: {error}',
+        'llm_restored': '✅ 已恢复LLM分类器: {model}',
+        'llm_restore_failed': '⚠️ 无法恢复LLM模式 (Ollama服务不可用或模型未安装)，切换到规则模式',
+        'llm_cloud_reconfig': '⚠️ 上次使用的是云端LLM ({provider})，需要重新配置',
+        'llm_restore_error': '⚠️ 恢复LLM分类器失败: {error}，切换到规则模式',
+        'llm_init_failed': '❌ 初始化LLM分类器失败: {error}',
+        
+        # 数据加载
+        'loading_history': '📥 发现历史数据，正在加载: {file}...',
+        'history_loaded': '✅ 已加载 {count} 条历史数据',
+        'history_load_failed': '⚠️ 加载历史数据失败: {error}',
+        
+        # 分类
+        'using_llm': '🤖 使用LLM分类 ({provider}/{model})',
+        'using_rule': '📝 使用规则分类',
+        
+        # 采集
+        'collecting': '🔄 开始数据采集...',
+        'collect_done': '✅ 采集并分类完成！共 {count} 条数据',
+        
+        # 统计
+        'no_data': '⚠️ 暂无数据，请先运行数据采集',
+        'stats_overview': '📊 数据统计概览:',
+        'stats_total': '总数据量: {count} 条',
+        'stats_by_type': '内容类型:',
+        'stats_by_region': '地区分布:',
+        'stats_item': '- {name}: {count} 条',
+        
+        # 可视化
+        'analyzing': '🔄 正在分析数据...',
+        'generating_charts': '🎨 正在生成可视化图表...',
+        'generating_analysis': '🔄 正在生成分析...',
+        'generating_web': '🌐 正在生成Web页面...',
+        'opened_browser': '🚀 已在浏览器中打开Web页面',
+        'browser_error': '⚠️ 无法自动打开浏览器: {error}',
+        'manual_open': '请手动打开文件: {file}',
+        
+        # 筛选
+        'filter_title': '🔍 数据筛选:',
+        'filter_by_type': '1. 按内容类型 (research/product/market)',
+        'filter_by_region': '2. 按地区 (China/USA/Europe/Global)',
+        'filter_by_tech': '3. 按技术领域',
+        'filter_result': '✅ 筛选结果: {count} 条数据',
+        'filter_more': '... 还有 {count} 条结果',
+        
+        # 人工审核
+        'manual_review_title': '📝 人工审核模式',
+        'review_stats': '📊 数据统计:',
+        'review_total': '总内容数: {count} 条',
+        'review_need': '需要审核: {count} 条 ({percent})',
+        'review_not_needed': '✅ 所有内容分类置信度都很高，无需审核！',
+        'review_list': '需要审核的内容:',
+        'review_item': '{i}. {title}... (置信度: {conf})',
+        'review_more': '... 还有 {count} 条',
+        'review_options': '审核选项:',
+        'review_opt_1': '1. 批量审核所有低置信度内容',
+        'review_opt_2': '2. 设置自定义置信度阈值',
+        'review_opt_3': '3. 仅查看需要审核的内容列表',
+        'review_opt_0': '0. 返回主菜单',
+        'review_saved': '✅ 已保存到: {file}',
+        'review_summary': '📊 审核摘要:',
+        'review_summary_total': '总审核数: {count} 条',
+        'review_threshold_error': '❌ 阈值必须在 0.0-1.0 之间',
+        'review_input_error': '❌ 无效输入',
+        'review_list_title': '需要审核的内容列表:',
+        
+        # 重新生成
+        'regenerate_title': '🔄 重新生成报告和可视化',
+        'regenerate_step1': '【1/3】重新分析趋势...',
+        'regenerate_step2': '【2/3】重新生成图表...',
+        'regenerate_step3': '【3/3】重新生成Web页面...',
+        'regenerate_done': '✅ 重新生成完成！',
+        'regenerate_data': '数据文件: {file}',
+        'regenerate_report': '报告文件: {file}',
+        'regenerate_web': 'Web页面: {file}',
+        'regenerate_opened': '🚀 已在浏览器中打开',
+        'regenerate_failed': '❌ 重新生成失败: {error}',
+        
+        # 学习反馈
+        'learning_title': '🎓 学习反馈系统',
+        'learning_no_history': '⚠️ 未找到审核历史文件',
+        'learning_do_review': '请先完成人工审核（菜单选项5）',
+        'learning_no_data': '⚠️ 未找到审核后的数据文件',
+        'learning_do_save': '请先完成人工审核并保存数据',
+        'learning_found': '📁 找到审核记录:',
+        'learning_history_count': '审核历史: {count} 个文件',
+        'learning_data_count': '审核数据: {count} 个文件',
+        'learning_recent': '最近的审核:',
+        'learning_options': '选项:',
+        'learning_opt_1': '1. 分析最近一次审核',
+        'learning_opt_2': '2. 选择特定审核文件',
+        'learning_opt_0': '0. 返回',
+        'learning_analyzing': '📊 正在分析: {file}',
+        'learning_done': '✅ 学习分析完成！',
+        'learning_report': '详细报告已保存到: {file}',
+        'learning_failed': '❌ 分析失败: {error}',
+        'learning_files': '可用的审核历史文件:',
+        'learning_good': '✅ 当前分类器表现良好，暂无改进建议',
+        'learning_suggestions': '💡 改进建议详情',
+        'learning_sug_num': '建议 {i}:',
+        'learning_sug_type': '类型: {type}',
+        'learning_sug_cat': '分类: {cat}',
+        'learning_sug_issue': '问题: {issue}',
+        'learning_sug_suggestion': '建议: {suggestion}',
+        'learning_sug_keywords': '建议添加关键词: {keywords}',
+        'learning_sug_severity': '严重程度: {severity}',
+        'learning_note': '📝 说明:',
+        'learning_note_1': '这些建议基于人工审核结果自动生成',
+        'learning_note_2': '可以手动编辑 content_classifier.py 应用这些改进',
+        'learning_read_error': '❌ 读取报告失败: {error}',
+        
+        # API相关
+        'api_key_missing': '⚠️ 未设置 {key} 环境变量',
+        'available_openai_models': '可用的OpenAI模型:',
+        'available_anthropic_models': '可用的Anthropic模型:',
+        
+        # 保存
+        'data_saved_to': '💾 数据已保存: {file}',
+        'report_saved_to': '📄 报告已保存: {file}',
+        'web_saved_to': '🌐 Web页面已生成: {file}',
+        
+        # 错误
+        'program_error': '❌ 程序运行出错: {error}',
+        
+        # 语言选择
+        'select_language': '请选择语言 / Please select language:',
+        'lang_chinese': '1. 中文',
+        'lang_english': '2. English',
+        'lang_choice': '请输入选项 (1/2)',
+        'lang_selected_zh': '✓ 已选择中文',
+        'lang_selected_en': '✓ English selected',
+        
+        # LLM分类器
+        'llm_init_done': '🤖 LLM分类器初始化完成',
+        'llm_provider': '   提供商: {provider}',
+        'llm_model_name': '   模型: {model}',
+        'llm_cache_status': '   缓存: {status}',
+        'llm_cache_enabled': '启用',
+        'llm_cache_disabled': '禁用',
+        'llm_gpu_enabled': '   🚀 GPU加速: 启用 ({gpu_name})',
+        'llm_vram': '   显存: {vram} MB',
+        'llm_cpu_mode': '   💻 运行模式: CPU ({gpu_name})',
+        'llm_cpu_threads': '   CPU线程: {threads}',
+        'llm_model_warmed': '   ✓ 模型已预热',
+        'llm_warming_model': '🔥 正在预热模型 {model}...',
+        'llm_warmup_done': '   ✅ 模型预热完成 (耗时 {time}s)',
+        'llm_keep_alive': '   ⏰ 模型将保持活跃 {minutes} 分钟',
+        'llm_warmup_failed_http': '   ⚠️ 模型预热失败: HTTP {code}',
+        'llm_warmup_failed': '   ⚠️ 模型预热失败: {error}',
+        'llm_keepalive_set': '   ⏰ 模型保活时间已设置为 {minutes} 分钟',
+        'llm_keepalive_failed': '   ⚠️ 设置保活失败: {error}',
+        'llm_model_unloaded': '   🔻 模型 {model} 已卸载',
+        'llm_unload_failed': '   ⚠️ 卸载模型失败: {error}',
+        'llm_ollama_not_running': '⚠️ Ollama服务未运行，请先启动: ollama serve',
+        'llm_api_key_missing': '⚠️ 未设置 {provider}_API_KEY 环境变量',
+        'llm_cache_loaded': '📦 已加载 {count} 条缓存',
+        'llm_cache_outdated': '⚠️ 检测到旧格式缓存，已自动清除',
+        'llm_cache_force_cleared': '🗑️ 已强制清除LLM分类缓存',
+        'llm_cache_not_found': '📦 缓存文件不存在，无需清除',
+        'llm_cache_clear_error': '⚠️ 清除缓存失败: {error}',
+        'llm_no_gpu_detected': '未检测到GPU',
+        'llm_cache_save_failed': '⚠️ 保存缓存失败: {error}',
+        'llm_ollama_error': '⚠️ Ollama API错误: {code}',
+        'llm_ollama_failed': '⚠️ Ollama调用失败: {error}',
+        'llm_openai_failed': '⚠️ OpenAI调用失败: {error}',
+        'llm_anthropic_failed': '⚠️ Anthropic调用失败: {error}',
+        'llm_parse_failed': '⚠️ 响应解析失败: {error}',
+        'llm_fallback': '⚠️ LLM分类失败，降级到规则分类: {title}...',
+        'llm_batch_start': '\n🤖 开始LLM批量分类 ({total} 条内容)',
+        'llm_batch_info': '   提供商: {provider} | 模型: {model}',
+        'llm_batch_cache': '   并发数: {workers} | 缓存命中: {cached}/{total}',
+        'llm_all_cached': '   ✨ 全部命中缓存，跳过LLM调用',
+        'llm_batch_mode': '   模式: 批量分类 (每批 {batch_size} 条)',
+        'llm_concurrent_mode': '   模式: 并发单条',
+        'llm_progress_eta': '   进度: {completed}/{total} ({percent}%) | 本批耗时: {time}秒 | 预计剩余: {eta}秒',
+        'llm_progress': '   进度: {completed}/{total} ({percent}%)',
+        'llm_progress_rate': '   进度: {completed}/{total} ({percent}%) | 速度: {rate}条/秒 | 预计剩余: {eta}秒',
+        'llm_task_failed': '⚠️ 分类任务失败: {error}',
+        'llm_batch_parse_failed': '⚠️ 批量响应解析失败: {error}',
+        'llm_stats': '\n📊 分类统计:',
+        'llm_stats_total': '   总请求: {count}',
+        'llm_stats_cached': '   缓存命中: {count}',
+        'llm_stats_success': '   成功: {count}',
+        'llm_stats_failed': '   失败: {count}',
+        'llm_stats_time': '   耗时: {time}',
+        'llm_stats_avg': '   平均每条: {time}秒',
+        'llm_fallback_details': '\n⚠️ 规则降级详情 ({count} 条):',
+        'llm_fallback_item': '   {i}. [{mode}] {title}',
+        'llm_fallback_source': '      来源: {source} | 原因: {reason}',
+        'llm_cache_cleared': '🗑️ 缓存已清空',
+        'llm_select_provider': '🤖 选择LLM提供商',
+        'llm_available_providers': '\n可用的提供商:',
+        'llm_provider_ollama': '  1. Ollama (本地免费) ⭐ 推荐',
+        'llm_provider_openai': '  2. OpenAI (需要API密钥)',
+        'llm_provider_anthropic': '  3. Anthropic (需要API密钥)',
+        'llm_available_models_for': '\n可用的 {provider} 模型:',
+        'llm_selected': '\n✅ 已选择: {provider} / {model}',
+        'llm_no_service': '⚠️ 未找到可用的LLM服务，将使用规则分类',
+        'llm_test_title': 'LLM分类器测试',
+        'llm_ollama_status': '\nOllama状态: {status}',
+        'llm_ollama_running_yes': '运行中 ✅',
+        'llm_ollama_running_no': '未运行 ❌',
+        'llm_available_models': '可用模型: {models}',
+        'llm_recommended_model': '推荐模型: {model}',
+        'llm_test_content': '\n测试内容: {title}',
+        'llm_test_result': '\n分类结果:',
+        'llm_test_type': '  类型: {type}',
+        'llm_test_confidence': '  置信度: {confidence}',
+        'llm_test_tech': '  技术领域: {tech}',
+        'llm_test_verified': '  可信: {verified}',
+        'llm_test_reasoning': '  理由: {reasoning}',
+        'llm_start_ollama': '\n⚠️ 请先启动Ollama服务: ollama serve',
+        
+        # AI分析器
+        'ai_no_api_key': '⚠️ 未提供OpenAI API密钥，将使用规则基础的分析方法',
+        'ai_summary_failed': '⚠️ AI摘要生成失败: {error}，使用规则方法',
+        'ai_analyzing': '📊 正在分析AI趋势...',
+        'ai_analysis_done': '✨ 趋势分析完成！',
+        'ai_top_tech': '🔥 技术热点 TOP 5:',
+        'ai_content_dist': '📈 内容类型分布:',
+        'ai_region_dist': '🌍 地区分布:',
+        'ai_items': '条',
+        
+        # 数据采集器
+        'dc_collect_research': '采集AI研究论文...',
+        'dc_got_papers': '   获取 {count} 篇研究论文',
+        'dc_arxiv_failed': '   arXiv采集失败: {error}',
+        'dc_collect_developer': '采集开发者社区内容...',
+        'dc_got_developer': '   获取 {count} 条开发者内容',
+        'dc_collect_products': '采集AI产品发布...',
+        'dc_product_failed': '   ⚠️ {company} 产品信息采集失败: {error}',
+        'dc_got_products': '   获取 {count} 条产品发布信息',
+        'dc_collect_leaders': '采集AI领袖言论...',
+        'dc_leader_failed': '   ⚠️ 采集 {name} 言论失败: {error}',
+        'dc_collect_blogs': '   采集领袖博客与播客...',
+        'dc_blog_failed': '   ⚠️ 采集博客 {author} 失败: {error}',
+        'dc_fallback_data': '   ⚠️ 在线采集数量不足，补充备用数据',
+        'dc_got_leaders': '   获取 {count} 条领袖言论',
+        'dc_collect_news': '采集AI行业新闻...',
+        'dc_product_feed_failed': '   ⚠️ 产品新闻源 {url} 采集失败: {error}',
+        'dc_rss_failed': '   ⚠️ RSS源 {url} 采集失败: {error}',
+        'dc_got_news': '   获取 {count} 条AI新闻',
+        'dc_collect_community': '采集社区热点趋势...',
+        'dc_community_failed': '   ⚠️ 社区源 {url} 采集失败: {error}',
+        'dc_got_community': '   获取 {count} 条社区热点',
+        'dc_start_collect': 'AI World Tracker - 开始全量数据采集',
+        'dc_start_collection': 'AI World Tracker - 开始全量数据采集',
+        'dc_collect_done': '采集完成！总计 {total} 条新信息',
+        'dc_collection_done': '\n采集完成！总计 {total} 条新信息 (跳过 {skipped} 条已缓存):',
+        'dc_collection_done_v2': '\n采集完成！总计 {total} 条信息 (新增: {new}, 已缓存: {cached}):',
+        'dc_skipped_cached': ' (跳过 {count} 条已缓存)',
+        'dc_category_count': '   {category}: {count} 条',
+        'dc_category_stats': '   {category}: {count} 条 (跳过 {skipped} 条已缓存)',
+        'dc_category_stats_v2': '   {category}: {count} 条 (新增: {new}, 已缓存: {cached})',
+        'dc_cache_loaded': '📦 已加载采集历史缓存 (URL: {url_count}, 标题: {title_count})',
+        'dc_cache_expired': '⚠️ 采集历史缓存已过期(超过7天)，已清除',
+        'dc_cache_load_failed': '⚠️ 加载采集历史缓存失败: {error}',
+        'dc_cache_save_failed': '⚠️ 保存采集历史缓存失败: {error}',
+        'dc_cache_cleared': '🗑️ 已清除采集历史缓存',
+        'dc_github_failed': '   ⚠️ GitHub API调用失败: {error}',
+        'dc_hf_failed': '   ⚠️ Hugging Face API调用失败: {error}',
+        'dc_huggingface_failed': '   ⚠️ Hugging Face API调用失败: {error}',
+        'dc_dev_blog_failed': '   ⚠️ 开发者博客采集失败: {error}',
+        'dc_rss_parse_failed': '   ⚠️ RSS解析失败 {url}: {error}',
+        
+        # 可视化器
+        'vis_fonts_configured': '已配置字体: {fonts}',
+        'vis_gen_tech_chart': '正在生成技术热点图表...',
+        'vis_no_tech_data': '警告: 无技术数据',
+        'vis_chart_saved': '✅ 图表已保存: {filepath}',
+        'vis_gen_content_chart': '正在生成内容分布图表...',
+        'vis_no_content_data': '⚠️ 无内容数据',
+        'vis_gen_region_chart': '正在生成地区分布图表...',
+        'vis_no_region_data': '⚠️ 无地区数据',
+        'vis_gen_trend_chart': '正在生成每日趋势图表...',
+        'vis_insufficient_data': '⚠️ 数据不足，无法绘制趋势图',
+        'vis_gen_dashboard': '正在生成综合仪表板...',
+        'vis_dashboard_saved': '仪表板已保存: {filepath}',
+        'vis_start_gen': '开始生成可视化图表',
+        'vis_complete': '\n✨ 可视化完成！共生成 {count} 个图表',
+        'vis_output_dir': '📁 图表保存在: {dir}\n',
+        
+        # Web发布器
+        'web_generating': '🌐 Generating new Web page...',
+        'web_generated': '✅ Web page generated:',
+        'web_root_file': '   📄 Root: {file} (GitHub Pages)',
+        'web_backup_file': '   📄 Web: {file} (Backup)',
+    },
+    'en': {
+        # Main program
+        'app_title': '🌍 AI World Tracker - MVP Version',
+        'app_subtitle': 'Global AI Dynamics Tracking System',
+        'auto_mode': '📋 [Auto Mode] Using rule-based classification',
+        'start_pipeline': '🚀 Starting full data processing pipeline...',
+        'step_collect': '[Step 1/5] Data Collection',
+        'step_classify': '[Step 2/5] Content Classification',
+        'step_analyze': '[Step 3/5] Intelligent Analysis',
+        'step_visualize': '[Step 4/5] Data Visualization',
+        'step_web': '[Step 5/5] Generate Web Page',
+        'collected_items': '📦 Collected {count} raw items',
+        'classification_time': '⏱️ Classification time: {time} seconds',
+        'process_complete': '✨ Processing complete!',
+        'charts_generated': '📊 Generated {count} visualization charts',
+        'report_saved': '📄 Analysis report saved',
+        'data_saved': '💾 Data saved to JSON file',
+        'web_generated': '🌐 Web page generated',
+        
+        # Menu
+        'menu_title': '📋 Main Menu',
+        'menu_current_mode': 'Current classification mode',
+        'menu_option_1': '1. 🚀 Auto Update & Generate Report',
+        'menu_option_2': '2. 🌐 Generate & Open Web Page',
+        'menu_option_3': '3. 📝 Manual Review Classification',
+        'menu_option_4': '4. 🎓 Learning Feedback Analysis',
+        'menu_option_5': '5. ⚙️  Switch Classification Mode',
+        'menu_option_0': '0. Exit',
+        'menu_choice': 'Please select (0-5)',
+        'menu_goodbye': '👋 Thank you for using AI World Tracker! Goodbye!',
+        'menu_invalid': '❌ Invalid choice, please try again',
+        
+        # Classification mode
+        'switch_mode_title': '⚙️  Switch Classification Mode',
+        'current_mode': 'Current mode',
+        'available_modes': 'Available modes',
+        'mode_rule_desc': '📝 Rule Mode (Rule-based) - Fast, free, no network required',
+        'mode_ollama_desc': '🤖 LLM Mode (Ollama Local) - High accuracy, semantic understanding',
+        'mode_openai_desc': '🤖 LLM Mode (OpenAI) - Highest accuracy, API key required',
+        'mode_anthropic_desc': '🤖 LLM Mode (Anthropic) - High accuracy, API key required',
+        'clear_llm_cache': '🗑️ Clear LLM classification cache',
+        'clear_collection_cache': '🗑️ Clear collection history cache',
+        'reinit_llm_classifier': '🔄 Reinitializing LLM classifier...',
+        'llm_not_available': '⚠️  LLM mode not available (llm_classifier module not installed)',
+        'llm_not_installed': '⚠️ LLM classifier not installed, using rule-based classification',
+        'switched_to_rule': '✅ Switched to rule-based mode',
+        'switched_to_llm': '✅ Switched to LLM mode: {provider}/{model}',
+        'invalid_choice': '❌ Invalid choice',
+        
+        # Ollama related
+        'ollama_not_running': '⚠️ Ollama service is not running!',
+        'ollama_running': '✅ Ollama service is running',
+        'ollama_available_models': 'Available models: {models}',
+        'available_models': 'Available local models',
+        'no_models': '⚠️ No installed models found',
+        'install_model_hint': 'Please install a model first: ollama pull qwen3:8b',
+        'no_available_models': '❌ No available models, cannot switch to LLM mode',
+        'select_model': 'Please select a model',
+        'model_recommended': ' (recommended)',
+        'ollama_starting': '🚀 Starting Ollama service...',
+        'ollama_waiting': 'Waiting for service to start...',
+        'ollama_started': '✅ Ollama service started!',
+        'ollama_timeout': '⚠️  Ollama service startup timeout, please start manually: ollama serve',
+        'ollama_not_found': '❌ Ollama command not found, please confirm Ollama is installed',
+        'ollama_download': 'Download at: https://ollama.com/download',
+        'ollama_start_failed': '❌ Failed to start Ollama: {error}',
+        'ollama_manual_start': 'Please start manually: ollama serve',
+        'ollama_cannot_connect': '❌ Cannot connect to Ollama service, please start manually and retry',
+        'ollama_no_local_llm': 'Local LLM classification will not be available when switching modes',
+        'ollama_no_models_warning': '⚠️  Ollama service running, but no models installed',
+        'ollama_install_hint': '   Please install a model: ollama pull qwen3:8b',
+        'ollama_no_llm_hint': '   Local LLM classification will not be available when switching modes',
+        'ollama_not_running_info': 'ℹ️  Ollama service is not running',
+        'ollama_hint': 'To use local LLM classification, please start Ollama service first.',
+        'ollama_skip_auto': '[Auto Mode] Skipping Ollama startup, will use rule-based classification',
+        'ollama_later_hint': 'You can start it later manually: ollama serve',
+        'ollama_start_prompt': 'Start Ollama service? (y/n) [n]: ',
+        
+        # Help
+        'help_usage': 'Usage',
+        'help_params': 'Parameters:',
+        'help_auto': 'Run full pipeline automatically (English output)',
+        'help_info': 'Show help information',
+        'help_no_params': 'No parameters: Enter interactive menu',
+        
+        # Model installation
+        'model_installing': '📥 Installing model {model}...',
+        'model_install_wait': 'This may take a few minutes depending on your network speed...',
+        'model_installed': '✅ Model {model} installed successfully!',
+        'model_install_failed': '❌ Model installation failed (return code: {code})',
+        'model_install_error': '❌ Installation failed: {error}',
+        
+        # Config loading
+        'config_loaded_llm': '📋 Loaded previous config: LLM mode ({provider}/{model})',
+        'config_loaded_rule': '📋 Loaded previous config: Rule mode',
+        'config_save_failed': '⚠️ Failed to save config: {error}',
+        'llm_restored': '✅ LLM classifier restored: {model}',
+        'llm_restore_failed': '⚠️ Cannot restore LLM mode (Ollama service unavailable or model not installed), switching to rule mode',
+        'llm_cloud_reconfig': '⚠️ Last used cloud LLM ({provider}), needs reconfiguration',
+        'llm_restore_error': '⚠️ Failed to restore LLM classifier: {error}, switching to rule mode',
+        'llm_init_failed': '❌ Failed to initialize LLM classifier: {error}',
+        
+        # Data loading
+        'loading_history': '📥 Found historical data, loading: {file}...',
+        'history_loaded': '✅ Loaded {count} historical records',
+        'history_load_failed': '⚠️ Failed to load historical data: {error}',
+        
+        # Classification
+        'using_llm': '🤖 Using LLM classification ({provider}/{model})',
+        'using_rule': '📝 Using rule-based classification',
+        
+        # Collection
+        'collecting': '🔄 Starting data collection...',
+        'collect_done': '✅ Collection and classification complete! {count} items',
+        
+        # Statistics
+        'no_data': '⚠️ No data available, please run data collection first',
+        'stats_overview': '📊 Data Statistics Overview:',
+        'stats_total': 'Total data: {count} items',
+        'stats_by_type': 'Content types:',
+        'stats_by_region': 'Region distribution:',
+        'stats_item': '- {name}: {count} items',
+        
+        # Visualization
+        'analyzing': '🔄 Analyzing data...',
+        'generating_charts': '🎨 Generating visualization charts...',
+        'generating_analysis': '🔄 Generating analysis...',
+        'generating_web': '🌐 Generating web page...',
+        'opened_browser': '🚀 Opened web page in browser',
+        'browser_error': '⚠️ Cannot open browser automatically: {error}',
+        'manual_open': 'Please open the file manually: {file}',
+        
+        # Filter
+        'filter_title': '🔍 Data Filter:',
+        'filter_by_type': '1. By content type (research/product/market)',
+        'filter_by_region': '2. By region (China/USA/Europe/Global)',
+        'filter_by_tech': '3. By technology field',
+        'filter_result': '✅ Filter result: {count} items',
+        'filter_more': '... {count} more results',
+        
+        # Manual review
+        'manual_review_title': '📝 Manual Review Mode',
+        'review_stats': '📊 Data Statistics:',
+        'review_total': 'Total content: {count} items',
+        'review_need': 'Need review: {count} items ({percent})',
+        'review_not_needed': '✅ All content has high classification confidence, no review needed!',
+        'review_list': 'Content needing review:',
+        'review_item': '{i}. {title}... (confidence: {conf})',
+        'review_more': '... {count} more',
+        'review_options': 'Review options:',
+        'review_opt_1': '1. Batch review all low confidence content',
+        'review_opt_2': '2. Set custom confidence threshold',
+        'review_opt_3': '3. View list of content needing review only',
+        'review_opt_0': '0. Return to main menu',
+        'review_saved': '✅ Saved to: {file}',
+        'review_summary': '📊 Review Summary:',
+        'review_summary_total': 'Total reviewed: {count} items',
+        'review_threshold_error': '❌ Threshold must be between 0.0-1.0',
+        'review_input_error': '❌ Invalid input',
+        'review_list_title': 'List of content needing review:',
+        
+        # Regenerate
+        'regenerate_title': '🔄 Regenerate reports and visualizations',
+        'regenerate_step1': '[1/3] Re-analyzing trends...',
+        'regenerate_step2': '[2/3] Re-generating charts...',
+        'regenerate_step3': '[3/3] Re-generating web page...',
+        'regenerate_done': '✅ Regeneration complete!',
+        'regenerate_data': 'Data file: {file}',
+        'regenerate_report': 'Report file: {file}',
+        'regenerate_web': 'Web page: {file}',
+        'regenerate_opened': '🚀 Opened in browser',
+        'regenerate_failed': '❌ Regeneration failed: {error}',
+        
+        # Learning feedback
+        'learning_title': '🎓 Learning Feedback System',
+        'learning_no_history': '⚠️ No review history files found',
+        'learning_do_review': 'Please complete manual review first (menu option 5)',
+        'learning_no_data': '⚠️ No reviewed data files found',
+        'learning_do_save': 'Please complete manual review and save data first',
+        'learning_found': '📁 Found review records:',
+        'learning_history_count': 'Review history: {count} files',
+        'learning_data_count': 'Review data: {count} files',
+        'learning_recent': 'Recent review:',
+        'learning_options': 'Options:',
+        'learning_opt_1': '1. Analyze most recent review',
+        'learning_opt_2': '2. Select specific review file',
+        'learning_opt_0': '0. Return',
+        'learning_analyzing': '📊 Analyzing: {file}',
+        'learning_done': '✅ Learning analysis complete!',
+        'learning_report': 'Detailed report saved to: {file}',
+        'learning_failed': '❌ Analysis failed: {error}',
+        'learning_files': 'Available review history files:',
+        'learning_good': '✅ Current classifier is performing well, no improvement suggestions',
+        'learning_suggestions': '💡 Improvement Suggestions',
+        'learning_sug_num': 'Suggestion {i}:',
+        'learning_sug_type': 'Type: {type}',
+        'learning_sug_cat': 'Category: {cat}',
+        'learning_sug_issue': 'Issue: {issue}',
+        'learning_sug_suggestion': 'Suggestion: {suggestion}',
+        'learning_sug_keywords': 'Suggested keywords: {keywords}',
+        'learning_sug_severity': 'Severity: {severity}',
+        'learning_note': '📝 Note:',
+        'learning_note_1': 'These suggestions are auto-generated based on manual review results',
+        'learning_note_2': 'You can manually edit content_classifier.py to apply these improvements',
+        'learning_read_error': '❌ Failed to read report: {error}',
+        
+        # API related
+        'api_key_missing': '⚠️ Environment variable {key} not set',
+        'available_openai_models': 'Available OpenAI models:',
+        'available_anthropic_models': 'Available Anthropic models:',
+        
+        # Save
+        'data_saved_to': '💾 Data saved: {file}',
+        'report_saved_to': '📄 Report saved: {file}',
+        'web_saved_to': '🌐 Web page generated: {file}',
+        
+        # Error
+        'program_error': '❌ Program error: {error}',
+        
+        # Language selection
+        'select_language': 'Please select language / 请选择语言:',
+        'lang_chinese': '1. 中文',
+        'lang_english': '2. English',
+        'lang_choice': 'Enter option (1/2)',
+        'lang_selected_zh': '✓ 已选择中文',
+        'lang_selected_en': '✓ English selected',
+        
+        # LLM classifier
+        'llm_init_done': '🤖 LLM classifier initialized',
+        'llm_provider': '   Provider: {provider}',
+        'llm_model_name': '   Model: {model}',
+        'llm_cache_status': '   Cache: {status}',
+        'llm_cache_enabled': 'Enabled',
+        'llm_cache_disabled': 'Disabled',
+        'llm_gpu_enabled': '   🚀 GPU acceleration: Enabled ({gpu_name})',
+        'llm_vram': '   VRAM: {vram} MB',
+        'llm_cpu_mode': '   💻 Running mode: CPU ({gpu_name})',
+        'llm_cpu_threads': '   CPU threads: {threads}',
+        'llm_model_warmed': '   ✓ Model warmed up',
+        'llm_warming_model': '🔥 Warming up model {model}...',
+        'llm_warmup_done': '   ✅ Model warmup complete (took {time}s)',
+        'llm_keep_alive': '   ⏰ Model will stay active for {minutes} minutes',
+        'llm_warmup_failed_http': '   ⚠️ Model warmup failed: HTTP {code}',
+        'llm_warmup_failed': '   ⚠️ Model warmup failed: {error}',
+        'llm_keepalive_set': '   ⏰ Model keep-alive time set to {minutes} minutes',
+        'llm_keepalive_failed': '   ⚠️ Failed to set keep-alive: {error}',
+        'llm_model_unloaded': '   🔻 Model {model} unloaded',
+        'llm_unload_failed': '   ⚠️ Failed to unload model: {error}',
+        'llm_ollama_not_running': '⚠️ Ollama service not running, please start: ollama serve',
+        'llm_api_key_missing': '⚠️ {provider}_API_KEY environment variable not set',
+        'llm_cache_loaded': '📦 Loaded {count} cached items',
+        'llm_cache_outdated': '⚠️ Detected outdated cache format, auto-cleared',
+        'llm_cache_force_cleared': '🗑️ Force cleared LLM classification cache',
+        'llm_cache_not_found': '📦 Cache file does not exist, no need to clear',
+        'llm_cache_clear_error': '⚠️ Failed to clear cache: {error}',
+        'llm_no_gpu_detected': 'No GPU detected',
+        'llm_cache_save_failed': '⚠️ Failed to save cache: {error}',
+        'llm_ollama_error': '⚠️ Ollama API error: {code}',
+        'llm_ollama_failed': '⚠️ Ollama call failed: {error}',
+        'llm_openai_failed': '⚠️ OpenAI call failed: {error}',
+        'llm_anthropic_failed': '⚠️ Anthropic call failed: {error}',
+        'llm_parse_failed': '⚠️ Response parsing failed: {error}',
+        'llm_fallback': '⚠️ LLM classification failed, falling back to rules: {title}...',
+        'llm_batch_start': '\n🤖 Starting LLM batch classification ({total} items)',
+        'llm_batch_info': '   Provider: {provider} | Model: {model}',
+        'llm_batch_cache': '   Concurrency: {workers} | Cache hits: {cached}/{total}',
+        'llm_all_cached': '   ✨ All cached, skipping LLM calls',
+        'llm_batch_mode': '   Mode: Batch classification ({batch_size} per batch)',
+        'llm_concurrent_mode': '   Mode: Concurrent single',
+        'llm_progress_eta': '   Progress: {completed}/{total} ({percent}%) | Batch time: {time}s | ETA: {eta}s',
+        'llm_progress': '   Progress: {completed}/{total} ({percent}%)',
+        'llm_progress_rate': '   Progress: {completed}/{total} ({percent}%) | Rate: {rate}/s | ETA: {eta}s',
+        'llm_task_failed': '⚠️ Classification task failed: {error}',
+        'llm_batch_parse_failed': '⚠️ Batch response parsing failed: {error}',
+        'llm_stats': '\n📊 Classification statistics:',
+        'llm_stats_total': '   Total requests: {count}',
+        'llm_stats_cached': '   Cache hits: {count}',
+        'llm_stats_success': '   Success: {count}',
+        'llm_stats_failed': '   Failed: {count}',
+        'llm_stats_time': '   Time: {time}',
+        'llm_stats_avg': '   Average per item: {time}s',
+        'llm_fallback_details': '\n⚠️ Rule fallback details ({count} items):',
+        'llm_fallback_item': '   {i}. [{mode}] {title}',
+        'llm_fallback_source': '      Source: {source} | Reason: {reason}',
+        'llm_cache_cleared': '🗑️ Cache cleared',
+        'llm_select_provider': '🤖 Select LLM Provider',
+        'llm_available_providers': '\nAvailable providers:',
+        'llm_provider_ollama': '  1. Ollama (Local Free) ⭐ Recommended',
+        'llm_provider_openai': '  2. OpenAI (API key required)',
+        'llm_provider_anthropic': '  3. Anthropic (API key required)',
+        'llm_available_models_for': '\nAvailable {provider} models:',
+        'llm_selected': '\n✅ Selected: {provider} / {model}',
+        'llm_no_service': '⚠️ No available LLM service found, using rule-based classification',
+        'llm_test_title': 'LLM Classifier Test',
+        'llm_ollama_status': '\nOllama status: {status}',
+        'llm_ollama_running_yes': 'Running ✅',
+        'llm_ollama_running_no': 'Not running ❌',
+        'llm_available_models': 'Available models: {models}',
+        'llm_recommended_model': 'Recommended model: {model}',
+        'llm_test_content': '\nTest content: {title}',
+        'llm_test_result': '\nClassification result:',
+        'llm_test_type': '  Type: {type}',
+        'llm_test_confidence': '  Confidence: {confidence}',
+        'llm_test_tech': '  Tech fields: {tech}',
+        'llm_test_verified': '  Verified: {verified}',
+        'llm_test_reasoning': '  Reasoning: {reasoning}',
+        'llm_start_ollama': '\n⚠️ Please start Ollama service first: ollama serve',
+        
+        # AI analyzer
+        'ai_no_api_key': '⚠️ OpenAI API key not provided, using rule-based analysis',
+        'ai_summary_failed': '⚠️ AI summary generation failed: {error}, using rule-based method',
+        'ai_analyzing': '📊 Analyzing AI trends...',
+        'ai_analysis_done': '✨ Trend analysis complete!',
+        'ai_top_tech': '🔥 Top 5 Technology Hotspots:',
+        'ai_content_dist': '📈 Content Type Distribution:',
+        'ai_region_dist': '🌍 Region Distribution:',
+        'ai_items': 'items',
+        
+        # Data collector
+        'dc_collect_research': 'Collecting AI research papers...',
+        'dc_got_papers': '   Got {count} research papers',
+        'dc_arxiv_failed': '   arXiv collection failed: {error}',
+        'dc_collect_developer': 'Collecting developer community content...',
+        'dc_got_developer': '   Got {count} developer content items',
+        'dc_collect_products': 'Collecting AI product releases...',
+        'dc_product_failed': '   ⚠️ {company} product info collection failed: {error}',
+        'dc_got_products': '   Got {count} product release items',
+        'dc_collect_leaders': 'Collecting AI leader insights...',
+        'dc_leader_failed': '   ⚠️ Failed to collect {name} insights: {error}',
+        'dc_collect_blogs': '   Collecting leader blogs & podcasts...',
+        'dc_blog_failed': '   ⚠️ Failed to collect blog {author}: {error}',
+        'dc_fallback_data': '   ⚠️ Online collection insufficient, adding fallback data',
+        'dc_got_leaders': '   Got {count} leader insights',
+        'dc_collect_news': 'Collecting AI industry news...',
+        'dc_product_feed_failed': '   ⚠️ Product news feed {url} collection failed: {error}',
+        'dc_rss_failed': '   ⚠️ RSS feed {url} collection failed: {error}',
+        'dc_got_news': '   Got {count} AI news items',
+        'dc_collect_community': 'Collecting community trends...',
+        'dc_community_failed': '   ⚠️ Community feed {url} collection failed: {error}',
+        'dc_got_community': '   Got {count} community trends',
+        'dc_start_collect': 'AI World Tracker - Starting full data collection',
+        'dc_start_collection': 'AI World Tracker - Starting full data collection',
+        'dc_collect_done': 'Collection complete! Total {total} new items',
+        'dc_collection_done': '\nCollection complete! Total {total} new items (skipped {skipped} cached):',
+        'dc_collection_done_v2': '\nCollection complete! Total {total} items (new: {new}, cached: {cached}):',
+        'dc_skipped_cached': ' (skipped {count} cached)',
+        'dc_category_count': '   {category}: {count} items',
+        'dc_category_stats': '   {category}: {count} items (skipped {skipped} cached)',
+        'dc_category_stats_v2': '   {category}: {count} items (new: {new}, cached: {cached})',
+        'dc_cache_loaded': '📦 Loaded collection history cache (URLs: {url_count}, Titles: {title_count})',
+        'dc_cache_expired': '⚠️ Collection history cache expired (>7 days), cleared',
+        'dc_cache_load_failed': '⚠️ Failed to load collection history cache: {error}',
+        'dc_cache_save_failed': '⚠️ Failed to save collection history cache: {error}',
+        'dc_cache_cleared': '🗑️ Collection history cache cleared',
+        'dc_github_failed': '   ⚠️ GitHub API call failed: {error}',
+        'dc_hf_failed': '   ⚠️ Hugging Face API call failed: {error}',
+        'dc_huggingface_failed': '   ⚠️ Hugging Face API call failed: {error}',
+        'dc_dev_blog_failed': '   ⚠️ Developer blog collection failed: {error}',
+        'dc_rss_parse_failed': '   ⚠️ RSS parse failed {url}: {error}',
+        
+        # Visualizer
+        'vis_fonts_configured': 'Fonts configured: {fonts}',
+        'vis_gen_tech_chart': 'Generating tech hotspots chart...',
+        'vis_no_tech_data': 'Warning: No tech data',
+        'vis_chart_saved': '✅ Chart saved: {filepath}',
+        'vis_gen_content_chart': 'Generating content distribution chart...',
+        'vis_no_content_data': '⚠️ No content data',
+        'vis_gen_region_chart': 'Generating region distribution chart...',
+        'vis_no_region_data': '⚠️ No region data',
+        'vis_gen_trend_chart': 'Generating daily trends chart...',
+        'vis_insufficient_data': '⚠️ Insufficient data for trend chart',
+        'vis_gen_dashboard': 'Generating comprehensive dashboard...',
+        'vis_dashboard_saved': 'Dashboard saved: {filepath}',
+        'vis_start_gen': 'Starting visualization generation',
+        'vis_complete': '\n✨ Visualization complete! Generated {count} charts',
+        'vis_output_dir': '📁 Charts saved in: {dir}\n',
+        
+        # Web publisher
+        'web_generating': '🌐 Generating new Web page...',
+        'web_generated': '✅ Web page generated:',
+        'web_root_file': '   📄 Root: {file} (GitHub Pages)',
+        'web_backup_file': '   📄 Web: {file} (Backup)',
+    }
+}
+
+
+def set_language(lang: str):
+    """设置当前语言"""
+    global _current_language
+    if lang in LANG_PACKS:
+        _current_language = lang
+    else:
+        _current_language = 'en'  # 默认英文
+
+
+def get_language() -> str:
+    """获取当前语言"""
+    return _current_language
+
+
+def t(key: str, **kwargs) -> str:
+    """
+    翻译函数
+    
+    Args:
+        key: 翻译键
+        **kwargs: 格式化参数
+        
+    Returns:
+        翻译后的字符串
+    """
+    lang_pack = LANG_PACKS.get(_current_language, LANG_PACKS['en'])
+    text = lang_pack.get(key, key)
+    if kwargs:
+        try:
+            text = text.format(**kwargs)
+        except KeyError:
+            pass
+    return text
+
+
+def select_language_interactive():
+    """交互式语言选择"""
+    print("\n" + "=" * 50)
+    print("请选择语言 / Please select language:")
+    print("1. 中文")
+    print("2. English")
+    print("=" * 50)
+    
+    choice = input("请输入选项 / Enter option (1/2): ").strip()
+    
+    if choice == '1':
+        set_language('zh')
+        print(t('lang_selected_zh') + "\n")
+    else:
+        set_language('en')
+        print(t('lang_selected_en') + "\n")

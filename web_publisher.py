@@ -13,6 +13,8 @@ from email.utils import parsedate_to_datetime
 
 import re
 
+from i18n import t, get_language
+
 class WebPublisher:
     """Web网页发布器 - 专业版"""
     
@@ -81,7 +83,7 @@ class WebPublisher:
     
     def generate_html_page(self, data: List[Dict], trends: Dict, chart_files: Dict[str, str] = None) -> str:
         """生成完整的HTML页面"""
-        print("🌐 Generating new Web page...")
+        print(t('web_generating'))
         
         timestamp = trends.get('analysis_time', datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S %Z'))
         
@@ -196,9 +198,9 @@ class WebPublisher:
         with open(web_html_file, 'w', encoding='utf-8') as f:
             f.write(html_content)
             
-        print(f"✅ Web page generated:")
-        print(f"   📄 Root: {root_html_file} (GitHub Pages)")
-        print(f"   📄 Web: {web_html_file} (Backup)")
+        print(t('web_generated'))
+        print(t('web_root_file', file=root_html_file))
+        print(t('web_backup_file', file=web_html_file))
         return root_html_file
 
     def _render_dashboard(self, trends: Dict) -> str:
@@ -293,6 +295,61 @@ class WebPublisher:
             
         html += "</div></div>"
         return html
+    
+    def _extract_leader_name(self, item: Dict) -> str:
+        """尝试从数据中提取领袖名称
+        
+        优先级: author字段 > 从标题中提取 > 从摘要中提取 > 从来源提取
+        """
+        # 优先使用 author 字段
+        author = item.get('author', '')
+        if author and author != 'Unknown':
+            return author
+        
+        # 尝试从标题和摘要中提取人名
+        title = item.get('title', '')
+        summary = item.get('summary', '')
+        text_to_search = title + ' ' + summary
+        
+        # 常见的行业领袖名称模式
+        known_leaders = [
+            'Jensen Huang', 'Sam Altman', 'Elon Musk', 'Sundar Pichai', 
+            'Satya Nadella', 'Mark Zuckerberg', 'Demis Hassabis', 'Dario Amodei',
+            'Yann LeCun', 'Andrew Ng', 'Fei-Fei Li', 'Geoffrey Hinton',
+            'Ilya Sutskever', 'Andrej Karpathy', 'Greg Brockman', 'Mira Murati',
+            'Jeff Bezos', 'Tim Cook', 'Bill Gates', 'Guido van Rossum',
+            'Robin Li', 'Jack Ma', 'Pony Ma', 'Lei Jun', 'Zhang Yiming'
+        ]
+        
+        for leader in known_leaders:
+            if leader.lower() in text_to_search.lower():
+                return leader
+        
+        # 尝试从 "Name: ..." 或 "...says Name" 模式提取
+        import re
+        
+        # 匹配 "Name says" 或 "Name:" 模式
+        patterns = [
+            r'^([A-Z][a-z]+ [A-Z][a-z]+)(?:\s*:|\s+says|\s+said)',  # "Sam Altman: ..." 或 "Sam Altman says"
+            r'(?:CEO|Chief|President|Founder)\s+([A-Z][a-z]+ [A-Z][a-z]+)',  # "CEO Sam Altman"
+            r'([A-Z][a-z]+ [A-Z][a-z]+)\s+(?:CEO|Chief|President|Founder)',  # "Sam Altman CEO"
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text_to_search)
+            if match:
+                return match.group(1)
+        
+        # 如果来源包含人名信息（如 "News about Jensen Huang"）
+        source = item.get('source', '')
+        if 'News about' in source:
+            return source.replace('News about ', '')
+        
+        # 实在提取不到，使用来源作为显示
+        if source:
+            return source
+        
+        return 'Industry Voice'
 
     def _render_card(self, item: Dict, type_key: str, is_compact: bool, hidden: bool = False) -> str:
         """渲染单个卡片"""
@@ -307,7 +364,7 @@ class WebPublisher:
         
         # 领袖特殊样式
         if type_key == 'leader':
-            author = self._sanitize_html(item.get('author', 'Unknown'))
+            author = self._sanitize_html(self._extract_leader_name(item))
             title_text = self._sanitize_html(item.get('author_title', ''))
             return f"""
             <div class="card leader-card{hidden_class}">
