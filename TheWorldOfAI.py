@@ -89,7 +89,7 @@ class AIWorldTracker:
         """
         self.auto_mode = auto_mode
         
-        log.section(f"     {t('app_title')}\n     {t('app_subtitle')}")
+        log.dual_section(f"     {t('app_title')}\n     {t('app_subtitle')}")
         
         self.collector = DataCollector()
         self.classifier = ContentClassifier()  # 规则分类器
@@ -111,7 +111,7 @@ class AIWorldTracker:
         
         # 自动模式下强制使用规则分类，跳过LLM相关初始化
         if self.auto_mode:
-            log.info(t('auto_mode'), emoji="⚙️")
+            log.dual_config(t('auto_mode'))
             self._load_latest_data()
             return
         
@@ -188,7 +188,7 @@ class AIWorldTracker:
                             provider=LLMProvider.OLLAMA,
                             model=self.llm_model
                         )
-                        log.success(t('llm_restored', model=self.llm_model))
+                        log.dual_success(t('llm_restored', model=self.llm_model))
                     else:
                         log.warning(t('llm_restore_failed'))
                         self.classification_mode = 'rule'
@@ -220,13 +220,13 @@ class AIWorldTracker:
         
         if status['running']:
             if status['models']:
-                log.success(t('ollama_running') + ", " + t('ollama_available_models', models=', '.join(status['models'][:3])))
+                log.dual_success(t('ollama_running') + ", " + t('ollama_available_models', models=', '.join(status['models'][:3])))
                 if status['recommended']:
                     self.llm_model = status['recommended']
             else:
                 log.warning(t('ollama_no_models_warning'))
-                log.info(t('ollama_install_hint'), emoji="💡")
-                log.info(t('ollama_no_llm_hint'), emoji="ℹ️")
+                log.dual_info(t('ollama_install_hint'), emoji="💡")
+                log.dual_info(t('ollama_no_llm_hint'), emoji="ℹ️")
         else:
             log.warning(t('ollama_not_running_info'))
             self._offer_ollama_startup_help()
@@ -417,7 +417,7 @@ class AIWorldTracker:
                 # 验证文件是否存在
                 self.chart_files = {k: v for k, v in self.chart_files.items() if os.path.exists(v)}
             
-            log.success(t('history_loaded', count=len(self.data)))
+            log.dual_success(t('history_loaded', count=len(self.data)))
         except Exception as e:
             log.warning(t('history_load_failed', error=str(e)))
     
@@ -427,7 +427,7 @@ class AIWorldTracker:
         start_time = time.time()
         timing_stats = {}  # 收集耗时统计
         
-        log.start(t('start_pipeline'))
+        log.dual_start(t('start_pipeline'))
         
         # 步骤1: 数据采集
         step_start = time.time()
@@ -476,13 +476,13 @@ class AIWorldTracker:
         # 保存数据和报告（包含耗时统计）
         self._save_results(report, web_file, timing_stats)
         
-        log.separator()
-        log.done(t('process_complete'))
-        log.separator()
-        log.chart(t('charts_generated', count=len([f for f in self.chart_files.values() if f])))
-        log.file(t('report_saved'))
-        log.data(t('data_saved'))
-        log.web(t('web_generated'))
+        log.dual_separator()
+        log.dual_done(t('process_complete'))
+        log.dual_separator()
+        log.dual_chart(t('charts_generated', count=len([f for f in self.chart_files.values() if f])))
+        log.dual_file(t('report_saved'))
+        log.dual_data(t('data_saved'))
+        log.dual_info(t('web_generated'), emoji="🌐")
         
         return report
     
@@ -492,14 +492,14 @@ class AIWorldTracker:
             # 显示当前分类模式
             mode_str = self._get_mode_display()
             
-            log.section(t('menu_title') + f"\n   {t('menu_current_mode')}: {mode_str}")
+            log.dual_section(t('menu_title') + f"\n   {t('menu_current_mode')}: {mode_str}")
             log.menu(t('menu_option_1'))
             log.menu(t('menu_option_2'))
             log.menu(t('menu_option_3'))
             log.menu(t('menu_option_4'))
             log.menu(t('menu_option_5'))
             log.menu(t('menu_option_0'))
-            log.separator()
+            log.dual_separator()
             
             choice = input(f"\n{t('menu_choice')}: ").strip()
             
@@ -514,7 +514,7 @@ class AIWorldTracker:
             elif choice == '5':
                 self._switch_classification_mode()
             elif choice == '0':
-                log.success(t('menu_goodbye'))
+                log.dual_success(t('menu_goodbye'))
                 break
             else:
                 log.warning(t('menu_invalid'))
