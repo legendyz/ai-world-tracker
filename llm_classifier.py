@@ -25,6 +25,7 @@ import platform
 import threading
 import re
 import requests
+import yaml
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -45,6 +46,21 @@ except ImportError:
 # 模块日志器
 log = get_log_helper('llm_classifier')
 
+# 加载缓存目录配置
+def _get_cache_dir():
+    """获取缓存目录路径"""
+    cache_dir = 'data/cache'
+    try:
+        if os.path.exists('config.yaml'):
+            with open('config.yaml', 'r', encoding='utf-8') as f:
+                cfg = yaml.safe_load(f)
+                cache_dir = cfg.get('data', {}).get('cache_dir', cache_dir)
+    except Exception:
+        pass
+    os.makedirs(cache_dir, exist_ok=True)
+    return cache_dir
+
+DATA_CACHE_DIR = _get_cache_dir()
 
 # 模型保活时间（秒）
 MODEL_KEEP_ALIVE_SECONDS = 5 * 60  # 5分钟
@@ -287,7 +303,7 @@ class LLMClassifier:
         
         # 缓存
         self.cache: Dict[str, Dict] = {}
-        self.cache_file = 'llm_classification_cache.json'
+        self.cache_file = os.path.join(DATA_CACHE_DIR, 'llm_classification_cache.json')
         self._load_cache()
         
         # 规则分类器（作为备份）

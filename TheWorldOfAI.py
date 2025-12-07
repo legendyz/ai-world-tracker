@@ -16,6 +16,8 @@ AI World Tracker - MVP版本
 import sys
 import json
 import os
+import glob
+import yaml
 from datetime import datetime
 from typing import Optional, Dict
 
@@ -41,6 +43,30 @@ CONFIG_FILE = 'ai_tracker_config.json'
 
 # Ollama 启动配置
 OLLAMA_STARTUP_TIMEOUT = 10  # 启动等待超时（秒）
+
+# 数据目录配置（从config.yaml加载）
+def _load_data_paths():
+    """加载数据目录配置"""
+    exports_dir = 'data/exports'
+    cache_dir = 'data/cache'
+    
+    try:
+        if os.path.exists('config.yaml'):
+            with open('config.yaml', 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+                data_config = config.get('data', {})
+                exports_dir = data_config.get('exports_dir', exports_dir)
+                cache_dir = data_config.get('cache_dir', cache_dir)
+    except Exception:
+        pass
+    
+    # 确保目录存在
+    os.makedirs(exports_dir, exist_ok=True)
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    return exports_dir, cache_dir
+
+DATA_EXPORTS_DIR, DATA_CACHE_DIR = _load_data_paths()
 
 # LLM分类器（可选导入）
 try:
@@ -178,7 +204,7 @@ class AIWorldTracker:
     
     def _force_clear_llm_cache(self):
         """强制清除LLM分类缓存文件"""
-        cache_file = 'llm_classification_cache.json'
+        cache_file = os.path.join(DATA_CACHE_DIR, 'llm_classification_cache.json')
         try:
             if os.path.exists(cache_file):
                 os.remove(cache_file)
@@ -363,12 +389,15 @@ class AIWorldTracker:
     def _load_latest_data(self):
         """尝试加载最新的数据文件"""
         try:
-            files = [f for f in os.listdir('.') if f.startswith('ai_tracker_data_') and f.endswith('.json')]
+            # 从 exports 目录加载数据
+            if not os.path.exists(DATA_EXPORTS_DIR):
+                return
+            files = [f for f in os.listdir(DATA_EXPORTS_DIR) if f.startswith('ai_tracker_data_') and f.endswith('.json')]
             if not files:
                 return
             
-            latest_file = max(files)
-            log.data(t('loading_history', file=latest_file))
+            latest_file = os.path.join(DATA_EXPORTS_DIR, max(files))
+            log.data(t('loading_history', file=os.path.basename(latest_file)))
             
             with open(latest_file, 'r', encoding='utf-8') as f:
                 saved_data = json.load(f)
@@ -913,7 +942,7 @@ class AIWorldTracker:
             save = input(save_prompt).strip().lower()
             if save == 'y':
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                filename = f'ai_tracker_data_reviewed_{timestamp}.json'
+                filename = os.path.join(DATA_EXPORTS_DIR, f'ai_tracker_data_reviewed_{timestamp}.json')
                 with open(filename, 'w', encoding='utf-8') as f:
                     json.dump({
                         'metadata': {
@@ -924,7 +953,7 @@ class AIWorldTracker:
                         'data': self.data,
                         'trends': self.trends
                     }, f, ensure_ascii=False, indent=2)
-                log.file(t('review_saved', file=filename))
+                log.file(t('review_saved', file=os.path.basename(filename)))
             
             # 保存审核历史
             self.reviewer.save_review_history()
@@ -997,7 +1026,7 @@ class AIWorldTracker:
             
             # 保存（使用reviewed标记）
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            data_file = f'ai_tracker_data_reviewed_{timestamp}.json'
+            data_file = os.path.join(DATA_EXPORTS_DIR, f'ai_tracker_data_reviewed_{timestamp}.json')
             with open(data_file, 'w', encoding='utf-8') as f:
                 json.dump({
                     'metadata': {
@@ -1009,13 +1038,13 @@ class AIWorldTracker:
                     'trends': self.trends
                 }, f, ensure_ascii=False, indent=2)
             
-            report_file = f'ai_tracker_report_reviewed_{timestamp}.txt'
+            report_file = os.path.join(DATA_EXPORTS_DIR, f'ai_tracker_report_reviewed_{timestamp}.txt')
             with open(report_file, 'w', encoding='utf-8') as f:
                 f.write(report)
             
             print("\n" + t('regenerate_done'))
-            print("   " + t('regenerate_data', file=data_file))
-            print("   " + t('regenerate_report', file=report_file))
+            print("   " + t('regenerate_data', file=os.path.basename(data_file)))
+            print("   " + t('regenerate_report', file=os.path.basename(report_file)))
             print("   " + t('regenerate_web', file=web_file))
             
             # 询问是否打开
@@ -1036,10 +1065,10 @@ class AIWorldTracker:
         print("="*60)
         
         # 查找审核历史文件和审核后数据文件
-        import glob
-        
         review_files = sorted(glob.glob('review_history_*.json'), reverse=True)
-        data_files = sorted(glob.glob('ai_tracker_data_reviewed_*.json'), reverse=True)
+        # 从 exports 目录查找审核后的数据文件
+        data_pattern = os.path.join(DATA_EXPORTS_DIR, 'ai_tracker_data_reviewed_*.json')
+        data_files = sorted(glob.glob(data_pattern), reverse=True)
         
         if not review_files:
             print("\n" + t('learning_no_history'))
@@ -1189,8 +1218,8 @@ class AIWorldTracker:
             metadata['llm_provider'] = self.llm_provider
             metadata['llm_model'] = self.llm_model
         
-        # 保存JSON数据
-        data_file = f'ai_tracker_data_{timestamp}.json'
+        # 保存JSON数据到 exports 目录
+        data_file = os.path.join(DATA_EXPORTS_DIR, f'ai_tracker_data_{timestamp}.json')
         with open(data_file, 'w', encoding='utf-8') as f:
             json.dump({
                 'metadata': metadata,
@@ -1198,14 +1227,14 @@ class AIWorldTracker:
                 'trends': self.trends
             }, f, ensure_ascii=False, indent=2)
         
-        log.data(t('data_saved_to', file=data_file))
+        log.data(t('data_saved_to', file=os.path.basename(data_file)))
         
-        # 保存文本报告
-        report_file = f'ai_tracker_report_{timestamp}.txt'
+        # 保存文本报告到 exports 目录
+        report_file = os.path.join(DATA_EXPORTS_DIR, f'ai_tracker_report_{timestamp}.txt')
         with open(report_file, 'w', encoding='utf-8') as f:
             f.write(report)
         
-        log.file(t('report_saved_to', file=report_file))
+        log.file(t('report_saved_to', file=os.path.basename(report_file)))
         
         if web_file:
             log.web(t('web_saved_to', file=web_file))

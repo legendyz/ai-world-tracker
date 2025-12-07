@@ -19,6 +19,11 @@ output:
   report_dir: ./
   web_dir: ./web_output/
 
+# 数据目录配置
+data:
+  exports_dir: data/exports      # 导出的数据和报告
+  cache_dir: data/cache          # 缓存文件目录
+
 # 日志配置
 logging:
   level: INFO          # 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
