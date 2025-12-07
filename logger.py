@@ -220,6 +220,10 @@ class LogHelper:
         """输出错误日志"""
         self._logger.error(f"❌ {message}")
     
+    def critical(self, message: str) -> None:
+        """输出严重错误日志"""
+        self._logger.critical(f"🚨 {message}")
+    
     def debug(self, message: str) -> None:
         """输出调试日志"""
         self._logger.debug(f"🔍 {message}")
@@ -263,6 +267,34 @@ class LogHelper:
     def rule(self, message: str) -> None:
         """输出规则相关日志"""
         self._logger.info(f"📝 {message}")
+    
+    def timing(self, message: str, elapsed: float) -> None:
+        """输出耗时日志"""
+        self._logger.info(f"⏱️ {message} ({elapsed:.2f}s)")
+    
+    def progress(self, message: str) -> None:
+        """输出进度日志（不换行，用于进度指示）"""
+        # 进度日志仅输出到控制台，不记录到文件
+        print(f"{message}", end='', flush=True)
+    
+    def separator(self, char: str = "=", length: int = 60) -> None:
+        """输出分隔线"""
+        self._logger.info(char * length)
+    
+    def section(self, title: str, char: str = "=", length: int = 60) -> None:
+        """输出带标题的分隔区域"""
+        self._logger.info("")
+        self._logger.info(char * length)
+        self._logger.info(title)
+        self._logger.info(char * length)
+    
+    def menu(self, message: str) -> None:
+        """输出菜单项（用户交互，仅控制台）"""
+        print(message)
+    
+    def prompt(self, message: str) -> str:
+        """输出提示并获取用户输入"""
+        return input(message)
 
 
 def get_log_helper(name: str) -> LogHelper:

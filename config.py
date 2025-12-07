@@ -16,6 +16,10 @@ import yaml
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
 from pathlib import Path
+from logger import get_log_helper
+
+# 模块日志器
+log = get_log_helper('config')
 
 
 @dataclass
@@ -122,7 +126,7 @@ class ConfigManager:
                 with open(config_file, 'r', encoding='utf-8') as f:
                     return yaml.safe_load(f) or {}
             except Exception as e:
-                print(f"⚠️ 加载YAML配置失败: {e}")
+                log.warning(f"加载YAML配置失败: {e}")
         return {}
     
     def _get_yaml_value(self, key_path: str, default: Any = None) -> Any:
@@ -201,7 +205,7 @@ class ConfigManager:
                             if key and value and key not in os.environ:
                                 os.environ[key] = value
             except Exception as e:
-                print(f"⚠️ 加载.env文件失败: {e}")
+                log.warning(f"加载.env文件失败: {e}")
     
     @property
     def config(self) -> AppConfig:
@@ -260,38 +264,36 @@ class ConfigManager:
     
     def print_config(self):
         """打印当前配置"""
-        print("\n" + "="*60)
-        print("📋 当前配置")
-        print("="*60)
+        log.section("📋 当前配置")
         
-        print(f"\n【分类器】")
-        print(f"  默认模式: {self._config.classifier.default_mode}")
-        print(f"  LLM提供商: {self._config.classifier.llm_provider}")
-        print(f"  LLM模型: {self._config.classifier.llm_model}")
-        print(f"  缓存: {'启用' if self._config.classifier.enable_cache else '禁用'}")
-        print(f"  并发数: {self._config.classifier.max_workers}")
+        log.config("【分类器】")
+        log.menu(f"  默认模式: {self._config.classifier.default_mode}")
+        log.menu(f"  LLM提供商: {self._config.classifier.llm_provider}")
+        log.menu(f"  LLM模型: {self._config.classifier.llm_model}")
+        log.menu(f"  缓存: {'启用' if self._config.classifier.enable_cache else '禁用'}")
+        log.menu(f"  并发数: {self._config.classifier.max_workers}")
         
-        print(f"\n【数据采集】")
-        print(f"  产品数: {self._config.collector.product_count}")
-        print(f"  社区数: {self._config.collector.community_count}")
-        print(f"  领袖数: {self._config.collector.leader_count}")
-        print(f"  研究数: {self._config.collector.research_count}")
-        print(f"  开发者数: {self._config.collector.developer_count}")
-        print(f"  新闻数: {self._config.collector.news_count}")
+        log.config("【数据采集】")
+        log.menu(f"  产品数: {self._config.collector.product_count}")
+        log.menu(f"  社区数: {self._config.collector.community_count}")
+        log.menu(f"  领袖数: {self._config.collector.leader_count}")
+        log.menu(f"  研究数: {self._config.collector.research_count}")
+        log.menu(f"  开发者数: {self._config.collector.developer_count}")
+        log.menu(f"  新闻数: {self._config.collector.news_count}")
         
-        print(f"\n【Ollama】")
-        print(f"  地址: {self._config.ollama.base_url}")
-        print(f"  默认模型: {self._config.ollama.default_model}")
+        log.config("【Ollama】")
+        log.menu(f"  地址: {self._config.ollama.base_url}")
+        log.menu(f"  默认模型: {self._config.ollama.default_model}")
         
-        print(f"\n【OpenAI】")
-        print(f"  API密钥: {'已设置 ✅' if self._config.openai.api_key else '未设置 ❌'}")
-        print(f"  默认模型: {self._config.openai.default_model}")
+        log.config("【OpenAI】")
+        log.menu(f"  API密钥: {'已设置 ✅' if self._config.openai.api_key else '未设置 ❌'}")
+        log.menu(f"  默认模型: {self._config.openai.default_model}")
         
-        print(f"\n【Anthropic】")
-        print(f"  API密钥: {'已设置 ✅' if self._config.anthropic.api_key else '未设置 ❌'}")
-        print(f"  默认模型: {self._config.anthropic.default_model}")
+        log.config("【Anthropic】")
+        log.menu(f"  API密钥: {'已设置 ✅' if self._config.anthropic.api_key else '未设置 ❌'}")
+        log.menu(f"  默认模型: {self._config.anthropic.default_model}")
         
-        print("="*60)
+        log.separator()
     
     def reload(self):
         """重新加载配置"""
@@ -346,8 +348,8 @@ ANTHROPIC_MODEL=claude-3-haiku-20240307
     with open(env_example, 'w', encoding='utf-8') as f:
         f.write(template)
     
-    print(f"✅ 已创建配置模板: {env_example}")
-    print("   请复制为 .env 并填入你的配置")
+    log.success(f"已创建配置模板: {env_example}")
+    log.info("请复制为 .env 并填入你的配置")
 
 
 if __name__ == "__main__":

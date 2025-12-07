@@ -15,6 +15,10 @@ import os
 import platform
 
 from i18n import t, get_language
+from logger import get_log_helper
+
+# 模块日志器
+log = get_log_helper('visualizer')
 
 # 配置中文字体支持
 def configure_chinese_fonts():
@@ -78,7 +82,7 @@ def configure_chinese_fonts():
         # 如果_rebuild不可用，使用其他方法
         pass
     
-    print(t('vis_fonts_configured', fonts=str(valid_fonts)))
+    log.config(t('vis_fonts_configured', fonts=str(valid_fonts)))
     return valid_fonts[0] if valid_fonts else 'DejaVu Sans'
 
 # 初始化字体配置
@@ -147,10 +151,10 @@ class DataVisualizer:
             图表文件路径
         """
         self._ensure_chinese_font()  # 确保中文字体
-        print(t('vis_gen_tech_chart'))
+        log.chart(t('vis_gen_tech_chart'))
         
         if not tech_data:
-            print(t('vis_no_tech_data'))
+            log.warning(t('vis_no_tech_data'))
             return None
         
         # 准备数据
@@ -181,7 +185,7 @@ class DataVisualizer:
         if save:
             filepath = os.path.join(self.output_dir, 'tech_hotspots.png')
             plt.savefig(filepath, dpi=300, bbox_inches='tight')
-            print(t('vis_chart_saved', filepath=filepath))
+            log.file(t('vis_chart_saved', filepath=filepath))
         
         plt.close()
         return filepath
@@ -198,10 +202,10 @@ class DataVisualizer:
             图表文件路径
         """
         self._ensure_chinese_font()  # 确保中文字体
-        print(t('vis_gen_content_chart'))
+        log.chart(t('vis_gen_content_chart'))
         
         if not content_data:
-            print(t('vis_no_content_data'))
+            log.warning(t('vis_no_content_data'))
             return None
         
         # 准备数据
@@ -243,7 +247,7 @@ class DataVisualizer:
         if save:
             filepath = os.path.join(self.output_dir, 'content_distribution.png')
             plt.savefig(filepath, dpi=300, bbox_inches='tight')
-            print(t('vis_chart_saved', filepath=filepath))
+            log.file(t('vis_chart_saved', filepath=filepath))
         
         plt.close()
         return filepath
@@ -260,10 +264,10 @@ class DataVisualizer:
             图表文件路径
         """
         self._ensure_chinese_font()  # 确保中文字体
-        print(t('vis_gen_region_chart'))
+        log.chart(t('vis_gen_region_chart'))
         
         if not region_data:
-            print(t('vis_no_region_data'))
+            log.warning(t('vis_no_region_data'))
             return None
         
         # 准备数据
@@ -296,7 +300,7 @@ class DataVisualizer:
         if save:
             filepath = os.path.join(self.output_dir, 'region_distribution.png')
             plt.savefig(filepath, dpi=300, bbox_inches='tight')
-            print(t('vis_chart_saved', filepath=filepath))
+            log.file(t('vis_chart_saved', filepath=filepath))
         
         plt.close()
         return filepath
@@ -313,10 +317,10 @@ class DataVisualizer:
             图表文件路径
         """
         self._ensure_chinese_font()  # 确保中文字体
-        print(t('vis_gen_trend_chart'))
+        log.chart(t('vis_gen_trend_chart'))
         
         if not daily_data or len(daily_data) < 2:
-            print(t('vis_insufficient_data'))
+            log.warning(t('vis_insufficient_data'))
             return None
         
         # 准备数据并排序
@@ -352,7 +356,7 @@ class DataVisualizer:
         if save:
             filepath = os.path.join(self.output_dir, 'daily_trends.png')
             plt.savefig(filepath, dpi=300, bbox_inches='tight')
-            print(t('vis_chart_saved', filepath=filepath))
+            log.file(t('vis_chart_saved', filepath=filepath))
         
         plt.close()
         return filepath
@@ -369,7 +373,7 @@ class DataVisualizer:
             仪表板文件路径
         """
         self._ensure_chinese_font()  # 确保中文字体
-        print(t('vis_gen_dashboard'))
+        log.chart(t('vis_gen_dashboard'))
         
         fig = plt.figure(figsize=(16, 10))
         
@@ -454,7 +458,7 @@ class DataVisualizer:
         if save:
             filepath = os.path.join(self.output_dir, 'dashboard.png')
             plt.savefig(filepath, dpi=300, bbox_inches='tight')
-            print(t('vis_dashboard_saved', filepath=filepath))
+            log.file(t('vis_dashboard_saved', filepath=filepath))
         
         plt.close()
         return filepath
@@ -469,9 +473,7 @@ class DataVisualizer:
         Returns:
             图表文件路径字典
         """
-        print("\n" + "="*60)
-        print(t('vis_start_gen'))
-        print("="*60 + "\n")
+        log.section(t('vis_start_gen'))
         
         filepaths = {}
         
@@ -491,8 +493,8 @@ class DataVisualizer:
         # 生成综合仪表板
         filepaths['dashboard'] = self.create_dashboard(trends)
         
-        print(t('vis_complete', count=len([f for f in filepaths.values() if f])))
-        print(t('vis_output_dir', dir=os.path.abspath(self.output_dir)))
+        log.success(t('vis_complete', count=len([f for f in filepaths.values() if f])))
+        log.file(t('vis_output_dir', dir=os.path.abspath(self.output_dir)))
         
         return filepaths
 

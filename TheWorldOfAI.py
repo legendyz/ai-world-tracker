@@ -63,10 +63,7 @@ class AIWorldTracker:
         """
         self.auto_mode = auto_mode
         
-        print("\n" + "="*60)
-        print(f"     {t('app_title')}")
-        print(f"     {t('app_subtitle')}")
-        print("="*60 + "\n")
+        log.section(f"     {t('app_title')}\n     {t('app_subtitle')}")
         
         self.collector = DataCollector()
         self.classifier = ContentClassifier()  # 规则分类器
@@ -414,30 +411,30 @@ class AIWorldTracker:
             all_items.extend(items)
         
         timing_stats['data_collection'] = round(time.time() - step_start, 1)
-        print(f"\n{t('collected_items', count=len(all_items))}\n")
+        log.data(t('collected_items', count=len(all_items)))
         
         # 步骤2: 内容分类（根据当前模式选择分类器）
         step_start = time.time()
         log.step(2, 5, t('step_classify'))
         self.data = self._classify_data(all_items)
         timing_stats['classification'] = round(time.time() - step_start, 1)
-        log.info(t('classification_time', time=timing_stats['classification']), emoji="⏱️")
+        log.timing(t('classification_time', time=timing_stats['classification']), timing_stats['classification'])
         
         # 步骤3: 智能分析
         step_start = time.time()
-        print(f"\n{t('step_analyze')}")
+        log.step(3, 5, t('step_analyze'))
         self.trends = self.analyzer.analyze_trends(self.data)
         timing_stats['analysis'] = round(time.time() - step_start, 1)
         
         # 步骤4: 数据可视化
         step_start = time.time()
-        print(f"\n{t('step_visualize')}")
+        log.step(4, 5, t('step_visualize'))
         self.chart_files = self.visualizer.visualize_all(self.trends)
         timing_stats['visualization'] = round(time.time() - step_start, 1)
         
         # 步骤5: 生成Web页面
         step_start = time.time()
-        print(f"\n{t('step_web')}")
+        log.step(5, 5, t('step_web'))
         web_file = self.web_publisher.generate_html_page(self.data, self.trends, self.chart_files)
         timing_stats['web_generation'] = round(time.time() - step_start, 1)
         
@@ -450,13 +447,13 @@ class AIWorldTracker:
         # 保存数据和报告（包含耗时统计）
         self._save_results(report, web_file, timing_stats)
         
-        print("\n" + "="*60)
+        log.separator()
         log.done(t('process_complete'))
-        print("="*60)
-        print(f"\n{t('charts_generated', count=len([f for f in self.chart_files.values() if f]))}")
+        log.separator()
+        log.chart(t('charts_generated', count=len([f for f in self.chart_files.values() if f])))
         log.file(t('report_saved'))
         log.data(t('data_saved'))
-        log.web(t('web_generated') + "\n")
+        log.web(t('web_generated'))
         
         return report
     
@@ -466,17 +463,14 @@ class AIWorldTracker:
             # 显示当前分类模式
             mode_str = self._get_mode_display()
             
-            print("\n" + "="*60)
-            print(t('menu_title'))
-            print(f"   {t('menu_current_mode')}: {mode_str}")
-            print("="*60)
-            print(t('menu_option_1'))
-            print(t('menu_option_2'))
-            print(t('menu_option_3'))
-            print(t('menu_option_4'))
-            print(t('menu_option_5'))
-            print(t('menu_option_0'))
-            print("="*60)
+            log.section(t('menu_title') + f"\n   {t('menu_current_mode')}: {mode_str}")
+            log.menu(t('menu_option_1'))
+            log.menu(t('menu_option_2'))
+            log.menu(t('menu_option_3'))
+            log.menu(t('menu_option_4'))
+            log.menu(t('menu_option_5'))
+            log.menu(t('menu_option_0'))
+            log.separator()
             
             choice = input(f"\n{t('menu_choice')}: ").strip()
             
@@ -491,10 +485,10 @@ class AIWorldTracker:
             elif choice == '5':
                 self._switch_classification_mode()
             elif choice == '0':
-                print(f"\n{t('menu_goodbye')}\n")
+                log.success(t('menu_goodbye'))
                 break
             else:
-                print(f"\n{t('menu_invalid')}")
+                log.warning(t('menu_invalid'))
     
     def _get_mode_display(self) -> str:
         """获取当前模式的显示字符串"""
@@ -509,23 +503,21 @@ class AIWorldTracker:
     
     def _switch_classification_mode(self):
         """切换分类模式"""
-        print("\n" + "="*60)
-        print(t('switch_mode_title'))
-        print("="*60)
+        log.section(t('switch_mode_title'))
         
-        print(f"\n{t('current_mode')}: {self._get_mode_display()}")
-        print(f"\n{t('available_modes')}:")
-        print(f"  1. {t('mode_rule_desc')}")
+        log.menu(f"\n{t('current_mode')}: {self._get_mode_display()}")
+        log.menu(f"\n{t('available_modes')}:")
+        log.menu(f"  1. {t('mode_rule_desc')}")
         
         if LLM_AVAILABLE:
-            print(f"  2. {t('mode_ollama_desc')}")
-            print(f"  3. {t('mode_openai_desc')}")
-            print(f"  4. {t('mode_anthropic_desc')}")
-            print(f"  5. {t('clear_llm_cache')}")
+            log.menu(f"  2. {t('mode_ollama_desc')}")
+            log.menu(f"  3. {t('mode_openai_desc')}")
+            log.menu(f"  4. {t('mode_anthropic_desc')}")
+            log.menu(f"  5. {t('clear_llm_cache')}")
         else:
-            print(f"  {t('llm_not_available')}")
+            log.menu(f"  {t('llm_not_available')}")
         
-        print(f"  6. {t('clear_collection_cache')}")
+        log.menu(f"  6. {t('clear_collection_cache')}")
         
         choice = input(f"\n{t('select_model')} (1-6): ").strip()
         
@@ -533,7 +525,7 @@ class AIWorldTracker:
             self.classification_mode = 'rule'
             self.llm_classifier = None
             self._save_user_config()
-            print(f"\n{t('switched_to_rule')}")
+            log.success(t('switched_to_rule'))
         
         elif choice == '2' and LLM_AVAILABLE:
             self._setup_ollama_mode()
@@ -555,29 +547,29 @@ class AIWorldTracker:
             self.collector.clear_history_cache()
         
         else:
-            print(f"\n{t('invalid_choice')}")
+            log.warning(t('invalid_choice'))
     
     def _setup_ollama_mode(self):
         """设置Ollama模式"""
         status = check_ollama_status()
         
         if not status['running']:
-            print("\n" + t('ollama_not_running'))
+            log.warning(t('ollama_not_running'))
             self._offer_ollama_startup_help_in_menu()
             
             # 重新检查状态
             status = check_ollama_status()
             if not status['running']:
-                print("\n" + t('ollama_cannot_connect'))
+                log.error(t('ollama_cannot_connect'))
                 return
         
-        print(f"\n" + t('ollama_running'))
-        print(f"\n{t('available_models')}:")
+        log.success(t('ollama_running'))
+        log.menu(f"\n{t('available_models')}:")
         
         models = status['models']
         if not models:
-            print("  " + t('no_models'))
-            print("  " + t('install_model_hint'))
+            log.menu("  " + t('no_models'))
+            log.menu("  " + t('install_model_hint'))
             
             prompt = "\nInstall recommended model qwen3:8b now? (y/n) [n]: " if get_language() == 'en' else "\n是否现在安装推荐模型 qwen3:8b? (y/n) [n]: "
             choice = input(prompt).strip().lower()
@@ -588,14 +580,14 @@ class AIWorldTracker:
                 models = status['models']
             
             if not models:
-                print("\n" + t('no_available_models'))
+                log.warning(t('no_available_models'))
                 return
         
         # 显示可用模型
         recommended_label = " ⭐ " + ("recommended" if get_language() == 'en' else "推荐")
         for i, model in enumerate(models, 1):
             recommended = recommended_label if model == status['recommended'] else ""
-            print(f"  {i}. {model}{recommended}")
+            log.menu(f"  {i}. {model}{recommended}")
         
         prompt = f"\n{t('select_model')} (1-{len(models)}) [" + ("default: 1" if get_language() == 'en' else "默认: 1") + "]: "
         model_choice = input(prompt).strip() or '1'
@@ -620,7 +612,7 @@ class AIWorldTracker:
                 batch_size=5    # 启用批量分类
             )
             self._save_user_config()
-            print(f"\n" + t('switched_to_llm', provider='Ollama', model=selected_model))
+            log.success(t('switched_to_llm', provider='Ollama', model=selected_model))
             
             # 预热模型
             warmup_prompt = "\nWarm up the model now? (Y/n): " if get_language() == 'en' else "\n是否现在预热模型? (Y/n): "
@@ -629,7 +621,7 @@ class AIWorldTracker:
                 self.llm_classifier.warmup_model()
                 
         except Exception as e:
-            print(f"\n" + t('llm_init_failed', error=str(e)))
+            log.error(t('llm_init_failed', error=str(e)))
             self.classification_mode = 'rule'
             self._save_user_config()
     
@@ -638,17 +630,17 @@ class AIWorldTracker:
         api_key = os.getenv('OPENAI_API_KEY')
         
         if not api_key:
-            print("\n" + t('api_key_missing', key='OPENAI_API_KEY'))
+            log.warning(t('api_key_missing', key='OPENAI_API_KEY'))
             prompt = "Enter OpenAI API key (or press Enter to cancel): " if get_language() == 'en' else "请输入OpenAI API密钥 (或按Enter取消): "
             api_key = input(prompt).strip()
             if not api_key:
                 return
         
-        print("\n" + t('available_openai_models'))
+        log.menu("\n" + t('available_openai_models'))
         models = list(AVAILABLE_MODELS[LLMProvider.OPENAI].keys())
         for i, model in enumerate(models, 1):
             info = AVAILABLE_MODELS[LLMProvider.OPENAI][model]
-            print(f"  {i}. {info['name']} - {info['description']}")
+            log.menu(f"  {i}. {info['name']} - {info['description']}")
         
         prompt = f"\n{t('select_model')} (1-{len(models)}) [" + ("default: 1" if get_language() == 'en' else "默认: 1") + "]: "
         model_choice = input(prompt).strip() or '1'
@@ -672,9 +664,9 @@ class AIWorldTracker:
                 max_workers=3
             )
             self._save_user_config()
-            print(f"\n" + t('switched_to_llm', provider='OpenAI', model=selected_model))
+            log.success(t('switched_to_llm', provider='OpenAI', model=selected_model))
         except Exception as e:
-            print(f"\n" + t('llm_init_failed', error=str(e)))
+            log.error(t('llm_init_failed', error=str(e)))
             self.classification_mode = 'rule'
             self._save_user_config()
     
@@ -683,17 +675,17 @@ class AIWorldTracker:
         api_key = os.getenv('ANTHROPIC_API_KEY')
         
         if not api_key:
-            print("\n" + t('api_key_missing', key='ANTHROPIC_API_KEY'))
+            log.warning(t('api_key_missing', key='ANTHROPIC_API_KEY'))
             prompt = "Enter Anthropic API key (or press Enter to cancel): " if get_language() == 'en' else "请输入Anthropic API密钥 (或按Enter取消): "
             api_key = input(prompt).strip()
             if not api_key:
                 return
         
-        print("\n" + t('available_anthropic_models'))
+        log.menu("\n" + t('available_anthropic_models'))
         models = list(AVAILABLE_MODELS[LLMProvider.ANTHROPIC].keys())
         for i, model in enumerate(models, 1):
             info = AVAILABLE_MODELS[LLMProvider.ANTHROPIC][model]
-            print(f"  {i}. {info['name']} - {info['description']}")
+            log.menu(f"  {i}. {info['name']} - {info['description']}")
         
         prompt = f"\n{t('select_model')} (1-{len(models)}) [" + ("default: 1" if get_language() == 'en' else "默认: 1") + "]: "
         model_choice = input(prompt).strip() or '1'
@@ -717,9 +709,9 @@ class AIWorldTracker:
                 max_workers=3
             )
             self._save_user_config()
-            print(f"\n" + t('switched_to_llm', provider='Anthropic', model=selected_model))
+            log.success(t('switched_to_llm', provider='Anthropic', model=selected_model))
         except Exception as e:
-            print(f"\n" + t('llm_init_failed', error=str(e)))
+            log.error(t('llm_init_failed', error=str(e)))
             self.classification_mode = 'rule'
             self._save_user_config()
     
