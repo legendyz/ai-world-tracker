@@ -335,22 +335,22 @@ class LLMClassifier:
     
     def _print_init_info(self):
         """打印初始化信息"""
-        log.ai(t('llm_init_done'))
-        log.ai(t('llm_provider', provider=self.provider.value))
-        log.ai(t('llm_model_name', model=self.model))
+        log.dual_ai(t('llm_init_done'))
+        log.dual_ai(t('llm_provider', provider=self.provider.value))
+        log.dual_ai(t('llm_model_name', model=self.model))
         cache_status = t('llm_cache_enabled') if self.enable_cache else t('llm_cache_disabled')
-        log.config(t('llm_cache_status', status=cache_status))
+        log.dual_config(t('llm_cache_status', status=cache_status))
         
         if self.gpu_info:
             if self.gpu_info.ollama_gpu_supported:
-                log.success(t('llm_gpu_enabled', gpu_name=self.gpu_info.gpu_name))
+                log.dual_success(t('llm_gpu_enabled', gpu_name=self.gpu_info.gpu_name))
                 if self.gpu_info.vram_mb:
-                    log.info(t('llm_vram', vram=self.gpu_info.vram_mb), emoji="💾")
+                    log.dual_info(t('llm_vram', vram=self.gpu_info.vram_mb), emoji="💾")
             else:
                 gpu_name = self.gpu_info.gpu_name or t('llm_no_gpu_detected')
-                log.warning(t('llm_cpu_mode', gpu_name=gpu_name))
+                log.dual_warning(t('llm_cpu_mode', gpu_name=gpu_name))
                 if self.ollama_options:
-                    log.info(t('llm_cpu_threads', threads=self.ollama_options.num_thread), emoji="⚙️")
+                    log.dual_info(t('llm_cpu_threads', threads=self.ollama_options.num_thread), emoji="⚙️")
     
     def get_gpu_info(self) -> Optional[GPUInfo]:
         """获取GPU信息"""
@@ -369,10 +369,10 @@ class LLMClassifier:
             return True
         
         if self.is_warmed_up:
-            log.info(t('llm_model_warmed'), emoji="✅")
+            log.dual_info(t('llm_model_warmed'), emoji="✅")
             return True
         
-        log.start(t('llm_warming_model', model=self.model))
+        log.dual_ai(t('llm_warming_model', model=self.model))
         start_time = time.time()
         
         try:
@@ -398,15 +398,15 @@ class LLMClassifier:
             if response.status_code == 200:
                 elapsed = time.time() - start_time
                 self.is_warmed_up = True
-                log.success(t('llm_warmup_done', time=f'{elapsed:.1f}'))
-                log.info(t('llm_keep_alive', minutes=MODEL_KEEP_ALIVE_SECONDS // 60), emoji="⏰")
+                log.dual_success(t('llm_warmup_done', time=f'{elapsed:.1f}'))
+                log.dual_info(t('llm_keep_alive', minutes=MODEL_KEEP_ALIVE_SECONDS // 60), emoji="⏰")
                 return True
             else:
-                log.error(t('llm_warmup_failed_http', code=response.status_code))
+                log.dual_error(t('llm_warmup_failed_http', code=response.status_code))
                 return False
                 
         except Exception as e:
-            log.error(t('llm_warmup_failed', error=str(e)))
+            log.dual_error(t('llm_warmup_failed', error=str(e)))
             return False
     
     def set_keep_alive(self, seconds: int = MODEL_KEEP_ALIVE_SECONDS):
@@ -436,7 +436,7 @@ class LLMClassifier:
             )
             
             if response.status_code == 200:
-                log.success(t('llm_keepalive_set', minutes=seconds // 60))
+                log.dual_success(t('llm_keepalive_set', minutes=seconds // 60))
                 
         except Exception as e:
             log.warning(t('llm_keepalive_failed', error=str(e)))
@@ -462,7 +462,7 @@ class LLMClassifier:
             
             if response.status_code == 200:
                 self.is_warmed_up = False
-                log.success(t('llm_model_unloaded', model=self.model))
+                log.dual_success(t('llm_model_unloaded', model=self.model))
                 
         except Exception as e:
             log.warning(t('llm_unload_failed', error=str(e)))
@@ -515,7 +515,7 @@ class LLMClassifier:
                         return
                 
                 self.cache = loaded_cache
-                log.data(t('llm_cache_loaded', count=len(self.cache)))
+                log.dual_data(t('llm_cache_loaded', count=len(self.cache)))
             except Exception as e:
                 print(f"⚠️ Cache load failed: {e}")
                 # 删除损坏的缓存文件
@@ -911,7 +911,12 @@ START from id=1, classify ALL {len(items)} items:"""
             use_cache: 是否使用缓存
             
         Returns:
-            分类后的内容项
+            分类后的内容项，包含:
+            - content_type: 内容类型
+            - confidence: 分类置信度
+            - importance: 多维度重要性分数
+            - importance_breakdown: 重要性分数明细
+            - importance_level: 重要性等级
         """
         self.stats['total_calls'] += 1
         
@@ -924,6 +929,19 @@ START from id=1, classify ALL {len(items)} items:"""
             cached = self.cache[content_hash]
             classified.update(cached)
             classified['from_cache'] = True
+            
+            # 重要性分数始终重新计算（因为时效性会随时间变化）
+            # 不从缓存读取 importance，确保时效性分数是最新的
+            importance, breakdown = self.rule_classifier.importance_evaluator.calculate_importance(
+                item,
+                {'content_type': classified.get('content_type', 'news'), 
+                 'confidence': classified.get('confidence', 0.5)}
+            )
+            classified['importance'] = importance
+            classified['importance_breakdown'] = breakdown
+            level, _ = self.rule_classifier.importance_evaluator.get_importance_level(importance)
+            classified['importance_level'] = level
+            
             return classified
         
         # 调用LLM
@@ -946,7 +964,17 @@ START from id=1, classify ALL {len(items)} items:"""
             # 使用规则分类器补充地区信息
             classified['region'] = self.rule_classifier.classify_region(item)
             
-            # 保存到缓存
+            # 计算多维度重要性分数（使用统一的评估器）
+            importance, importance_breakdown = self.rule_classifier.importance_evaluator.calculate_importance(
+                item,
+                {'content_type': result['content_type'], 'confidence': result['confidence']}
+            )
+            classified['importance'] = importance
+            classified['importance_breakdown'] = importance_breakdown
+            level, _ = self.rule_classifier.importance_evaluator.get_importance_level(importance)
+            classified['importance_level'] = level
+            
+            # 保存到缓存（不保存importance，因为时效性会变化，需要每次重新计算）
             if self.enable_cache:
                 self.cache[content_hash] = {
                     'content_type': classified['content_type'],
@@ -955,10 +983,11 @@ START from id=1, classify ALL {len(items)} items:"""
                     'is_verified': classified['is_verified'],
                     'llm_reasoning': classified['llm_reasoning'],
                     'region': classified['region'],
-                    'classified_by': classified['classified_by']  # 保存分类来源
+                    'classified_by': classified['classified_by']
+                    # 注意：importance 不缓存，因为时效性分数需要实时计算
                 }
         else:
-            # LLM失败，降级到规则分类
+            # LLM失败，降级到规则分类（规则分类器已内置重要性计算）
             self.stats['fallback_calls'] += 1
             self.stats['errors'] += 1
             fallback_reason = 'LLM响应解析失败'
@@ -1006,6 +1035,18 @@ START from id=1, classify ALL {len(items)} items:"""
                 # 确保有 classified_by 字段（兼容旧缓存）
                 if 'classified_by' not in classified:
                     classified['classified_by'] = 'llm:cached'
+                
+                # 重要性分数始终重新计算（因为时效性会随时间变化）
+                importance, breakdown = self.rule_classifier.importance_evaluator.calculate_importance(
+                    item,
+                    {'content_type': classified.get('content_type', 'news'), 
+                     'confidence': classified.get('confidence', 0.5)}
+                )
+                classified['importance'] = importance
+                classified['importance_breakdown'] = breakdown
+                level, _ = self.rule_classifier.importance_evaluator.get_importance_level(importance)
+                classified['importance_level'] = level
+                
                 cached_items.append((i, classified))
             else:
                 uncached_items.append(item)
@@ -1014,12 +1055,12 @@ START from id=1, classify ALL {len(items)} items:"""
         cached_count = len(cached_items)
         uncached_count = len(uncached_items)
         
-        log.start(t('llm_batch_start', total=total))
-        log.ai(t('llm_batch_info', provider=self.provider.value, model=self.model))
-        log.data(t('llm_batch_cache', workers=self.max_workers, cached=cached_count, total=total))
+        log.dual_start(t('llm_batch_start', total=total))
+        log.dual_ai(t('llm_batch_info', provider=self.provider.value, model=self.model))
+        log.dual_data(t('llm_batch_cache', workers=self.max_workers, cached=cached_count, total=total))
         
         if uncached_count == 0:
-            log.success(t('llm_all_cached'))
+            log.dual_success(t('llm_all_cached'))
             cached_items.sort(key=lambda x: x[0])
             return [item for _, item in cached_items]
         
@@ -1033,11 +1074,11 @@ START from id=1, classify ALL {len(items)} items:"""
         # 选择分类策略
         if use_batch_api and self.batch_size > 1 and self.provider == LLMProvider.OLLAMA:
             # 批量API模式：一次调用分类多条（更快）
-            log.info(t('llm_batch_mode', batch_size=self.batch_size), emoji="📦")
+            log.dual_info(t('llm_batch_mode', batch_size=self.batch_size))
             classified_uncached = self._classify_batch_mode(uncached_items, uncached_indices, show_progress)
         else:
             # 并发单条模式
-            log.info(t('llm_concurrent_mode'), emoji="⚡")
+            log.dual_info(t('llm_concurrent_mode'))
             classified_uncached = self._classify_concurrent_mode(uncached_items, uncached_indices, show_progress)
         
         # 合并结果
@@ -1096,7 +1137,17 @@ START from id=1, classify ALL {len(items)} items:"""
                     classified['classified_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     classified['region'] = self.rule_classifier.classify_region(item)
                     
-                    # 缓存
+                    # 计算多维度重要性分数
+                    importance, importance_breakdown = self.rule_classifier.importance_evaluator.calculate_importance(
+                        item,
+                        {'content_type': classified['content_type'], 'confidence': classified['confidence']}
+                    )
+                    classified['importance'] = importance
+                    classified['importance_breakdown'] = importance_breakdown
+                    level, _ = self.rule_classifier.importance_evaluator.get_importance_level(importance)
+                    classified['importance_level'] = level
+                    
+                    # 缓存（不保存importance，因为时效性会变化）
                     content_hash = self._get_content_hash(item)
                     if self.enable_cache:
                         self.cache[content_hash] = {
@@ -1106,7 +1157,7 @@ START from id=1, classify ALL {len(items)} items:"""
                             'is_verified': classified.get('is_verified', True),
                             'llm_reasoning': classified.get('llm_reasoning', ''),
                             'region': classified['region'],
-                            'classified_by': classified['classified_by']  # 保存分类来源
+                            'classified_by': classified['classified_by']
                         }
                     results.append((idx, classified))
                 else:
@@ -1134,7 +1185,17 @@ START from id=1, classify ALL {len(items)} items:"""
                         classified['classified_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         classified['region'] = self.rule_classifier.classify_region(item)
                         
-                        # 缓存
+                        # 计算多维度重要性分数
+                        importance, importance_breakdown = self.rule_classifier.importance_evaluator.calculate_importance(
+                            item,
+                            {'content_type': classified['content_type'], 'confidence': classified['confidence']}
+                        )
+                        classified['importance'] = importance
+                        classified['importance_breakdown'] = importance_breakdown
+                        level, _ = self.rule_classifier.importance_evaluator.get_importance_level(importance)
+                        classified['importance_level'] = level
+                        
+                        # 缓存（不保存importance）
                         content_hash = self._get_content_hash(item)
                         if self.enable_cache:
                             self.cache[content_hash] = {
@@ -1147,9 +1208,9 @@ START from id=1, classify ALL {len(items)} items:"""
                                 'classified_by': classified['classified_by']
                             }
                         results.append((idx, classified))
-                        log.success(t('llm_retry_success', title=item.get('title', '')[:40]))
+                        log.dual_success(t('llm_retry_success', title=item.get('title', '')[:40]))
                     else:
-                        # 单条重试也失败，降级到规则分类
+                        # 单条重试也失败，降级到规则分类（规则分类已内置重要性计算）
                         self.stats['fallback_calls'] += 1
                         self.stats['fallback_details'].append({
                             'title': item.get('title', '')[:50],
@@ -1168,9 +1229,9 @@ START from id=1, classify ALL {len(items)} items:"""
                 estimated_remaining = batch_time * remaining_batches
                 
                 if remaining_batches > 0:
-                    log.info(t('llm_progress_eta', completed=completed, total=total, percent=int(completed/total*100), time=f"{batch_time:.1f}", eta=f"{estimated_remaining:.0f}"), emoji="⏳")
+                    log.dual_info(t('llm_progress_eta', completed=completed, total=total, percent=int(completed/total*100), time=f"{batch_time:.1f}", eta=f"{estimated_remaining:.0f}"))
                 else:
-                    log.info(t('llm_progress', completed=completed, total=total, percent=int(completed/total*100)) + f" | {t('llm_stats_time', time=f'{batch_time:.1f}')}", emoji="✅")
+                    log.dual_info(t('llm_progress', completed=completed, total=total, percent=int(completed/total*100)) + f" | {t('llm_stats_time', time=f'{batch_time:.1f}')}")
         
         return results
     
@@ -1203,9 +1264,9 @@ START from id=1, classify ALL {len(items)} items:"""
                             rate = interval_count / interval_time  # 条/秒
                             remaining = total - completed
                             estimated_remaining = remaining / rate if rate > 0 else 0
-                            log.info(t('llm_progress_rate', completed=completed, total=total, percent=int(completed/total*100), rate=f"{rate:.1f}", eta=f"{estimated_remaining:.0f}"), emoji="⏳")
+                            log.dual_info(t('llm_progress_rate', completed=completed, total=total, percent=int(completed/total*100), rate=f"{rate:.1f}", eta=f"{estimated_remaining:.0f}"))
                         else:
-                            log.info(t('llm_progress', completed=completed, total=total, percent=int(completed/total*100)), emoji="📊")
+                            log.dual_info(t('llm_progress', completed=completed, total=total, percent=int(completed/total*100)))
                         
                         last_progress_time = current_time
                         last_progress_count = completed
@@ -1436,24 +1497,24 @@ START from id=1, classify ALL {len(items)} items:"""
     
     def _print_stats(self, elapsed: float):
         """打印统计信息"""
-        log.info(t('llm_stats'), emoji="📊")
-        log.info(t('llm_stats_total', count=self.stats['total_calls']), emoji="  ")
-        log.info(t('llm_stats_cached', count=self.stats['cache_hits']) + f" ({self.stats['cache_hits']/max(1,self.stats['total_calls']):.0%})", emoji="  ")
-        log.info(f"   LLM: {self.stats['llm_calls']}", emoji="  ")
-        log.info(f"   Fallback: {self.stats['fallback_calls']}", emoji="  ")
-        log.info(t('llm_stats_failed', count=self.stats['errors']), emoji="  ")
-        log.info(t('llm_stats_time', time=f"{elapsed:.1f}s"), emoji="  ")
+        log.dual_info(t('llm_stats'))
+        log.dual_info(t('llm_stats_total', count=self.stats['total_calls']))
+        log.dual_info(t('llm_stats_cached', count=self.stats['cache_hits']) + f" ({self.stats['cache_hits']/max(1,self.stats['total_calls']):.0%})")
+        log.dual_info(f"   LLM: {self.stats['llm_calls']}")
+        log.dual_info(f"   Fallback: {self.stats['fallback_calls']}")
+        log.dual_info(t('llm_stats_failed', count=self.stats['errors']))
+        log.dual_info(t('llm_stats_time', time=f"{elapsed:.1f}s"))
         
         if self.stats['llm_calls'] > 0:
             avg_time = elapsed / self.stats['llm_calls']
-            log.info(t('llm_stats_avg', time=f"{avg_time:.1f}"), emoji="  ")
+            log.dual_info(t('llm_stats_avg', time=f"{avg_time:.1f}"))
         
         # 显示降级详情
         if self.stats['fallback_details']:
-            log.warning(t('llm_fallback_details', count=len(self.stats['fallback_details'])))
+            log.dual_warning(t('llm_fallback_details', count=len(self.stats['fallback_details'])))
             for i, detail in enumerate(self.stats['fallback_details'], 1):
-                log.info(t('llm_fallback_item', i=i, mode=detail['mode'], title=detail['title']), emoji="  ")
-                log.info(t('llm_fallback_source', source=detail['source'], reason=detail['reason']), emoji="  ")
+                log.dual_info(t('llm_fallback_item', i=i, mode=detail['mode'], title=detail['title']))
+                log.dual_info(t('llm_fallback_source', source=detail['source'], reason=detail['reason']))
     
     def get_stats(self) -> Dict:
         """获取统计信息"""
@@ -1464,7 +1525,7 @@ START from id=1, classify ALL {len(items)} items:"""
         self.cache = {}
         if os.path.exists(self.cache_file):
             os.remove(self.cache_file)
-        log.success(t('llm_cache_cleared'))
+        log.dual_success(t('llm_cache_cleared'))
 
 
 def select_llm_provider() -> Tuple[str, str]:

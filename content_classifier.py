@@ -1,11 +1,16 @@
 """
 内容分类系统 - Content Classifier
 基于关键词和规则对AI内容进行多维度分类
+
+包含:
+- ImportanceEvaluator: 多维度重要性评估器
+- ContentClassifier: 基于规则的内容分类器
 """
 
 from typing import Dict, List, Set, Tuple, Optional
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
+from dateutil import parser as date_parser
 import math
 from collections import Counter
 from logger import get_log_helper
@@ -14,10 +19,373 @@ from logger import get_log_helper
 log = get_log_helper('classifier')
 
 
+class ImportanceEvaluator:
+    """
+    多维度重要性评估器
+    
+    评估维度:
+    1. 来源权威度 (source_authority) - 25%
+    2. 时效性 (recency) - 20%
+    3. 分类置信度 (confidence) - 25%
+    4. 内容相关度 (relevance) - 20%
+    5. 社交热度 (engagement) - 10%
+    """
+    
+    def __init__(self):
+        # 维度权重配置
+        self.weights = {
+            'source_authority': 0.25,
+            'recency': 0.20,
+            'confidence': 0.25,
+            'relevance': 0.20,
+            'engagement': 0.10
+        }
+        
+        # 来源权威度评分
+        self.source_authority_scores = {
+            # 官方一手来源 (0.9-1.0)
+            'openai.com': 1.0,
+            'openai': 1.0,
+            'blog.google': 1.0,
+            'google ai': 0.95,
+            'ai.meta.com': 1.0,
+            'meta ai': 0.95,
+            'anthropic.com': 1.0,
+            'anthropic': 0.95,
+            'microsoft.com': 0.95,
+            'blogs.microsoft': 0.95,
+            'nvidia': 0.90,
+            'arxiv.org': 0.95,
+            'arxiv': 0.95,
+            'github.com': 0.90,
+            'github': 0.90,
+            'huggingface.co': 0.90,
+            'hugging face': 0.90,
+            
+            # 中国AI公司官方
+            'baidu': 0.90,
+            '百度': 0.90,
+            'alibaba': 0.90,
+            '阿里': 0.90,
+            'tencent': 0.90,
+            '腾讯': 0.90,
+            'deepseek': 0.90,
+            '智谱': 0.85,
+            '月之暗面': 0.85,
+            'kimi': 0.85,
+            
+            # 专业媒体 (0.7-0.85)
+            'techcrunch': 0.85,
+            'theverge': 0.80,
+            'the verge': 0.80,
+            'wired': 0.80,
+            'technologyreview': 0.85,
+            'mit technology review': 0.85,
+            'ieee spectrum': 0.85,
+            'artificialintelligence-news': 0.80,
+            'syncedreview': 0.80,
+            '机器之心': 0.85,
+            'jiqizhixin': 0.85,
+            '量子位': 0.80,
+            'qbitai': 0.80,
+            'infoq': 0.75,
+            '36kr': 0.70,
+            '36氪': 0.70,
+            'ithome': 0.70,
+            'it之家': 0.70,
+            
+            # 社区/聚合 (0.5-0.7)
+            'reddit': 0.65,
+            'producthunt': 0.70,
+            'product hunt': 0.70,
+            'hacker news': 0.70,
+            'hnrss': 0.70,
+            
+            # 通用新闻 (0.4-0.6)
+            'news.google': 0.50,
+            'bing.com/news': 0.50,
+            'reuters': 0.75,
+            'bloomberg': 0.75,
+            
+            # 个人博客/播客
+            'sam altman': 0.90,
+            'karpathy': 0.90,
+            'andrej karpathy': 0.90,
+            'lex fridman': 0.80,
+        }
+        
+        # 高价值关键词 (用于相关度计算)
+        self.high_value_keywords = {
+            # 重大事件关键词
+            'breakthrough': 0.15, 'sota': 0.12, 'state-of-the-art': 0.12,
+            'world record': 0.12, 'first': 0.08, 'new': 0.05,
+            
+            # 发布相关
+            'release': 0.10, 'launch': 0.10, 'announce': 0.10,
+            'unveil': 0.12, 'introduce': 0.08, 'available': 0.06,
+            'official': 0.08, 'beta': 0.06, 'preview': 0.06,
+            
+            # 技术相关
+            'open source': 0.12, 'open-source': 0.12,
+            'benchmark': 0.08, 'evaluation': 0.06,
+            'gpt': 0.08, 'llm': 0.08, 'transformer': 0.06,
+            'multimodal': 0.08, 'reasoning': 0.08,
+            'agent': 0.08, 'agi': 0.10,
+            
+            # 中文关键词
+            '发布': 0.10, '推出': 0.10, '上线': 0.10,
+            '突破': 0.15, '首次': 0.10, '最新': 0.06,
+            '开源': 0.12, '官方': 0.08,
+            '重磅': 0.10, '重大': 0.10,
+        }
+        
+        # 内容类型相关度系数
+        self.type_relevance_multipliers = {
+            'research': 1.1,    # 研究类通常相关度高
+            'product': 1.1,     # 产品发布重要
+            'leader': 1.05,     # 领袖言论
+            'developer': 1.0,   # 开发者内容
+            'news': 0.95,       # 新闻可能泛泛而谈
+            'market': 0.90,     # 市场分析
+            'community': 0.90,  # 社区讨论
+        }
+    
+    def calculate_importance(self, item: Dict, 
+                            classification_result: Optional[Dict] = None) -> Tuple[float, Dict]:
+        """
+        计算多维度重要性分数
+        
+        Args:
+            item: 原始数据项
+            classification_result: 分类结果，包含 content_type, confidence 等
+            
+        Returns:
+            (importance_score, score_breakdown)
+        """
+        if classification_result is None:
+            classification_result = {}
+        
+        breakdown = {}
+        
+        # 1. 来源权威度 (0-1)
+        source_score = self._calculate_source_authority(item)
+        breakdown['source_authority'] = round(source_score, 3)
+        
+        # 2. 时效性 (0-1)
+        recency_score = self._calculate_recency(item)
+        breakdown['recency'] = round(recency_score, 3)
+        
+        # 3. 分类置信度 (0-1)
+        confidence = classification_result.get('confidence', 0.5)
+        breakdown['confidence'] = round(confidence, 3)
+        
+        # 4. 内容相关度 (0-1)
+        content_type = classification_result.get('content_type', 'news')
+        relevance_score = self._calculate_relevance(item, content_type)
+        breakdown['relevance'] = round(relevance_score, 3)
+        
+        # 5. 社交热度 (0-1)
+        engagement_score = self._calculate_engagement(item)
+        breakdown['engagement'] = round(engagement_score, 3)
+        
+        # 加权求和
+        total_score = (
+            source_score * self.weights['source_authority'] +
+            recency_score * self.weights['recency'] +
+            confidence * self.weights['confidence'] +
+            relevance_score * self.weights['relevance'] +
+            engagement_score * self.weights['engagement']
+        )
+        
+        # 确保在 0-1 范围内
+        importance = round(min(max(total_score, 0.0), 1.0), 3)
+        
+        return importance, breakdown
+    
+    def _calculate_source_authority(self, item: Dict) -> float:
+        """
+        计算来源权威度
+        
+        Args:
+            item: 数据项
+            
+        Returns:
+            权威度分数 0-1
+        """
+        source = item.get('source', '').lower()
+        url = item.get('url', '').lower()
+        author = item.get('author', '').lower()
+        
+        # 合并检查文本
+        check_text = f"{source} {url} {author}"
+        
+        # 查找匹配的来源
+        best_score = 0.40  # 默认值
+        
+        for known_source, score in self.source_authority_scores.items():
+            if known_source.lower() in check_text:
+                best_score = max(best_score, score)
+        
+        return best_score
+    
+    def _calculate_recency(self, item: Dict) -> float:
+        """
+        计算时效性分数
+        
+        衰减曲线:
+        - 今天: 1.0
+        - 1天前: 0.95
+        - 3天前: 0.85
+        - 7天前: 0.70
+        - 14天前: 0.50
+        - 30天前: 0.30
+        - >30天: 0.10
+        
+        Args:
+            item: 数据项
+            
+        Returns:
+            时效性分数 0-1
+        """
+        published = item.get('published', '')
+        
+        if not published:
+            # 无日期信息，给中等分数
+            return 0.5
+        
+        try:
+            # 解析日期
+            if isinstance(published, datetime):
+                pub_date = published
+            elif isinstance(published, str):
+                # 尝试多种格式解析
+                try:
+                    pub_date = date_parser.parse(published)
+                except (ValueError, TypeError):
+                    # 尝试简单格式
+                    if len(published) >= 10:
+                        pub_date = datetime.strptime(published[:10], '%Y-%m-%d')
+                    else:
+                        return 0.5
+            else:
+                return 0.5
+            
+            # 计算天数差
+            now = datetime.now()
+            # 处理时区
+            if pub_date.tzinfo is not None and now.tzinfo is None:
+                pub_date = pub_date.replace(tzinfo=None)
+            
+            days_ago = (now - pub_date).days
+            
+            # 时效性衰减
+            if days_ago <= 0:
+                return 1.0
+            elif days_ago <= 1:
+                return 0.95
+            elif days_ago <= 3:
+                return 0.85
+            elif days_ago <= 7:
+                return 0.70
+            elif days_ago <= 14:
+                return 0.50
+            elif days_ago <= 30:
+                return 0.30
+            else:
+                return 0.10
+                
+        except Exception:
+            return 0.5
+    
+    def _calculate_relevance(self, item: Dict, content_type: str) -> float:
+        """
+        计算内容相关度
+        
+        基于关键词密度和质量
+        
+        Args:
+            item: 数据项
+            content_type: 分类类型
+            
+        Returns:
+            相关度分数 0-1
+        """
+        text = f"{item.get('title', '')} {item.get('summary', '')}".lower()
+        
+        # 基础分
+        score = 0.30
+        
+        # 关键词匹配加分
+        for keyword, boost in self.high_value_keywords.items():
+            if keyword in text:
+                score += boost
+        
+        # 根据内容类型调整
+        multiplier = self.type_relevance_multipliers.get(content_type, 1.0)
+        score *= multiplier
+        
+        return min(score, 1.0)
+    
+    def _calculate_engagement(self, item: Dict) -> float:
+        """
+        计算社交热度
+        
+        基于可用的社交信号 (stars, downloads, score等)
+        
+        Args:
+            item: 数据项
+            
+        Returns:
+            热度分数 0-1
+        """
+        # GitHub stars
+        stars = item.get('stars', 0)
+        if stars and stars > 0:
+            # 对数缩放: 100 stars ≈ 0.5, 1000 ≈ 0.75, 10000 ≈ 1.0
+            return min(math.log10(stars + 1) / 4, 1.0)
+        
+        # HuggingFace downloads
+        downloads = item.get('downloads', 0)
+        if downloads and downloads > 0:
+            return min(math.log10(downloads + 1) / 6, 1.0)
+        
+        # Reddit/HN score
+        score = item.get('score', item.get('points', 0))
+        if score and score > 0:
+            return min(math.log10(score + 1) / 3, 1.0)
+        
+        # 无社交数据，给中等分
+        return 0.5
+    
+    def get_importance_level(self, score: float) -> Tuple[str, str]:
+        """
+        获取重要性等级和标签
+        
+        Args:
+            score: 重要性分数
+            
+        Returns:
+            (等级, emoji标签)
+        """
+        if score >= 0.85:
+            return 'critical', '🔴'
+        elif score >= 0.70:
+            return 'high', '🟠'
+        elif score >= 0.55:
+            return 'medium', '🟡'
+        elif score >= 0.40:
+            return 'low', '🟢'
+        else:
+            return 'minimal', '⚪'
+
+
 class ContentClassifier:
     """AI内容智能分类器 - 增强版"""
     
     def __init__(self):
+        # 初始化重要性评估器
+        self.importance_evaluator = ImportanceEvaluator()
+        
         # 否定词和不确定性词汇（扩展版）
         self.negative_words = {
             # 强否定
@@ -468,7 +836,12 @@ class ContentClassifier:
             item: 原始内容项
             
         Returns:
-            添加了分类信息的内容项
+            添加了分类信息的内容项，包含:
+            - content_type: 内容类型
+            - confidence: 分类置信度
+            - importance: 多维度重要性分数
+            - importance_breakdown: 重要性分数明细
+            - importance_level: 重要性等级
         """
         classified = item.copy()
         
@@ -483,6 +856,19 @@ class ContentClassifier:
         classified['tech_categories'] = self.classify_tech_category(item)
         classified['region'] = self.classify_region(item)
         classified['classified_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        classified['classified_by'] = 'rule'
+        
+        # 计算多维度重要性分数
+        importance, importance_breakdown = self.importance_evaluator.calculate_importance(
+            item,
+            {'content_type': content_type, 'confidence': confidence}
+        )
+        classified['importance'] = importance
+        classified['importance_breakdown'] = importance_breakdown
+        
+        # 添加重要性等级
+        level, emoji = self.importance_evaluator.get_importance_level(importance)
+        classified['importance_level'] = level
         
         # 如果置信度低于0.6，标记为需要人工审核
         if confidence < 0.6:
@@ -500,7 +886,7 @@ class ContentClassifier:
         Returns:
             分类后的内容项列表
         """
-        log.rule(f"正在对 {len(items)} 条内容进行规则分类...")
+        log.dual_rule(f"正在对 {len(items)} 条内容进行规则分类...")
         
         classified_items = []
         for item in items:
@@ -511,9 +897,14 @@ class ContentClassifier:
         low_confidence = sum(1 for item in classified_items if item.get('confidence', 1) < 0.6)
         avg_confidence = sum(item.get('confidence', 0) for item in classified_items) / len(classified_items) if classified_items else 0
         
-        log.success("规则分类完成！")
-        log.data(f"研究: {stats['research']} | 开发者: {stats['developer']} | 产品: {stats['product']} | 市场: {stats['market']} | 领袖: {stats['leader']}")
-        log.data(f"平均置信度: {avg_confidence:.2%} | 低置信度(<60%): {low_confidence} 条")
+        # 重要性统计
+        avg_importance = sum(item.get('importance', 0) for item in classified_items) / len(classified_items) if classified_items else 0
+        high_importance = sum(1 for item in classified_items if item.get('importance', 0) >= 0.70)
+        
+        log.dual_success("规则分类完成！")
+        log.dual_data(f"研究: {stats['research']} | 开发者: {stats['developer']} | 产品: {stats['product']} | 市场: {stats['market']} | 领袖: {stats['leader']}")
+        log.dual_data(f"平均置信度: {avg_confidence:.2%} | 低置信度(<60%): {low_confidence} 条")
+        log.dual_data(f"平均重要性: {avg_importance:.2%} | 高重要性(≥70%): {high_importance} 条")
         
         return classified_items
     

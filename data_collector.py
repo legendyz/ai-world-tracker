@@ -190,7 +190,7 @@ class AIDataCollector:
         Returns:
             研究论文列表
         """
-        log.start(t('dc_collect_research'))
+        log.dual_start(t('dc_collect_research'))
         papers = []
         
         try:
@@ -222,7 +222,7 @@ class AIDataCollector:
                 }
                 papers.append(paper)
                 
-            log.success(t('dc_got_papers', count=len(papers)))
+            log.dual_success(t('dc_got_papers', count=len(papers)))
             
         except Exception as e:
             log.error(t('dc_arxiv_failed', error=str(e)))
@@ -241,7 +241,7 @@ class AIDataCollector:
         Returns:
             开发者内容列表
         """
-        log.start(t('dc_collect_developer'))
+        log.dual_start(t('dc_collect_developer'))
         content = []
         
         # 1. GitHub Trending AI项目
@@ -256,7 +256,7 @@ class AIDataCollector:
         dev_blogs = self._collect_dev_blogs()
         content.extend(dev_blogs[:max_results//3])
         
-        log.success(t('dc_got_developer', count=len(content)))
+        log.dual_success(t('dc_got_developer', count=len(content)))
         return content
     
     def collect_product_releases(self, max_results: int = 10) -> List[Dict]:
@@ -269,7 +269,7 @@ class AIDataCollector:
         Returns:
             产品发布列表
         """
-        log.start(t('dc_collect_products'))
+        log.dual_start(t('dc_collect_products'))
         products = []
         
         # 收集主要AI公司的产品发布信息
@@ -296,7 +296,7 @@ class AIDataCollector:
         products.sort(key=lambda x: x.get('importance', 0), reverse=True)
         products = products[:max_results]
         
-        log.success(t('dc_got_products', count=len(products)))
+        log.dual_success(t('dc_got_products', count=len(products)))
         return products
     
     def collect_ai_leaders_quotes(self, max_results: int = 15) -> List[Dict]:
@@ -309,7 +309,7 @@ class AIDataCollector:
         Returns:
             领袖言论列表
         """
-        log.start(t('dc_collect_leaders'))
+        log.dual_start(t('dc_collect_leaders'))
         quotes = []
         
         leaders = {
@@ -379,7 +379,6 @@ class AIDataCollector:
                 log.warning(t('dc_leader_failed', name=leader_name, error=str(e)))
         
         # 2. 采集个人博客和播客
-        log.info(t('dc_collect_blogs'), emoji="📝")
         for source in self.rss_feeds.get('leader_blogs', []):
             try:
                 feed = feedparser.parse(source['url'])
@@ -437,7 +436,7 @@ class AIDataCollector:
         # 注意：这里简化处理，实际可能需要解析时间字符串
         
         result = unique_quotes[:max_results]
-        log.success(t('dc_got_leaders', count=len(result)))
+        log.dual_success(t('dc_got_leaders', count=len(result)))
         return result
 
     def collect_latest_news(self, max_results: int = 20) -> List[Dict]:
@@ -450,7 +449,7 @@ class AIDataCollector:
         Returns:
             新闻列表
         """
-        log.start(t('dc_collect_news'))
+        log.dual_start(t('dc_collect_news'))
         
         # 从产品发布新闻源采集
         product_news = []
@@ -491,14 +490,14 @@ class AIDataCollector:
         # 按优先级排列：产品发布 > 其他AI新闻
         prioritized_news = product_related + other_news
         result = prioritized_news[:max_results]
-        log.success(t('dc_got_news', count=len(result)))
+        log.dual_success(t('dc_got_news', count=len(result)))
         return result
     
     def collect_community_trends(self, max_results: int = 15) -> List[Dict]:
         """
         采集社区热点 (Product Hunt, Hacker News, Reddit)
         """
-        log.start(t('dc_collect_community'))
+        log.dual_start(t('dc_collect_community'))
         trends = []
         
         for feed_url in self.rss_feeds.get('community', []):
@@ -536,7 +535,7 @@ class AIDataCollector:
         trends.sort(key=lambda x: x.get('published', ''), reverse=True)
         
         result = trends[:max_results]
-        log.success(t('dc_got_community', count=len(result)))
+        log.dual_success(t('dc_got_community', count=len(result)))
         return result
 
     def collect_all(self) -> Dict[str, List[Dict]]:
@@ -546,8 +545,8 @@ class AIDataCollector:
         Returns:
             分类的数据字典
         """
-        log.start(t('dc_start_collection'))
-        log.info("=" * 50, emoji="📊")
+        log.dual_start(t('dc_start_collection'))
+        log.dual_separator("=", 50)
         
         all_data = {
             'research': [],
@@ -602,11 +601,11 @@ class AIDataCollector:
         total_items = sum(len(items) for items in all_data.values())
         total_new = sum(new_stats.values())
         total_cached = sum(cached_stats.values())
-        log.done(t('dc_collection_done_v2', total=total_items, new=total_new, cached=total_cached))
+        log.dual_done(t('dc_collection_done_v2', total=total_items, new=total_new, cached=total_cached))
         for category, items in all_data.items():
             new_count = new_stats.get(category, 0)
             cached_count = cached_stats.get(category, 0)
-            log.data(t('dc_category_stats_v2', category=category, count=len(items), new=new_count, cached=cached_count))
+            log.dual_data(t('dc_category_stats_v2', category=category, count=len(items), new=new_count, cached=cached_count))
         
         return all_data
     

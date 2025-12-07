@@ -443,6 +443,133 @@ class LogHelper:
     def prompt(self, message: str) -> str:
         """输出提示并获取用户输入"""
         return input(message)
+    
+    # ===== 双输出方法 (控制台 + 日志文件) =====
+    
+    def _log_to_file_only(self, level: int, message: str) -> None:
+        """仅输出到日志文件，不显示在控制台"""
+        import sys
+        # 临时禁用控制台处理器
+        console_handlers = []
+        for h in self._logger.handlers:
+            # 检查是否为控制台处理器（输出到 stdout 或 stderr）
+            if isinstance(h, logging.StreamHandler) and hasattr(h, 'stream'):
+                if h.stream in (sys.stdout, sys.stderr):
+                    console_handlers.append(h)
+                    self._logger.removeHandler(h)
+        
+        # 输出日志（仅到文件）
+        self._logger.log(level, message)
+        
+        # 恢复控制台处理器
+        for h in console_handlers:
+            self._logger.addHandler(h)
+    
+    def dual_info(self, message: str, emoji: str = "ℹ️") -> None:
+        """双输出：控制台显示 + 日志记录"""
+        formatted = self._format_message(message, emoji)
+        print(formatted)  # 控制台
+        self._log_to_file_only(logging.INFO, formatted)  # 日志文件
+    
+    def dual_success(self, message: str) -> None:
+        """双输出：成功消息"""
+        formatted = self._format_message(message, "✅")
+        print(formatted)
+        self._log_to_file_only(logging.INFO, formatted)
+    
+    def dual_warning(self, message: str) -> None:
+        """双输出：警告消息"""
+        formatted = self._format_message(message, "⚠️")
+        print(formatted)
+        self._log_to_file_only(logging.WARNING, formatted)
+    
+    def dual_error(self, message: str) -> None:
+        """双输出：错误消息"""
+        formatted = self._format_message(message, "❌")
+        print(formatted)
+        self._log_to_file_only(logging.ERROR, formatted)
+    
+    def dual_start(self, message: str) -> None:
+        """双输出：开始操作"""
+        formatted = self._format_message(message, "🚀")
+        print(formatted)
+        self._log_to_file_only(logging.INFO, formatted)
+    
+    def dual_done(self, message: str) -> None:
+        """双输出：完成操作"""
+        formatted = self._format_message(message, "✨")
+        print(formatted)
+        self._log_to_file_only(logging.INFO, formatted)
+    
+    def dual_data(self, message: str) -> None:
+        """双输出：数据信息"""
+        formatted = self._format_message(message, "📦")
+        print(formatted)
+        self._log_to_file_only(logging.INFO, formatted)
+    
+    def dual_timing(self, message: str, elapsed: float) -> None:
+        """双输出：耗时信息"""
+        formatted = self._format_message(message, "⏱️")
+        if '(' not in formatted or 's)' not in formatted:
+            formatted = f"{formatted} ({elapsed:.2f}s)"
+        print(formatted)
+        self._log_to_file_only(logging.INFO, formatted)
+    
+    def dual_separator(self, char: str = "=", length: int = 60) -> None:
+        """双输出：分隔线"""
+        line = char * length
+        print(line)
+        self._log_to_file_only(logging.INFO, line)
+    
+    def dual_section(self, title: str, char: str = "=", length: int = 60) -> None:
+        """双输出：带标题的分隔区域"""
+        print()
+        print(char * length)
+        print(title)
+        print(char * length)
+        self._log_to_file_only(logging.INFO, "")
+        self._log_to_file_only(logging.INFO, char * length)
+        self._log_to_file_only(logging.INFO, title)
+        self._log_to_file_only(logging.INFO, char * length)
+    
+    def dual_chart(self, message: str) -> None:
+        """双输出：图表信息"""
+        formatted = self._format_message(message, "📊")
+        print(formatted)
+        self._log_to_file_only(logging.INFO, formatted)
+    
+    def dual_file(self, message: str) -> None:
+        """双输出：文件信息"""
+        formatted = self._format_message(message, "📄")
+        print(formatted)
+        self._log_to_file_only(logging.INFO, formatted)
+    
+    def dual_rule(self, message: str) -> None:
+        """双输出：规则信息"""
+        formatted = self._format_message(message, "📝")
+        print(formatted)
+        self._log_to_file_only(logging.INFO, formatted)
+    
+    def dual_ai(self, message: str) -> None:
+        """双输出：AI/LLM信息"""
+        formatted = self._format_message(message, "🤖")
+        print(formatted)
+        self._log_to_file_only(logging.INFO, formatted)
+    
+    def dual_config(self, message: str) -> None:
+        """双输出：配置信息"""
+        formatted = self._format_message(message, "⚙️")
+        print(formatted)
+        self._log_to_file_only(logging.INFO, formatted)
+    
+    def dual_step(self, step_num: int, total: int, message: str) -> None:
+        """双输出：步骤信息"""
+        if message.startswith('【步骤') or message.startswith('[Step'):
+            formatted = message
+        else:
+            formatted = f"【步骤 {step_num}/{total}】{message}"
+        print(formatted)
+        self._log_to_file_only(logging.INFO, formatted)
 
 
 def get_log_helper(name: str) -> LogHelper:

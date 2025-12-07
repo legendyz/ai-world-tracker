@@ -137,21 +137,21 @@ class AIAnalyzer:
     
     def _print_trends(self, trends: Dict):
         """打印趋势分析结果"""
-        log.success("\n" + t('ai_analysis_done') + "\n")
+        log.dual_success(t('ai_analysis_done'))
         
-        log.chart(t('ai_top_tech'))
+        log.dual_chart(t('ai_top_tech'))
         for tech, count in list(trends['tech_hotspots'].items())[:5]:
             bar = '█' * (count * 2)
-            log.info(f"   {tech:20s} {bar} {count}")
+            log.dual_info(f"   {tech:20s} {bar} {count}")
         
-        log.chart("\n" + t('ai_content_dist'))
+        log.dual_chart(t('ai_content_dist'))
         item_label = t('ai_items')
         for ctype, count in trends['content_distribution'].items():
-            log.info(f"   {ctype:15s}: {count} {item_label}")
+            log.dual_info(f"   {ctype:15s}: {count} {item_label}")
         
-        log.chart("\n" + t('ai_region_dist'))
+        log.dual_chart(t('ai_region_dist'))
         for region, count in trends['region_distribution'].items():
-            log.info(f"   {region:15s}: {count} {item_label}")
+            log.dual_info(f"   {region:15s}: {count} {item_label}")
     
     def get_top_items(self, items: List[Dict], category: str = 'tech_categories', top_n: int = 5) -> List[Dict]:
         """
@@ -249,4 +249,4 @@ if __name__ == "__main__":
     
     trends = analyzer.analyze_trends(test_items)
     report = analyzer.generate_report(test_items, trends)
-    log.info("\n" + report)
+    log.dual_info(report)
