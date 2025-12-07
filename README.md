@@ -290,6 +290,126 @@ The classifier categorizes content into six dimensions:
 | `leader` | Industry leader opinions | CEO interviews, keynotes |
 | `community` | Community discussions | Hot topics, debates |
 
+## 🏗️ Classification System Architecture
+
+### Overview
+
+The system uses a **dual-mode classification architecture** with automatic fallback:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Classification Pipeline                    │
+├─────────────────────────────────────────────────────────────┤
+│  Input Data                                                   │
+│      ↓                                                        │
+│  ┌─────────────────┐    ┌─────────────────┐                  │
+│  │  LLM Classifier │ OR │ Rule Classifier │                  │
+│  │  (Primary)      │    │ (Fallback)      │                  │
+│  └────────┬────────┘    └────────┬────────┘                  │
+│           ↓                      ↓                            │
+│  ┌─────────────────────────────────────────┐                 │
+│  │      Importance Evaluator               │                 │
+│  │   (Multi-dimensional Weighted Scoring)  │                 │
+│  └─────────────────────────────────────────┘                 │
+│           ↓                                                   │
+│  Output: category, importance, confidence, breakdown          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### LLM Classifier (`llm_classifier.py`)
+
+The LLM-enhanced classifier provides semantic understanding:
+
+- **Multi-Provider Support**: Ollama (local), OpenAI, Anthropic
+- **MD5-based Caching**: Avoid redundant API calls
+- **Concurrent Processing**: 3-6 threads for parallel classification
+- **Auto-Fallback**: Gracefully degrades to rule-based when LLM unavailable
+- **GPU Auto-Detection**: NVIDIA (CUDA), AMD (ROCm), Apple Silicon (Metal)
+
+### Rule Classifier (`content_classifier.py`)
+
+The rule-based classifier uses keyword patterns:
+
+- **Keyword Matching**: Category-specific keyword dictionaries
+- **Confidence Scoring**: Based on keyword match strength
+- **Fast Processing**: No network dependency, instant results
+
+## ⚖️ Multi-Dimensional Importance Evaluation
+
+The `ImportanceEvaluator` calculates content importance using **5 weighted dimensions**:
+
+### Dimension Weights
+
+| Dimension | Weight | Description |
+|-----------|--------|-------------|
+| **Source Authority** | 25% | Credibility of the content source |
+| **Recency** | 20% | How recent the content is |
+| **Confidence** | 25% | Classification confidence score |
+| **Relevance** | 20% | Relevance to AI topics |
+| **Engagement** | 10% | Social signals (stars, downloads, etc.) |
+
+### Calculation Formula
+
+```
+Importance = Σ (dimension_score × weight)
+
+Where:
+- source_authority × 0.25
+- recency × 0.20
+- confidence × 0.25
+- relevance × 0.20
+- engagement × 0.10
+```
+
+### Source Authority Scores
+
+| Source Type | Score Range | Examples |
+|-------------|-------------|----------|
+| Official AI Companies | 0.90 - 1.00 | OpenAI, Google AI, Anthropic, Meta AI |
+| Academic/Research | 0.90 - 0.95 | arXiv, GitHub, Hugging Face |
+| Professional Media | 0.70 - 0.85 | TechCrunch, The Verge, Wired |
+| Community | 0.50 - 0.65 | Hacker News, Reddit |
+| Unknown | 0.40 | Default for unrecognized sources |
+
+### Recency Decay Curve
+
+| Age | Score | Description |
+|-----|-------|-------------|
+| Today | 1.00 | Most recent |
+| 1 day | 0.95 | Very fresh |
+| 3 days | 0.85 | Recent |
+| 7 days | 0.70 | Within a week |
+| 14 days | 0.50 | Two weeks old |
+| 30+ days | 0.20 | Older content |
+
+### Importance Levels
+
+| Score Range | Level | Emoji |
+|-------------|-------|-------|
+| ≥ 0.85 | Critical | 🔴 |
+| ≥ 0.70 | High | 🟠 |
+| ≥ 0.55 | Medium | 🟡 |
+| ≥ 0.40 | Low | 🟢 |
+| < 0.40 | Minimal | ⚪ |
+
+### Output Example
+
+```json
+{
+  "title": "OpenAI releases GPT-5",
+  "category": "product",
+  "importance": 0.892,
+  "confidence": 0.95,
+  "importance_breakdown": {
+    "source_authority": 1.0,
+    "recency": 0.95,
+    "confidence": 0.95,
+    "relevance": 0.85,
+    "engagement": 0.5
+  }
+}
+```
+
 ## 🔧 Version Comparison
 
 | Feature | v1.0 (ai-world-tracker-v1) | v2.0 (main) |
