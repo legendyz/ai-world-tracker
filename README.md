@@ -114,9 +114,17 @@ ai-world-tracker/
 ├── learning_feedback.py     # Learning feedback system
 ├── i18n.py                  # Internationalization (EN/CN)
 ├── link_validator.py        # URL validation utility
+├── regenerate_web.py        # Quick web regeneration utility
 ├── requirements.txt         # Python dependencies
 ├── config.yaml              # Application configuration
 ├── pytest.ini               # Test configuration
+├── data/                    # Generated data directory
+│   ├── exports/             # Exported data and reports
+│   │   ├── ai_tracker_data_*.json
+│   │   └── ai_tracker_report_*.txt
+│   └── cache/               # Cache files
+│       ├── collection_history_cache.json
+│       └── llm_classification_cache.json
 ├── tests/                   # Test files directory
 │   ├── __init__.py
 │   ├── test_classifier_*.py
@@ -199,6 +207,22 @@ visualization:
 output:
   report_dir: ./
   web_dir: ./web_output/
+
+# Data directory configuration
+data:
+  exports_dir: data/exports    # Exported data and reports
+  cache_dir: data/cache        # Cache files
+
+# Logging configuration
+logging:
+  level: INFO                  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  dir: logs                    # Log files directory
+  console: true                # Output to console
+  file: true                   # Output to file
+  max_size_mb: 10              # Max size per log file (MB)
+  backup_count: 2              # Number of backup files
+  retention_days: 3            # Log retention days
+  format: standard             # standard or json
 ```
 
 ### Using Configuration in Code
@@ -253,7 +277,10 @@ The classifier categorizes content into six dimensions:
 | Concurrent Processing | ❌ | ✅ Multi-threaded |
 | Smart Caching | ❌ | ✅ MD5-based |
 | GPU Acceleration | ❌ | ✅ Auto-detection |
-| Unified Logging | ❌ | ✅ logger.py |
+| Unified Logging | ❌ | ✅ logger.py (with emoji dedup) |
+| Structured Data Dir | ❌ | ✅ data/exports, data/cache |
+| Log Auto-Cleanup | ❌ | ✅ Configurable retention |
+| JSON Log Format | ❌ | ✅ Optional |
 | Test Organization | Scattered | ✅ tests/ directory |
 | Accuracy | ~70% | ~95% |
 | Use Case | Learning, customization | Production |

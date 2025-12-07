@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2] - 2025-12-07 (Main Branch)
+
+### Added
+- **Project Directory Restructuring**
+  - New `data/exports/` directory for exported data and reports
+  - New `data/cache/` directory for cache files
+  - Cleaner project root directory structure
+
+- **Enhanced Logging System**
+  - Smart emoji deduplication (avoids double emojis like `📦 📦`)
+  - Auto-cleanup of old log files based on retention days
+  - Support for loading configuration from `config.yaml`
+  - New `exception()` method for stack trace logging
+  - JSON format logging support (optional)
+  - Configurable via `config.yaml`:
+    - Log level, directory, console/file output
+    - Max file size, backup count, retention days
+
+- **New Configuration Options**
+  - `data.exports_dir`: Directory for exported data and reports
+  - `data.cache_dir`: Directory for cache files
+  - `logging.*`: Full logging configuration support
+
+### Changed
+- Data files now saved to `data/exports/` instead of project root
+- Cache files now saved to `data/cache/` instead of project root
+- Updated `.gitignore` to ignore `data/exports/` and `data/cache/`
+- All modules updated to use new directory paths
+
+### Fixed
+- Emoji duplication issue in log messages (e.g., `✅ ✅` → `✅`)
+- Step logging duplication (e.g., `【步骤 1/5】【步骤 1/5】` → `【步骤 1/5】`)
+
+---
+
 ## [2.0.1] - 2025-12-06 (Main Branch)
 
 ### Added
@@ -157,10 +192,10 @@ This version is ideal for:
 - Collection rate optimization
 
 ### Synced with Main
-- All v2.0.1 features merged from main branch
-- Unified logging system
-- Test organization
-- Configuration management updates
+- All v2.0.2 features merged from main branch
+- Project directory restructuring
+- Enhanced logging system
+- New configuration options
 
 ### Status
 - **Beta**: Not recommended for production use

@@ -114,9 +114,17 @@ ai-world-tracker/
 ├── learning_feedback.py     # 学习反馈系统
 ├── i18n.py                  # 国际化（中/英文）
 ├── link_validator.py        # URL 验证工具
+├── regenerate_web.py        # 快速网页重生成工具
 ├── requirements.txt         # Python 依赖
 ├── config.yaml              # 应用配置
 ├── pytest.ini               # 测试配置
+├── data/                    # 生成的数据目录
+│   ├── exports/             # 导出的数据和报告
+│   │   ├── ai_tracker_data_*.json
+│   │   └── ai_tracker_report_*.txt
+│   └── cache/               # 缓存文件
+│       ├── collection_history_cache.json
+│       └── llm_classification_cache.json
 ├── tests/                   # 测试文件目录
 │   ├── __init__.py
 │   ├── test_classifier_*.py
@@ -199,6 +207,22 @@ visualization:
 output:
   report_dir: ./
   web_dir: ./web_output/
+
+# 数据目录配置
+data:
+  exports_dir: data/exports    # 导出的数据和报告
+  cache_dir: data/cache        # 缓存文件
+
+# 日志配置
+logging:
+  level: INFO                  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  dir: logs                    # 日志文件目录
+  console: true                # 输出到控制台
+  file: true                   # 输出到文件
+  max_size_mb: 10              # 单个日志文件最大大小 (MB)
+  backup_count: 2              # 备份文件数量
+  retention_days: 3            # 日志保留天数
+  format: standard             # standard 或 json
 ```
 
 ### 在代码中使用配置
@@ -253,7 +277,10 @@ export OLLAMA_BASE_URL="http://localhost:11434"
 | 并发处理 | ❌ | ✅ 多线程 |
 | 智能缓存 | ❌ | ✅ MD5 缓存 |
 | GPU 加速 | ❌ | ✅ 自动检测 |
-| 统一日志 | ❌ | ✅ logger.py |
+| 统一日志 | ❌ | ✅ logger.py (带 emoji 去重) |
+| 结构化数据目录 | ❌ | ✅ data/exports, data/cache |
+| 日志自动清理 | ❌ | ✅ 可配置保留天数 |
+| JSON 日志格式 | ❌ | ✅ 可选 |
 | 测试组织 | 分散 | ✅ tests/ 目录 |
 | 准确率 | ~70% | ~95% |
 | 适用场景 | 学习、自定义开发 | 生产环境 |
