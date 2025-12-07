@@ -28,13 +28,15 @@
 - **📊 数据可视化**：生成技术热点、内容分布、地区分布和每日趋势图表
 - **🌐 网页仪表盘**：创建带有分类新闻的响应式 HTML 仪表盘
 - **🔄 智能缓存**：基于 MD5 的缓存机制，避免重复 API 调用
+- **🌍 双语支持**：完整的中英文界面（i18n 国际化）
 
 ### LLM 集成（Main 分支）
 - **多提供商支持**：Ollama（免费、本地）、OpenAI、Anthropic
 - **本地模型**：通过 Ollama 使用 Qwen3:8b - 完全免费
 - **GPU 加速**：自动检测 NVIDIA、AMD、Apple Silicon
-- **并发处理**：3 线程并行处理提升速度
+- **并发处理**：3-6 线程并行处理提升速度
 - **自动降级**：LLM 不可用时优雅降级到规则分类
+- **资源管理**：退出时自动卸载模型，释放显存/内存
 
 ## 🛠️ 安装指南
 
@@ -76,26 +78,55 @@
 ```
 📋 主菜单
 ============================================================
-当前模式：[LLM: Ollama/qwen3:8b] 或 [规则分类]
+当前分类模式：🤖 LLM模式 (ollama/qwen3:8b)
 ============================================================
-1. 🚀 自动更新数据与报告（完整流程）
-2. 🌐 生成并打开 Web 页面
-3. 📝 人工审核分类（审核低置信度项目）
-4. 🎓 学习反馈分析（分析审核历史）
-5. ⚙️ 切换分类模式
+1. 🚀 自动更新数据与报告 (Auto Update & Generate)
+2. 🌐 生成并打开 Web 页面 (Generate & Open Web Page)
+3. 📝 人工审核分类 (Manual Review)
+4. 📚 学习反馈分析 (Learning Feedback)
+5. ⚙️  设置与管理 (Settings & Management)
 0. 退出程序
 ============================================================
+```
+
+### 设置与管理菜单
+
+```
+⚙️  设置与管理
+
+当前模式：🤖 LLM模式 (ollama/qwen3:8b)
+
+📋 分类模式:
+  1. 📝 规则模式 (Rule-based) - 快速、免费、无需网络
+  2. 🤖 LLM模式 (Ollama本地) - 高精度、语义理解
+  3. 🤖 LLM模式 (OpenAI) - 最高精度、需要API密钥
+  4. 🤖 LLM模式 (Anthropic) - 高精度、需要API密钥
+
+🧹 数据维护:
+  5. 🗑️ 清除LLM分类缓存
+  6. 🗑️ 清除采集历史缓存
+  7. 🗑️ 清除采集结果历史
+
+  0. ↩️ 返回主菜单
 ```
 
 ### 功能说明
 
 | 选项 | 功能 | 描述 |
 |------|------|------|
-| 1 | 自动更新 | 执行完整流程：采集 → 分类 → 分析 → 可视化 → 生成网页 |
+| 1 | 自动更新 | 执行完整流程：采集 → 分类 → 分析 → 可视化 → 生成网页，完成后询问是否打开浏览器 |
 | 2 | 网页生成 | 重新生成 HTML 仪表盘并在浏览器中打开 |
 | 3 | 人工审核 | 审核低置信度分类项目 |
 | 4 | 学习反馈 | 基于审核历史生成优化建议 |
-| 5 | 切换模式 | 在 LLM 和规则分类模式之间切换 |
+| 5 | 设置与管理 | 切换分类模式和管理数据/缓存 |
+
+### 数据维护选项
+
+| 选项 | 功能 | 描述 |
+|------|------|------|
+| 清除LLM分类缓存 | 🗑️ | 删除 `llm_classification_cache.json`，强制使用 LLM 重新分类 |
+| 清除采集历史缓存 | 🗑️ | 删除 `collection_history_cache.json`，允许重新采集所有 URL |
+| 清除采集结果历史 | 🗑️ | 删除所有 `data/exports/*.json` 和 `*.txt` 文件（需要确认） |
 
 ## 📂 项目结构
 
@@ -117,14 +148,15 @@ ai-world-tracker/
 ├── regenerate_web.py        # 快速网页重生成工具
 ├── requirements.txt         # Python 依赖
 ├── config.yaml              # 应用配置
+├── ai_tracker_config.json   # 用户配置（自动生成）
 ├── pytest.ini               # 测试配置
 ├── data/                    # 生成的数据目录
 │   ├── exports/             # 导出的数据和报告
-│   │   ├── ai_tracker_data_*.json
-│   │   └── ai_tracker_report_*.txt
+│   │   ├── ai_tracker_data_*.json    # 带时间戳的采集数据
+│   │   └── ai_tracker_report_*.txt   # 文本报告
 │   └── cache/               # 缓存文件
-│       ├── collection_history_cache.json
-│       └── llm_classification_cache.json
+│       ├── collection_history_cache.json  # URL/标题去重缓存
+│       └── llm_classification_cache.json  # LLM 分类结果缓存
 ├── tests/                   # 测试文件目录
 │   ├── __init__.py
 │   ├── test_classifier_*.py
@@ -180,7 +212,8 @@ ai-world-tracker/
 1. **环境变量** - 最高优先级
 2. **.env 文件** - 本地开发使用
 3. **config.yaml** - 项目默认配置
-4. **代码默认值** - 后备值
+4. **ai_tracker_config.json** - 用户偏好（自动保存）
+5. **代码默认值** - 后备值
 
 ### config.yaml 示例
 
@@ -225,16 +258,6 @@ logging:
   format: standard             # standard 或 json
 ```
 
-### 在代码中使用配置
-
-```python
-from config import config
-
-# 使用点号路径访问配置
-product_count = config.get('collector.product_count', 10)
-llm_model = config.get('classifier.llm_model', 'qwen3:8b')
-```
-
 ### LLM 提供商
 
 | 提供商 | 模型 | 费用 | 配置方式 |
@@ -274,7 +297,7 @@ export OLLAMA_BASE_URL="http://localhost:11434"
 | 分类方式 | 规则分类 | LLM + 规则降级 |
 | LLM 支持 | ❌ | ✅ Ollama/OpenAI/Anthropic |
 | 本地模型 | ❌ | ✅ Qwen3:8b |
-| 并发处理 | ❌ | ✅ 多线程 |
+| 并发处理 | ❌ | ✅ 多线程（3-6） |
 | 智能缓存 | ❌ | ✅ MD5 缓存 |
 | GPU 加速 | ❌ | ✅ 自动检测 |
 | 统一日志 | ❌ | ✅ logger.py (带 emoji 去重) |
@@ -282,6 +305,9 @@ export OLLAMA_BASE_URL="http://localhost:11434"
 | 日志自动清理 | ❌ | ✅ 可配置保留天数 |
 | JSON 日志格式 | ❌ | ✅ 可选 |
 | 测试组织 | 分散 | ✅ tests/ 目录 |
+| 双语界面 | ❌ | ✅ 中/英文 |
+| 资源清理 | ❌ | ✅ 退出时自动卸载 LLM |
+| 缓存管理 | ❌ | ✅ 菜单清理缓存 |
 | 准确率 | ~70% | ~95% |
 | 适用场景 | 学习、自定义开发 | 生产环境 |
 

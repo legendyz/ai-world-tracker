@@ -168,6 +168,21 @@ class AIWorldTracker:
         except Exception as e:
             log.error(t('config_save_failed', error=str(e)))
     
+    def cleanup(self):
+        """清理资源，释放内存/显存"""
+        # 卸载LLM模型（如果已加载）
+        if self.llm_classifier is not None:
+            try:
+                self.llm_classifier.unload_model()
+            except Exception as e:
+                log.warning(t('cleanup_error', error=str(e)))
+        
+        # 保存采集历史缓存
+        try:
+            self.collector._save_history_cache()
+        except Exception:
+            pass
+    
     def _try_restore_llm_classifier(self, clear_cache: bool = False):
         """尝试恢复上次的LLM分类器
         
@@ -213,6 +228,48 @@ class AIWorldTracker:
                 log.info(t('llm_cache_not_found'), emoji="ℹ️")
         except Exception as e:
             log.error(t('llm_cache_clear_error', error=str(e)))
+    
+    def _clear_export_history(self):
+        """清除采集结果历史（需要用户确认）"""
+        import glob
+        
+        # 查找所有导出文件
+        json_pattern = os.path.join(DATA_EXPORTS_DIR, 'ai_tracker_data_*.json')
+        txt_pattern = os.path.join(DATA_EXPORTS_DIR, 'ai_tracker_report_*.txt')
+        
+        json_files = glob.glob(json_pattern)
+        txt_files = glob.glob(txt_pattern)
+        all_files = json_files + txt_files
+        
+        if not all_files:
+            log.info(t('clear_export_history_empty'), emoji="ℹ️")
+            return
+        
+        # 显示警告并请求确认
+        log.warning(t('clear_export_history_confirm'))
+        log.info(f"   📁 {len(json_files)} JSON + {len(txt_files)} TXT = {len(all_files)} files", emoji="")
+        
+        confirm = input(f"\n{t('clear_export_history_prompt')}").strip().lower()
+        
+        if confirm != 'y':
+            log.info(t('clear_export_history_cancelled'), emoji="")
+            return
+        
+        # 执行删除
+        deleted_count = 0
+        for f in all_files:
+            try:
+                os.remove(f)
+                deleted_count += 1
+            except Exception as e:
+                log.error(f"Failed to delete {f}: {e}")
+        
+        # 清空内存中的数据
+        self.data = []
+        self.trends = {}
+        self.chart_files = {}
+        
+        log.success(t('clear_export_history_done', count=deleted_count))
     
     def _check_llm_availability(self):
         """检查LLM服务可用性，提供启动帮助"""
@@ -484,6 +541,9 @@ class AIWorldTracker:
         log.dual_data(t('data_saved'))
         log.dual_info(t('web_generated'), emoji="🌐")
         
+        # 询问是否在浏览器中打开网页
+        self._ask_open_web_page(web_file)
+        
         return report
     
     def show_menu(self):
@@ -531,26 +591,37 @@ class AIWorldTracker:
             return "📝 规则模式 (Rule-based)"
     
     def _switch_classification_mode(self):
-        """切换分类模式"""
+        """设置与管理菜单"""
         log.section(t('switch_mode_title'))
         
         log.menu(f"\n{t('current_mode')}: {self._get_mode_display()}")
-        log.menu(f"\n{t('available_modes')}:")
+        
+        # 分类模式分组
+        log.menu(f"\n{t('settings_classification_mode')}:")
         log.menu(f"  1. {t('mode_rule_desc')}")
         
         if LLM_AVAILABLE:
             log.menu(f"  2. {t('mode_ollama_desc')}")
             log.menu(f"  3. {t('mode_openai_desc')}")
             log.menu(f"  4. {t('mode_anthropic_desc')}")
-            log.menu(f"  5. {t('clear_llm_cache')}")
         else:
             log.menu(f"  {t('llm_not_available')}")
         
+        # 数据维护分组
+        log.menu(f"\n{t('settings_data_maintenance')}:")
+        if LLM_AVAILABLE:
+            log.menu(f"  5. {t('clear_llm_cache')}")
         log.menu(f"  6. {t('clear_collection_cache')}")
+        log.menu(f"  7. {t('clear_export_history')}")
         
-        choice = input(f"\n{t('select_model')} (1-6): ").strip()
+        log.menu(f"\n  0. {t('back_to_main_menu')}")
         
-        if choice == '1':
+        choice = input(f"\n{t('select_model')} (0-7): ").strip()
+        
+        if choice == '0' or choice == '':
+            return  # 返回主菜单
+        
+        elif choice == '1':
             self.classification_mode = 'rule'
             self.llm_classifier = None
             self._save_user_config()
@@ -574,6 +645,9 @@ class AIWorldTracker:
         
         elif choice == '6':
             self.collector.clear_history_cache()
+        
+        elif choice == '7':
+            self._clear_export_history()
         
         else:
             log.warning(t('invalid_choice'))
@@ -865,6 +939,22 @@ class AIWorldTracker:
         if len(filtered) > 5:
             print("   " + t('filter_more', count=len(filtered) - 5))
     
+    def _ask_open_web_page(self, web_file: str):
+        """询问用户是否在浏览器中打开网页"""
+        if not web_file or not os.path.exists(web_file):
+            return
+        
+        try:
+            import webbrowser
+            prompt = "\nOpen web page in browser? (Y/N): " if get_language() == 'en' else "\n是否在浏览器中打开Web页面? (Y/N): "
+            choice = input(prompt).strip().lower()
+            if choice in ['y', 'yes', '是']:
+                webbrowser.open(f'file://{os.path.abspath(web_file)}')
+                log.success(t('opened_browser'))
+        except Exception as e:
+            log.error(t('browser_error', error=str(e)))
+            log.info(t('manual_open', file=os.path.abspath(web_file)), emoji="📄")
+    
     def _generate_web_page(self):
         """生成Web页面"""
         if not self.data:
@@ -883,16 +973,7 @@ class AIWorldTracker:
         web_file = self.web_publisher.generate_html_page(self.data, self.trends, self.chart_files)
         
         # 询问是否在浏览器中打开
-        try:
-            import webbrowser
-            prompt = "\nOpen web page in browser? (Y/N): " if get_language() == 'en' else "\n是否在浏览器中打开Web页面? (Y/N): "
-            choice = input(prompt).strip().lower()
-            if choice in ['y', 'yes', '是']:
-                webbrowser.open(f'file://{os.path.abspath(web_file)}')
-                log.success(t('opened_browser'))
-        except Exception as e:
-            log.error(t('browser_error', error=str(e)))
-            log.info(t('manual_open', file=os.path.abspath(web_file)), emoji="📄")
+        self._ask_open_web_page(web_file)
     
     def _manual_review(self):
         """人工审核分类"""
@@ -1242,6 +1323,7 @@ class AIWorldTracker:
 
 def main():
     """主函数"""
+    tracker = None
     try:
         # 检查是否为自动模式
         auto_mode = '--auto' in sys.argv
@@ -1267,11 +1349,22 @@ def main():
         else:
             # 交互式菜单
             tracker.show_menu()
+    except KeyboardInterrupt:
+        # 用户按 Ctrl+C 中断
+        print("\n")
+        try:
+            log.warning(t('user_interrupted'))
+        except:
+            print("⚠️ 用户中断程序")
     except Exception as e:
         print(f"\n" + t('program_error', error=str(e)))
         import traceback
         traceback.print_exc()
         sys.exit(1)
+    finally:
+        # 确保资源被清理
+        if tracker is not None:
+            tracker.cleanup()
 
 
 if __name__ == "__main__":

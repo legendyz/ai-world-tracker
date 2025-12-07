@@ -28,13 +28,15 @@
 - **📊 Data Visualization**: Generates charts for technology hotspots, content distribution, regional distribution, and daily trends
 - **🌐 Web Dashboard**: Creates responsive HTML dashboard with categorized news
 - **🔄 Smart Caching**: MD5-based caching to avoid redundant API calls
+- **🌍 Bilingual Support**: Full Chinese/English interface (i18n)
 
 ### LLM Integration (Main Branch)
 - **Multi-Provider Support**: Ollama (free, local), OpenAI, Anthropic
 - **Local Models**: Qwen3:8b via Ollama - completely free
 - **GPU Acceleration**: Auto-detects NVIDIA, AMD, Apple Silicon
-- **Concurrent Processing**: 3-thread parallel processing for speed
+- **Concurrent Processing**: 3-6 thread parallel processing for speed
 - **Auto-Fallback**: Gracefully degrades to rule-based when LLM unavailable
+- **Resource Management**: Automatic model unloading on exit to free VRAM/memory
 
 ## 🛠️ Installation
 
@@ -76,26 +78,55 @@
 ```
 📋 Main Menu
 ============================================================
-Current Mode: [LLM: Ollama/qwen3:8b] or [Rule-based]
+Current Mode: 🤖 LLM Mode (ollama/qwen3:8b)
 ============================================================
 1. 🚀 Auto Update & Generate (Full pipeline)
 2. 🌐 Generate & Open Web Page
 3. 📝 Manual Review (Review low-confidence items)
-4. 🎓 Learning Feedback (Analyze review history)
-5. ⚙️ Switch Classification Mode
+4. 📚 Learning Feedback (Analyze review history)
+5. ⚙️  Settings & Management
 0. Exit
 ============================================================
+```
+
+### Settings & Management Menu
+
+```
+⚙️  Settings & Management
+
+Current Mode: 🤖 LLM Mode (ollama/qwen3:8b)
+
+📋 Classification Mode:
+  1. 📝 Rule Mode (Rule-based) - Fast, free, no network required
+  2. 🤖 LLM Mode (Ollama Local) - High accuracy, semantic understanding
+  3. 🤖 LLM Mode (OpenAI) - Highest accuracy, API key required
+  4. 🤖 LLM Mode (Anthropic) - High accuracy, API key required
+
+🧹 Data Maintenance:
+  5. 🗑️ Clear LLM classification cache
+  6. 🗑️ Clear collection history cache
+  7. 🗑️ Clear export data history
+
+  0. ↩️ Back to main menu
 ```
 
 ### Feature Description
 
 | Option | Function | Description |
 |--------|----------|-------------|
-| 1 | Auto Update | Execute full pipeline: Collection → Classification → Analysis → Visualization → Web Generation |
+| 1 | Auto Update | Execute full pipeline: Collection → Classification → Analysis → Visualization → Web Generation, then prompt to open browser |
 | 2 | Web Page | Regenerate HTML dashboard and open in browser |
 | 3 | Manual Review | Review items with low classification confidence |
 | 4 | Learning Feedback | Generate optimization suggestions based on review history |
-| 5 | Switch Mode | Toggle between LLM and rule-based classification |
+| 5 | Settings & Management | Switch classification mode and manage data/cache |
+
+### Data Maintenance Options
+
+| Option | Function | Description |
+|--------|----------|-------------|
+| Clear LLM Cache | 🗑️ | Delete `llm_classification_cache.json`, force re-classification with LLM |
+| Clear Collection Cache | 🗑️ | Delete `collection_history_cache.json`, allow re-collection of all URLs |
+| Clear Export History | 🗑️ | Delete all `data/exports/*.json` and `*.txt` files (requires confirmation) |
 
 ## 📂 Project Structure
 
@@ -117,14 +148,15 @@ ai-world-tracker/
 ├── regenerate_web.py        # Quick web regeneration utility
 ├── requirements.txt         # Python dependencies
 ├── config.yaml              # Application configuration
+├── ai_tracker_config.json   # User preferences (auto-generated)
 ├── pytest.ini               # Test configuration
 ├── data/                    # Generated data directory
 │   ├── exports/             # Exported data and reports
-│   │   ├── ai_tracker_data_*.json
-│   │   └── ai_tracker_report_*.txt
+│   │   ├── ai_tracker_data_*.json    # Collected data with timestamps
+│   │   └── ai_tracker_report_*.txt   # Text reports
 │   └── cache/               # Cache files
-│       ├── collection_history_cache.json
-│       └── llm_classification_cache.json
+│       ├── collection_history_cache.json  # URL/title deduplication
+│       └── llm_classification_cache.json  # LLM classification results
 ├── tests/                   # Test files directory
 │   ├── __init__.py
 │   ├── test_classifier_*.py
@@ -180,7 +212,8 @@ The application supports multiple configuration sources with the following prior
 1. **Environment Variables** - Highest priority
 2. **.env File** - For local development
 3. **config.yaml** - Project defaults
-4. **Code Defaults** - Fallback values
+4. **ai_tracker_config.json** - User preferences (auto-saved)
+5. **Code Defaults** - Fallback values
 
 ### config.yaml Example
 
@@ -225,16 +258,6 @@ logging:
   format: standard             # standard or json
 ```
 
-### Using Configuration in Code
-
-```python
-from config import config
-
-# Access configuration using dot notation
-product_count = config.get('collector.product_count', 10)
-llm_model = config.get('classifier.llm_model', 'qwen3:8b')
-```
-
 ### LLM Providers
 
 | Provider | Model | Cost | Setup |
@@ -274,7 +297,7 @@ The classifier categorizes content into six dimensions:
 | Classification | Rule-based | LLM + Rule fallback |
 | LLM Support | ❌ | ✅ Ollama/OpenAI/Anthropic |
 | Local Models | ❌ | ✅ Qwen3:8b |
-| Concurrent Processing | ❌ | ✅ Multi-threaded |
+| Concurrent Processing | ❌ | ✅ Multi-threaded (3-6) |
 | Smart Caching | ❌ | ✅ MD5-based |
 | GPU Acceleration | ❌ | ✅ Auto-detection |
 | Unified Logging | ❌ | ✅ logger.py (with emoji dedup) |
@@ -282,6 +305,9 @@ The classifier categorizes content into six dimensions:
 | Log Auto-Cleanup | ❌ | ✅ Configurable retention |
 | JSON Log Format | ❌ | ✅ Optional |
 | Test Organization | Scattered | ✅ tests/ directory |
+| Bilingual UI | ❌ | ✅ Chinese/English |
+| Resource Cleanup | ❌ | ✅ Auto unload LLM on exit |
+| Cache Management | ❌ | ✅ Clear cache via menu |
 | Accuracy | ~70% | ~95% |
 | Use Case | Learning, customization | Production |
 
