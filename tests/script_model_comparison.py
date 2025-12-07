@@ -30,7 +30,8 @@ test_cases = [
     }
 ]
 
-def test_model(model_name: str):
+def run_model_test(model_name: str):
+    """运行单个模型测试（非 pytest 测试函数）"""
     print(f"\n{'=' * 60}")
     print(f"测试模型: {model_name}")
     print(f"{'=' * 60}")
@@ -75,11 +76,11 @@ print("\n" + "🚀" * 30)
 print("   Qwen3:8b vs DeepSeek R1:8b 对比测试")
 print("🚀" * 30)
 
-qwen_results = test_model('qwen3:8b')
+qwen_results = run_model_test('qwen3:8b')
 
 print("\n" + "-" * 60)
 
-r1_results = test_model('deepseek-r1:8b')
+r1_results = run_model_test('deepseek-r1:8b')
 
 # 对比总结
 print("\n" + "=" * 60)

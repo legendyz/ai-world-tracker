@@ -21,7 +21,7 @@ def test_llm_classifier():
         print("   ✅ llm_classifier 导入成功")
     except ImportError as e:
         print(f"   ❌ 导入失败: {e}")
-        return False
+        assert False, f"llm_classifier 导入失败: {e}"
     
     try:
         from config import ConfigManager, get_config
@@ -40,7 +40,7 @@ def test_llm_classifier():
     else:
         print("   ⚠️ Ollama服务未运行")
         print("   请启动Ollama: ollama serve")
-        return False
+        assert False, "Ollama 服务未运行"
     
     # 3. 测试分类器初始化
     print("\n【3】测试分类器初始化...")
@@ -53,7 +53,7 @@ def test_llm_classifier():
         print(f"   ✅ 分类器初始化成功")
     except Exception as e:
         print(f"   ❌ 初始化失败: {e}")
-        return False
+        assert False, f"分类器初始化失败: {e}"
     
     # 4. 测试单条分类
     print("\n【4】测试单条内容分类...")
@@ -117,7 +117,7 @@ def test_llm_classifier():
     
     print("="*60)
     
-    return correct == len(test_items)
+    assert correct == len(test_items), f"分类测试失败: {correct}/{len(test_items)} 通过"
 
 
 def test_main_program_integration():
@@ -137,9 +137,7 @@ def test_main_program_integration():
         
     except Exception as e:
         print(f"   ❌ 导入失败: {e}")
-        return False
-    
-    return True
+        assert False, f"主程序导入失败: {e}"
 
 
 if __name__ == "__main__":
