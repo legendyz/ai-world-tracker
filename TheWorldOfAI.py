@@ -39,6 +39,9 @@ log = get_log_helper('main')
 # 用户配置文件
 CONFIG_FILE = 'ai_tracker_config.json'
 
+# Ollama 启动配置
+OLLAMA_STARTUP_TIMEOUT = 10  # 启动等待超时（秒）
+
 # LLM分类器（可选导入）
 try:
     from llm_classifier import LLMClassifier, check_ollama_status, AVAILABLE_MODELS, LLMProvider
@@ -205,6 +208,75 @@ class AIWorldTracker:
             log.warning(t('ollama_not_running_info'))
             self._offer_ollama_startup_help()
     
+    def _start_ollama_service(self, show_progress: bool = True) -> dict:
+        """
+        启动 Ollama 服务的核心逻辑（公共方法）
+        
+        Args:
+            show_progress: 是否显示进度点
+            
+        Returns:
+            dict: {
+                'success': bool,      # 是否启动成功
+                'status': dict|None,  # Ollama状态信息（成功时）
+                'error': str|None     # 错误类型: 'timeout', 'not_found', 或具体错误信息
+            }
+        """
+        import subprocess
+        import platform
+        import time
+        
+        try:
+            # 根据操作系统选择启动方式
+            system = platform.system()
+            if system == 'Windows':
+                subprocess.Popen(
+                    ['ollama', 'serve'],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+            else:
+                subprocess.Popen(
+                    ['ollama', 'serve'],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True
+                )
+            
+            # 等待服务启动
+            for _ in range(OLLAMA_STARTUP_TIMEOUT):
+                time.sleep(1)
+                if show_progress:
+                    print('.', end='', flush=True)
+                status = check_ollama_status()
+                if status['running']:
+                    return {'success': True, 'status': status, 'error': None}
+            
+            return {'success': False, 'status': None, 'error': 'timeout'}
+            
+        except FileNotFoundError:
+            return {'success': False, 'status': None, 'error': 'not_found'}
+        except Exception as e:
+            return {'success': False, 'status': None, 'error': str(e)}
+    
+    def _handle_ollama_start_error(self, error: str, indent: str = ""):
+        """
+        统一处理 Ollama 启动错误
+        
+        Args:
+            error: 错误类型或信息
+            indent: 输出缩进
+        """
+        if error == 'timeout':
+            print(f"\n{indent}" + t('ollama_timeout'))
+        elif error == 'not_found':
+            print(f"\n{indent}" + t('ollama_not_found'))
+            print(f"{indent}" + t('ollama_download'))
+        else:
+            print(f"\n{indent}" + t('ollama_start_failed', error=error))
+            print(f"{indent}" + t('ollama_manual_start'))
+    
     def _offer_ollama_startup_help(self):
         """提供Ollama启动帮助"""
         print("\n   " + t('ollama_hint'))
@@ -218,58 +290,25 @@ class AIWorldTracker:
         choice = input(prompt).strip().lower()
         
         if choice == 'y':
-            import subprocess
-            import platform
+            print("\n   " + t('ollama_starting'))
+            print("   " + t('ollama_waiting'), end='', flush=True)
             
-            try:
-                print("\n   " + t('ollama_starting'))
-                
-                # 根据操作系统选择启动方式
-                system = platform.system()
-                if system == 'Windows':
-                    # Windows: 在后台启动 ollama serve
-                    subprocess.Popen(
-                        ['ollama', 'serve'],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        creationflags=subprocess.CREATE_NO_WINDOW
-                    )
+            result = self._start_ollama_service(show_progress=True)
+            
+            if result['success']:
+                print("\n   " + t('ollama_started'))
+                status = result['status']
+                if status.get('models'):
+                    print(f"   " + t('ollama_available_models', models=', '.join(status['models'][:3])))
+                    if status.get('recommended'):
+                        self.llm_model = status['recommended']
                 else:
-                    # Linux/Mac: 在后台启动
-                    subprocess.Popen(
-                        ['ollama', 'serve'],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        start_new_session=True
-                    )
-                
-                # 等待服务启动
-                import time
-                print("   " + t('ollama_waiting'), end='', flush=True)
-                for i in range(10):
-                    time.sleep(1)
-                    print('.', end='', flush=True)
-                    status = check_ollama_status()
-                    if status['running']:
-                        print("\n   " + t('ollama_started'))
-                        if status['models']:
-                            print(f"   " + t('ollama_available_models', models=', '.join(status['models'][:3])))
-                            if status['recommended']:
-                                self.llm_model = status['recommended']
-                        else:
-                            print("   " + t('no_models'))
-                            print("   " + t('ollama_no_local_llm'))
-                        return
-                
-                print("\n   " + t('ollama_timeout'))
-                
-            except FileNotFoundError:
-                print("\n   " + t('ollama_not_found'))
-                print("   " + t('ollama_download'))
-                print("   " + t('ollama_no_local_llm'))
-            except Exception as e:
-                print(f"\n   " + t('ollama_start_failed', error=str(e)))
-                print("   " + t('ollama_manual_start'))
+                    print("   " + t('no_models'))
+                    print("   " + t('ollama_no_local_llm'))
+            else:
+                self._handle_ollama_start_error(result['error'], indent="   ")
+                if result['error'] == 'not_found':
+                    print("   " + t('ollama_no_local_llm'))
         else:
             print("   " + t('ollama_no_local_llm'))
             print("   " + t('ollama_later_hint'))
@@ -280,45 +319,15 @@ class AIWorldTracker:
         choice = input(prompt).strip().lower()
         
         if choice == 'y':
-            import subprocess
-            import platform
+            print("\n" + t('ollama_starting'))
+            log.info(t('ollama_waiting'), emoji="⏳")
             
-            try:
-                print("\n" + t('ollama_starting'))
-                
-                system = platform.system()
-                if system == 'Windows':
-                    subprocess.Popen(
-                        ['ollama', 'serve'],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        creationflags=subprocess.CREATE_NO_WINDOW
-                    )
-                else:
-                    subprocess.Popen(
-                        ['ollama', 'serve'],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        start_new_session=True
-                    )
-                
-                import time
-                log.info(t('ollama_waiting'), emoji="⏳")
-                for i in range(10):
-                    time.sleep(1)
-                    print('.', end='', flush=True)
-                    status = check_ollama_status()
-                    if status['running']:
-                        print("\n" + t('ollama_started'))
-                        return
-                
-                print("\n" + t('ollama_timeout'))
-                
-            except FileNotFoundError:
-                print("\n" + t('ollama_not_found'))
-                log.info(t('ollama_download'), emoji="📥")
-            except Exception as e:
-                print(f"\n" + t('ollama_start_failed', error=str(e)))
+            result = self._start_ollama_service(show_progress=True)
+            
+            if result['success']:
+                print("\n" + t('ollama_started'))
+            else:
+                self._handle_ollama_start_error(result['error'], indent="")
     
     def _install_ollama_model(self, model_name: str):
         """安装Ollama模型"""
