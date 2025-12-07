@@ -2,10 +2,26 @@
 import json
 import glob
 import os
+import yaml
 from web_publisher import WebPublisher
 
+# 加载数据目录配置
+def _get_exports_dir():
+    exports_dir = 'data/exports'
+    try:
+        if os.path.exists('config.yaml'):
+            with open('config.yaml', 'r', encoding='utf-8') as f:
+                cfg = yaml.safe_load(f)
+                exports_dir = cfg.get('data', {}).get('exports_dir', exports_dir)
+    except Exception:
+        pass
+    return exports_dir
+
+DATA_EXPORTS_DIR = _get_exports_dir()
+
 # 自动找到最新的数据文件
-data_files = glob.glob('ai_tracker_data_*.json')
+data_pattern = os.path.join(DATA_EXPORTS_DIR, 'ai_tracker_data_*.json')
+data_files = glob.glob(data_pattern)
 if not data_files:
     print("❌ 没有找到数据文件")
     exit(1)

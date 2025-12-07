@@ -16,6 +16,8 @@ AI World Tracker - MVP版本
 import sys
 import json
 import os
+import glob
+import yaml
 from datetime import datetime
 from typing import Optional, Dict
 
@@ -39,6 +41,33 @@ log = get_log_helper('main')
 # 用户配置文件
 CONFIG_FILE = 'ai_tracker_config.json'
 
+# Ollama 启动配置
+OLLAMA_STARTUP_TIMEOUT = 10  # 启动等待超时（秒）
+
+# 数据目录配置（从config.yaml加载）
+def _load_data_paths():
+    """加载数据目录配置"""
+    exports_dir = 'data/exports'
+    cache_dir = 'data/cache'
+    
+    try:
+        if os.path.exists('config.yaml'):
+            with open('config.yaml', 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+                data_config = config.get('data', {})
+                exports_dir = data_config.get('exports_dir', exports_dir)
+                cache_dir = data_config.get('cache_dir', cache_dir)
+    except Exception:
+        pass
+    
+    # 确保目录存在
+    os.makedirs(exports_dir, exist_ok=True)
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    return exports_dir, cache_dir
+
+DATA_EXPORTS_DIR, DATA_CACHE_DIR = _load_data_paths()
+
 # LLM分类器（可选导入）
 try:
     from llm_classifier import LLMClassifier, check_ollama_status, AVAILABLE_MODELS, LLMProvider
@@ -60,10 +89,7 @@ class AIWorldTracker:
         """
         self.auto_mode = auto_mode
         
-        print("\n" + "="*60)
-        print(f"     {t('app_title')}")
-        print(f"     {t('app_subtitle')}")
-        print("="*60 + "\n")
+        log.section(f"     {t('app_title')}\n     {t('app_subtitle')}")
         
         self.collector = DataCollector()
         self.classifier = ContentClassifier()  # 规则分类器
@@ -124,7 +150,7 @@ class AIWorldTracker:
                         log.config(t('config_loaded_llm', provider=saved_provider, model=saved_model))
                     else:
                         log.config(t('config_loaded_rule'))
-        except Exception as e:
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
             # 配置文件损坏或不存在，使用默认值
             pass
     
@@ -178,7 +204,7 @@ class AIWorldTracker:
     
     def _force_clear_llm_cache(self):
         """强制清除LLM分类缓存文件"""
-        cache_file = 'llm_classification_cache.json'
+        cache_file = os.path.join(DATA_CACHE_DIR, 'llm_classification_cache.json')
         try:
             if os.path.exists(cache_file):
                 os.remove(cache_file)
@@ -205,6 +231,75 @@ class AIWorldTracker:
             log.warning(t('ollama_not_running_info'))
             self._offer_ollama_startup_help()
     
+    def _start_ollama_service(self, show_progress: bool = True) -> dict:
+        """
+        启动 Ollama 服务的核心逻辑（公共方法）
+        
+        Args:
+            show_progress: 是否显示进度点
+            
+        Returns:
+            dict: {
+                'success': bool,      # 是否启动成功
+                'status': dict|None,  # Ollama状态信息（成功时）
+                'error': str|None     # 错误类型: 'timeout', 'not_found', 或具体错误信息
+            }
+        """
+        import subprocess
+        import platform
+        import time
+        
+        try:
+            # 根据操作系统选择启动方式
+            system = platform.system()
+            if system == 'Windows':
+                subprocess.Popen(
+                    ['ollama', 'serve'],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+            else:
+                subprocess.Popen(
+                    ['ollama', 'serve'],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True
+                )
+            
+            # 等待服务启动
+            for _ in range(OLLAMA_STARTUP_TIMEOUT):
+                time.sleep(1)
+                if show_progress:
+                    print('.', end='', flush=True)
+                status = check_ollama_status()
+                if status['running']:
+                    return {'success': True, 'status': status, 'error': None}
+            
+            return {'success': False, 'status': None, 'error': 'timeout'}
+            
+        except FileNotFoundError:
+            return {'success': False, 'status': None, 'error': 'not_found'}
+        except Exception as e:
+            return {'success': False, 'status': None, 'error': str(e)}
+    
+    def _handle_ollama_start_error(self, error: str, indent: str = ""):
+        """
+        统一处理 Ollama 启动错误
+        
+        Args:
+            error: 错误类型或信息
+            indent: 输出缩进
+        """
+        if error == 'timeout':
+            print(f"\n{indent}" + t('ollama_timeout'))
+        elif error == 'not_found':
+            print(f"\n{indent}" + t('ollama_not_found'))
+            print(f"{indent}" + t('ollama_download'))
+        else:
+            print(f"\n{indent}" + t('ollama_start_failed', error=error))
+            print(f"{indent}" + t('ollama_manual_start'))
+    
     def _offer_ollama_startup_help(self):
         """提供Ollama启动帮助"""
         print("\n   " + t('ollama_hint'))
@@ -218,58 +313,25 @@ class AIWorldTracker:
         choice = input(prompt).strip().lower()
         
         if choice == 'y':
-            import subprocess
-            import platform
+            print("\n   " + t('ollama_starting'))
+            print("   " + t('ollama_waiting'), end='', flush=True)
             
-            try:
-                print("\n   " + t('ollama_starting'))
-                
-                # 根据操作系统选择启动方式
-                system = platform.system()
-                if system == 'Windows':
-                    # Windows: 在后台启动 ollama serve
-                    subprocess.Popen(
-                        ['ollama', 'serve'],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        creationflags=subprocess.CREATE_NO_WINDOW
-                    )
+            result = self._start_ollama_service(show_progress=True)
+            
+            if result['success']:
+                print("\n   " + t('ollama_started'))
+                status = result['status']
+                if status.get('models'):
+                    print(f"   " + t('ollama_available_models', models=', '.join(status['models'][:3])))
+                    if status.get('recommended'):
+                        self.llm_model = status['recommended']
                 else:
-                    # Linux/Mac: 在后台启动
-                    subprocess.Popen(
-                        ['ollama', 'serve'],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        start_new_session=True
-                    )
-                
-                # 等待服务启动
-                import time
-                print("   " + t('ollama_waiting'), end='', flush=True)
-                for i in range(10):
-                    time.sleep(1)
-                    print('.', end='', flush=True)
-                    status = check_ollama_status()
-                    if status['running']:
-                        print("\n   " + t('ollama_started'))
-                        if status['models']:
-                            print(f"   " + t('ollama_available_models', models=', '.join(status['models'][:3])))
-                            if status['recommended']:
-                                self.llm_model = status['recommended']
-                        else:
-                            print("   " + t('no_models'))
-                            print("   " + t('ollama_no_local_llm'))
-                        return
-                
-                print("\n   " + t('ollama_timeout'))
-                
-            except FileNotFoundError:
-                print("\n   " + t('ollama_not_found'))
-                print("   " + t('ollama_download'))
-                print("   " + t('ollama_no_local_llm'))
-            except Exception as e:
-                print(f"\n   " + t('ollama_start_failed', error=str(e)))
-                print("   " + t('ollama_manual_start'))
+                    print("   " + t('no_models'))
+                    print("   " + t('ollama_no_local_llm'))
+            else:
+                self._handle_ollama_start_error(result['error'], indent="   ")
+                if result['error'] == 'not_found':
+                    print("   " + t('ollama_no_local_llm'))
         else:
             print("   " + t('ollama_no_local_llm'))
             print("   " + t('ollama_later_hint'))
@@ -280,45 +342,15 @@ class AIWorldTracker:
         choice = input(prompt).strip().lower()
         
         if choice == 'y':
-            import subprocess
-            import platform
+            print("\n" + t('ollama_starting'))
+            log.info(t('ollama_waiting'), emoji="⏳")
             
-            try:
-                print("\n" + t('ollama_starting'))
-                
-                system = platform.system()
-                if system == 'Windows':
-                    subprocess.Popen(
-                        ['ollama', 'serve'],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        creationflags=subprocess.CREATE_NO_WINDOW
-                    )
-                else:
-                    subprocess.Popen(
-                        ['ollama', 'serve'],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        start_new_session=True
-                    )
-                
-                import time
-                log.info(t('ollama_waiting'), emoji="⏳")
-                for i in range(10):
-                    time.sleep(1)
-                    print('.', end='', flush=True)
-                    status = check_ollama_status()
-                    if status['running']:
-                        print("\n" + t('ollama_started'))
-                        return
-                
-                print("\n" + t('ollama_timeout'))
-                
-            except FileNotFoundError:
-                print("\n" + t('ollama_not_found'))
-                log.info(t('ollama_download'), emoji="📥")
-            except Exception as e:
-                print(f"\n" + t('ollama_start_failed', error=str(e)))
+            result = self._start_ollama_service(show_progress=True)
+            
+            if result['success']:
+                print("\n" + t('ollama_started'))
+            else:
+                self._handle_ollama_start_error(result['error'], indent="")
     
     def _install_ollama_model(self, model_name: str):
         """安装Ollama模型"""
@@ -357,12 +389,15 @@ class AIWorldTracker:
     def _load_latest_data(self):
         """尝试加载最新的数据文件"""
         try:
-            files = [f for f in os.listdir('.') if f.startswith('ai_tracker_data_') and f.endswith('.json')]
+            # 从 exports 目录加载数据
+            if not os.path.exists(DATA_EXPORTS_DIR):
+                return
+            files = [f for f in os.listdir(DATA_EXPORTS_DIR) if f.startswith('ai_tracker_data_') and f.endswith('.json')]
             if not files:
                 return
             
-            latest_file = max(files)
-            log.data(t('loading_history', file=latest_file))
+            latest_file = os.path.join(DATA_EXPORTS_DIR, max(files))
+            log.data(t('loading_history', file=os.path.basename(latest_file)))
             
             with open(latest_file, 'r', encoding='utf-8') as f:
                 saved_data = json.load(f)
@@ -405,30 +440,30 @@ class AIWorldTracker:
             all_items.extend(items)
         
         timing_stats['data_collection'] = round(time.time() - step_start, 1)
-        print(f"\n{t('collected_items', count=len(all_items))}\n")
+        log.data(t('collected_items', count=len(all_items)))
         
         # 步骤2: 内容分类（根据当前模式选择分类器）
         step_start = time.time()
         log.step(2, 5, t('step_classify'))
         self.data = self._classify_data(all_items)
         timing_stats['classification'] = round(time.time() - step_start, 1)
-        log.info(t('classification_time', time=timing_stats['classification']), emoji="⏱️")
+        log.timing(t('classification_time', time=timing_stats['classification']), timing_stats['classification'])
         
         # 步骤3: 智能分析
         step_start = time.time()
-        print(f"\n{t('step_analyze')}")
+        log.step(3, 5, t('step_analyze'))
         self.trends = self.analyzer.analyze_trends(self.data)
         timing_stats['analysis'] = round(time.time() - step_start, 1)
         
         # 步骤4: 数据可视化
         step_start = time.time()
-        print(f"\n{t('step_visualize')}")
+        log.step(4, 5, t('step_visualize'))
         self.chart_files = self.visualizer.visualize_all(self.trends)
         timing_stats['visualization'] = round(time.time() - step_start, 1)
         
         # 步骤5: 生成Web页面
         step_start = time.time()
-        print(f"\n{t('step_web')}")
+        log.step(5, 5, t('step_web'))
         web_file = self.web_publisher.generate_html_page(self.data, self.trends, self.chart_files)
         timing_stats['web_generation'] = round(time.time() - step_start, 1)
         
@@ -441,13 +476,13 @@ class AIWorldTracker:
         # 保存数据和报告（包含耗时统计）
         self._save_results(report, web_file, timing_stats)
         
-        print("\n" + "="*60)
+        log.separator()
         log.done(t('process_complete'))
-        print("="*60)
-        print(f"\n{t('charts_generated', count=len([f for f in self.chart_files.values() if f]))}")
+        log.separator()
+        log.chart(t('charts_generated', count=len([f for f in self.chart_files.values() if f])))
         log.file(t('report_saved'))
         log.data(t('data_saved'))
-        log.web(t('web_generated') + "\n")
+        log.web(t('web_generated'))
         
         return report
     
@@ -457,17 +492,14 @@ class AIWorldTracker:
             # 显示当前分类模式
             mode_str = self._get_mode_display()
             
-            print("\n" + "="*60)
-            print(t('menu_title'))
-            print(f"   {t('menu_current_mode')}: {mode_str}")
-            print("="*60)
-            print(t('menu_option_1'))
-            print(t('menu_option_2'))
-            print(t('menu_option_3'))
-            print(t('menu_option_4'))
-            print(t('menu_option_5'))
-            print(t('menu_option_0'))
-            print("="*60)
+            log.section(t('menu_title') + f"\n   {t('menu_current_mode')}: {mode_str}")
+            log.menu(t('menu_option_1'))
+            log.menu(t('menu_option_2'))
+            log.menu(t('menu_option_3'))
+            log.menu(t('menu_option_4'))
+            log.menu(t('menu_option_5'))
+            log.menu(t('menu_option_0'))
+            log.separator()
             
             choice = input(f"\n{t('menu_choice')}: ").strip()
             
@@ -482,10 +514,10 @@ class AIWorldTracker:
             elif choice == '5':
                 self._switch_classification_mode()
             elif choice == '0':
-                print(f"\n{t('menu_goodbye')}\n")
+                log.success(t('menu_goodbye'))
                 break
             else:
-                print(f"\n{t('menu_invalid')}")
+                log.warning(t('menu_invalid'))
     
     def _get_mode_display(self) -> str:
         """获取当前模式的显示字符串"""
@@ -500,23 +532,21 @@ class AIWorldTracker:
     
     def _switch_classification_mode(self):
         """切换分类模式"""
-        print("\n" + "="*60)
-        print(t('switch_mode_title'))
-        print("="*60)
+        log.section(t('switch_mode_title'))
         
-        print(f"\n{t('current_mode')}: {self._get_mode_display()}")
-        print(f"\n{t('available_modes')}:")
-        print(f"  1. {t('mode_rule_desc')}")
+        log.menu(f"\n{t('current_mode')}: {self._get_mode_display()}")
+        log.menu(f"\n{t('available_modes')}:")
+        log.menu(f"  1. {t('mode_rule_desc')}")
         
         if LLM_AVAILABLE:
-            print(f"  2. {t('mode_ollama_desc')}")
-            print(f"  3. {t('mode_openai_desc')}")
-            print(f"  4. {t('mode_anthropic_desc')}")
-            print(f"  5. {t('clear_llm_cache')}")
+            log.menu(f"  2. {t('mode_ollama_desc')}")
+            log.menu(f"  3. {t('mode_openai_desc')}")
+            log.menu(f"  4. {t('mode_anthropic_desc')}")
+            log.menu(f"  5. {t('clear_llm_cache')}")
         else:
-            print(f"  {t('llm_not_available')}")
+            log.menu(f"  {t('llm_not_available')}")
         
-        print(f"  6. {t('clear_collection_cache')}")
+        log.menu(f"  6. {t('clear_collection_cache')}")
         
         choice = input(f"\n{t('select_model')} (1-6): ").strip()
         
@@ -524,7 +554,7 @@ class AIWorldTracker:
             self.classification_mode = 'rule'
             self.llm_classifier = None
             self._save_user_config()
-            print(f"\n{t('switched_to_rule')}")
+            log.success(t('switched_to_rule'))
         
         elif choice == '2' and LLM_AVAILABLE:
             self._setup_ollama_mode()
@@ -546,29 +576,29 @@ class AIWorldTracker:
             self.collector.clear_history_cache()
         
         else:
-            print(f"\n{t('invalid_choice')}")
+            log.warning(t('invalid_choice'))
     
     def _setup_ollama_mode(self):
         """设置Ollama模式"""
         status = check_ollama_status()
         
         if not status['running']:
-            print("\n" + t('ollama_not_running'))
+            log.warning(t('ollama_not_running'))
             self._offer_ollama_startup_help_in_menu()
             
             # 重新检查状态
             status = check_ollama_status()
             if not status['running']:
-                print("\n" + t('ollama_cannot_connect'))
+                log.error(t('ollama_cannot_connect'))
                 return
         
-        print(f"\n" + t('ollama_running'))
-        print(f"\n{t('available_models')}:")
+        log.success(t('ollama_running'))
+        log.menu(f"\n{t('available_models')}:")
         
         models = status['models']
         if not models:
-            print("  " + t('no_models'))
-            print("  " + t('install_model_hint'))
+            log.menu("  " + t('no_models'))
+            log.menu("  " + t('install_model_hint'))
             
             prompt = "\nInstall recommended model qwen3:8b now? (y/n) [n]: " if get_language() == 'en' else "\n是否现在安装推荐模型 qwen3:8b? (y/n) [n]: "
             choice = input(prompt).strip().lower()
@@ -579,14 +609,14 @@ class AIWorldTracker:
                 models = status['models']
             
             if not models:
-                print("\n" + t('no_available_models'))
+                log.warning(t('no_available_models'))
                 return
         
         # 显示可用模型
         recommended_label = " ⭐ " + ("recommended" if get_language() == 'en' else "推荐")
         for i, model in enumerate(models, 1):
             recommended = recommended_label if model == status['recommended'] else ""
-            print(f"  {i}. {model}{recommended}")
+            log.menu(f"  {i}. {model}{recommended}")
         
         prompt = f"\n{t('select_model')} (1-{len(models)}) [" + ("default: 1" if get_language() == 'en' else "默认: 1") + "]: "
         model_choice = input(prompt).strip() or '1'
@@ -594,7 +624,7 @@ class AIWorldTracker:
         try:
             idx = int(model_choice) - 1
             selected_model = models[idx] if 0 <= idx < len(models) else models[0]
-        except:
+        except (ValueError, IndexError):
             selected_model = models[0]
         
         # 初始化LLM分类器
@@ -611,7 +641,7 @@ class AIWorldTracker:
                 batch_size=5    # 启用批量分类
             )
             self._save_user_config()
-            print(f"\n" + t('switched_to_llm', provider='Ollama', model=selected_model))
+            log.success(t('switched_to_llm', provider='Ollama', model=selected_model))
             
             # 预热模型
             warmup_prompt = "\nWarm up the model now? (Y/n): " if get_language() == 'en' else "\n是否现在预热模型? (Y/n): "
@@ -620,7 +650,7 @@ class AIWorldTracker:
                 self.llm_classifier.warmup_model()
                 
         except Exception as e:
-            print(f"\n" + t('llm_init_failed', error=str(e)))
+            log.error(t('llm_init_failed', error=str(e)))
             self.classification_mode = 'rule'
             self._save_user_config()
     
@@ -629,17 +659,17 @@ class AIWorldTracker:
         api_key = os.getenv('OPENAI_API_KEY')
         
         if not api_key:
-            print("\n" + t('api_key_missing', key='OPENAI_API_KEY'))
+            log.warning(t('api_key_missing', key='OPENAI_API_KEY'))
             prompt = "Enter OpenAI API key (or press Enter to cancel): " if get_language() == 'en' else "请输入OpenAI API密钥 (或按Enter取消): "
             api_key = input(prompt).strip()
             if not api_key:
                 return
         
-        print("\n" + t('available_openai_models'))
+        log.menu("\n" + t('available_openai_models'))
         models = list(AVAILABLE_MODELS[LLMProvider.OPENAI].keys())
         for i, model in enumerate(models, 1):
             info = AVAILABLE_MODELS[LLMProvider.OPENAI][model]
-            print(f"  {i}. {info['name']} - {info['description']}")
+            log.menu(f"  {i}. {info['name']} - {info['description']}")
         
         prompt = f"\n{t('select_model')} (1-{len(models)}) [" + ("default: 1" if get_language() == 'en' else "默认: 1") + "]: "
         model_choice = input(prompt).strip() or '1'
@@ -647,7 +677,7 @@ class AIWorldTracker:
         try:
             idx = int(model_choice) - 1
             selected_model = models[idx] if 0 <= idx < len(models) else models[0]
-        except:
+        except (ValueError, IndexError):
             selected_model = models[0]
         
         self.classification_mode = 'llm'
@@ -663,9 +693,9 @@ class AIWorldTracker:
                 max_workers=3
             )
             self._save_user_config()
-            print(f"\n" + t('switched_to_llm', provider='OpenAI', model=selected_model))
+            log.success(t('switched_to_llm', provider='OpenAI', model=selected_model))
         except Exception as e:
-            print(f"\n" + t('llm_init_failed', error=str(e)))
+            log.error(t('llm_init_failed', error=str(e)))
             self.classification_mode = 'rule'
             self._save_user_config()
     
@@ -674,17 +704,17 @@ class AIWorldTracker:
         api_key = os.getenv('ANTHROPIC_API_KEY')
         
         if not api_key:
-            print("\n" + t('api_key_missing', key='ANTHROPIC_API_KEY'))
+            log.warning(t('api_key_missing', key='ANTHROPIC_API_KEY'))
             prompt = "Enter Anthropic API key (or press Enter to cancel): " if get_language() == 'en' else "请输入Anthropic API密钥 (或按Enter取消): "
             api_key = input(prompt).strip()
             if not api_key:
                 return
         
-        print("\n" + t('available_anthropic_models'))
+        log.menu("\n" + t('available_anthropic_models'))
         models = list(AVAILABLE_MODELS[LLMProvider.ANTHROPIC].keys())
         for i, model in enumerate(models, 1):
             info = AVAILABLE_MODELS[LLMProvider.ANTHROPIC][model]
-            print(f"  {i}. {info['name']} - {info['description']}")
+            log.menu(f"  {i}. {info['name']} - {info['description']}")
         
         prompt = f"\n{t('select_model')} (1-{len(models)}) [" + ("default: 1" if get_language() == 'en' else "默认: 1") + "]: "
         model_choice = input(prompt).strip() or '1'
@@ -692,7 +722,7 @@ class AIWorldTracker:
         try:
             idx = int(model_choice) - 1
             selected_model = models[idx] if 0 <= idx < len(models) else models[0]
-        except:
+        except (ValueError, IndexError):
             selected_model = models[0]
         
         self.classification_mode = 'llm'
@@ -708,9 +738,9 @@ class AIWorldTracker:
                 max_workers=3
             )
             self._save_user_config()
-            print(f"\n" + t('switched_to_llm', provider='Anthropic', model=selected_model))
+            log.success(t('switched_to_llm', provider='Anthropic', model=selected_model))
         except Exception as e:
-            print(f"\n" + t('llm_init_failed', error=str(e)))
+            log.error(t('llm_init_failed', error=str(e)))
             self.classification_mode = 'rule'
             self._save_user_config()
     
@@ -912,7 +942,7 @@ class AIWorldTracker:
             save = input(save_prompt).strip().lower()
             if save == 'y':
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                filename = f'ai_tracker_data_reviewed_{timestamp}.json'
+                filename = os.path.join(DATA_EXPORTS_DIR, f'ai_tracker_data_reviewed_{timestamp}.json')
                 with open(filename, 'w', encoding='utf-8') as f:
                     json.dump({
                         'metadata': {
@@ -923,7 +953,7 @@ class AIWorldTracker:
                         'data': self.data,
                         'trends': self.trends
                     }, f, ensure_ascii=False, indent=2)
-                log.file(t('review_saved', file=filename))
+                log.file(t('review_saved', file=os.path.basename(filename)))
             
             # 保存审核历史
             self.reviewer.save_review_history()
@@ -996,7 +1026,7 @@ class AIWorldTracker:
             
             # 保存（使用reviewed标记）
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            data_file = f'ai_tracker_data_reviewed_{timestamp}.json'
+            data_file = os.path.join(DATA_EXPORTS_DIR, f'ai_tracker_data_reviewed_{timestamp}.json')
             with open(data_file, 'w', encoding='utf-8') as f:
                 json.dump({
                     'metadata': {
@@ -1008,13 +1038,13 @@ class AIWorldTracker:
                     'trends': self.trends
                 }, f, ensure_ascii=False, indent=2)
             
-            report_file = f'ai_tracker_report_reviewed_{timestamp}.txt'
+            report_file = os.path.join(DATA_EXPORTS_DIR, f'ai_tracker_report_reviewed_{timestamp}.txt')
             with open(report_file, 'w', encoding='utf-8') as f:
                 f.write(report)
             
             print("\n" + t('regenerate_done'))
-            print("   " + t('regenerate_data', file=data_file))
-            print("   " + t('regenerate_report', file=report_file))
+            print("   " + t('regenerate_data', file=os.path.basename(data_file)))
+            print("   " + t('regenerate_report', file=os.path.basename(report_file)))
             print("   " + t('regenerate_web', file=web_file))
             
             # 询问是否打开
@@ -1035,10 +1065,10 @@ class AIWorldTracker:
         print("="*60)
         
         # 查找审核历史文件和审核后数据文件
-        import glob
-        
         review_files = sorted(glob.glob('review_history_*.json'), reverse=True)
-        data_files = sorted(glob.glob('ai_tracker_data_reviewed_*.json'), reverse=True)
+        # 从 exports 目录查找审核后的数据文件
+        data_pattern = os.path.join(DATA_EXPORTS_DIR, 'ai_tracker_data_reviewed_*.json')
+        data_files = sorted(glob.glob(data_pattern), reverse=True)
         
         if not review_files:
             print("\n" + t('learning_no_history'))
@@ -1188,8 +1218,8 @@ class AIWorldTracker:
             metadata['llm_provider'] = self.llm_provider
             metadata['llm_model'] = self.llm_model
         
-        # 保存JSON数据
-        data_file = f'ai_tracker_data_{timestamp}.json'
+        # 保存JSON数据到 exports 目录
+        data_file = os.path.join(DATA_EXPORTS_DIR, f'ai_tracker_data_{timestamp}.json')
         with open(data_file, 'w', encoding='utf-8') as f:
             json.dump({
                 'metadata': metadata,
@@ -1197,14 +1227,14 @@ class AIWorldTracker:
                 'trends': self.trends
             }, f, ensure_ascii=False, indent=2)
         
-        log.data(t('data_saved_to', file=data_file))
+        log.data(t('data_saved_to', file=os.path.basename(data_file)))
         
-        # 保存文本报告
-        report_file = f'ai_tracker_report_{timestamp}.txt'
+        # 保存文本报告到 exports 目录
+        report_file = os.path.join(DATA_EXPORTS_DIR, f'ai_tracker_report_{timestamp}.txt')
         with open(report_file, 'w', encoding='utf-8') as f:
             f.write(report)
         
-        log.file(t('report_saved_to', file=report_file))
+        log.file(t('report_saved_to', file=os.path.basename(report_file)))
         
         if web_file:
             log.web(t('web_saved_to', file=web_file))

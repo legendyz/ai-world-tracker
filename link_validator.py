@@ -160,7 +160,20 @@ if __name__ == "__main__":
     
     # 查找最新的JSON文件
     import glob
-    json_files = glob.glob("ai_tracker_data_*.json")
+    import yaml
+    
+    # 加载数据目录配置
+    exports_dir = 'data/exports'
+    try:
+        if os.path.exists('config.yaml'):
+            with open('config.yaml', 'r', encoding='utf-8') as f:
+                cfg = yaml.safe_load(f)
+                exports_dir = cfg.get('data', {}).get('exports_dir', exports_dir)
+    except Exception:
+        pass
+    
+    json_pattern = os.path.join(exports_dir, "ai_tracker_data_*.json")
+    json_files = glob.glob(json_pattern)
     
     if json_files:
         latest_file = sorted(json_files)[-1]

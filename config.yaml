@@ -19,4 +19,20 @@ output:
   report_dir: ./
   web_dir: ./web_output/
 
+# 数据目录配置
+data:
+  exports_dir: data/exports      # 导出的数据和报告
+  cache_dir: data/cache          # 缓存文件目录
+
+# 日志配置
+logging:
+  level: INFO          # 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  dir: logs            # 日志文件目录
+  console: true        # 是否输出到控制台
+  file: true           # 是否输出到文件
+  max_size_mb: 10      # 单个日志文件最大大小(MB)
+  backup_count: 2      # 日志文件备份数量
+  retention_days: 3    # 日志文件保留天数
+  format: standard     # 日志格式: standard, json
+
 # 其他参数可继续扩展

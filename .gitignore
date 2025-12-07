@@ -129,9 +129,9 @@ dmypy.json
 .pyre/
 
 # Project specific
-# Generated output files
-ai_tracker_data_*.json
-ai_tracker_report_*.txt
+# Generated output files - now in data/ directory
+data/exports/
+data/cache/
 visualizations/
 # Allow index.html for GitHub Pages
 web_output/

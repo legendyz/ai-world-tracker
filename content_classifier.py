@@ -8,6 +8,10 @@ import re
 from datetime import datetime
 import math
 from collections import Counter
+from logger import get_log_helper
+
+# 模块日志器
+log = get_log_helper('classifier')
 
 
 class ContentClassifier:
@@ -496,7 +500,7 @@ class ContentClassifier:
         Returns:
             分类后的内容项列表
         """
-        print(f"正在对 {len(items)} 条内容进行分类...")
+        log.rule(f"正在对 {len(items)} 条内容进行规则分类...")
         
         classified_items = []
         for item in items:
@@ -507,9 +511,9 @@ class ContentClassifier:
         low_confidence = sum(1 for item in classified_items if item.get('confidence', 1) < 0.6)
         avg_confidence = sum(item.get('confidence', 0) for item in classified_items) / len(classified_items) if classified_items else 0
         
-        print(f"分类完成！")
-        print(f"   - 研究: {stats['research']} | 开发者: {stats['developer']} | 产品: {stats['product']} | 市场: {stats['market']} | 领袖: {stats['leader']}")
-        print(f"   - 平均置信度: {avg_confidence:.2%} | 低置信度(<60%): {low_confidence} 条")
+        log.success("规则分类完成！")
+        log.data(f"研究: {stats['research']} | 开发者: {stats['developer']} | 产品: {stats['product']} | 市场: {stats['market']} | 领袖: {stats['leader']}")
+        log.data(f"平均置信度: {avg_confidence:.2%} | 低置信度(<60%): {low_confidence} 条")
         
         return classified_items
     
@@ -794,15 +798,15 @@ if __name__ == "__main__":
     
     results = classifier.classify_batch(test_items)
     
-    print("\n📋 分类结果:")
+    log.info("📋 分类结果:")
     for item in results:
-        print(f"\n  标题: {item['title']}")
-        print(f"  类型: {item['content_type']} (置信度: {item['confidence']:.1%})")
+        log.menu(f"\n  标题: {item['title']}")
+        log.menu(f"  类型: {item['content_type']} (置信度: {item['confidence']:.1%})")
         if item.get('secondary_labels'):
             secondary_str = ', '.join(item['secondary_labels'])
-            print(f"  次要: {secondary_str}")
+            log.menu(f"  次要: {secondary_str}")
         tech_str = ', '.join(item['tech_categories'])
-        print(f"  领域: {tech_str}")
-        print(f"  地区: {item['region']}")
+        log.menu(f"  领域: {tech_str}")
+        log.menu(f"  地区: {item['region']}")
         if item.get('needs_review'):
-            print(f"  ⚠️  需要人工审核")
+            log.warning("需要人工审核")

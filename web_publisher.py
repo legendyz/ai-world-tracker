@@ -14,6 +14,11 @@ from email.utils import parsedate_to_datetime
 import re
 
 from i18n import t, get_language
+from logger import get_log_helper
+
+# 模块日志器
+log = get_log_helper('web_publisher')
+
 
 class WebPublisher:
     """Web网页发布器 - 专业版"""
@@ -70,20 +75,20 @@ class WebPublisher:
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
             return dt
-        except:
+        except (ValueError, TypeError, AttributeError):
             try:
                 # 尝试 ISO 格式 (如 "2025-12-03T22:36:13-08:00")
                 dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=timezone.utc)
                 return dt
-            except:
+            except (ValueError, TypeError):
                 # 默认返回最小日期（带UTC时区）
                 return datetime.min.replace(tzinfo=timezone.utc)
     
     def generate_html_page(self, data: List[Dict], trends: Dict, chart_files: Dict[str, str] = None) -> str:
         """生成完整的HTML页面"""
-        print(t('web_generating'))
+        log.web(t('web_generating'))
         
         timestamp = trends.get('analysis_time', datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S %Z'))
         
@@ -198,9 +203,9 @@ class WebPublisher:
         with open(web_html_file, 'w', encoding='utf-8') as f:
             f.write(html_content)
             
-        print(t('web_generated'))
-        print(t('web_root_file', file=root_html_file))
-        print(t('web_backup_file', file=web_html_file))
+        log.success(t('web_generated'))
+        log.file(t('web_root_file', file=root_html_file))
+        log.file(t('web_backup_file', file=web_html_file))
         return root_html_file
 
     def _render_dashboard(self, trends: Dict) -> str:

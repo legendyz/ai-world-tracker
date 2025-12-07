@@ -23,6 +23,9 @@ import time
 import subprocess
 import platform
 import threading
+import re
+import requests
+import yaml
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -43,6 +46,21 @@ except ImportError:
 # 模块日志器
 log = get_log_helper('llm_classifier')
 
+# 加载缓存目录配置
+def _get_cache_dir():
+    """获取缓存目录路径"""
+    cache_dir = 'data/cache'
+    try:
+        if os.path.exists('config.yaml'):
+            with open('config.yaml', 'r', encoding='utf-8') as f:
+                cfg = yaml.safe_load(f)
+                cache_dir = cfg.get('data', {}).get('cache_dir', cache_dir)
+    except Exception:
+        pass
+    os.makedirs(cache_dir, exist_ok=True)
+    return cache_dir
+
+DATA_CACHE_DIR = _get_cache_dir()
 
 # 模型保活时间（秒）
 MODEL_KEEP_ALIVE_SECONDS = 5 * 60  # 5分钟
@@ -217,7 +235,7 @@ class OllamaOptions:
                 import multiprocessing
                 cpu_count = multiprocessing.cpu_count()
                 options.num_thread = min(cpu_count, 8)  # 最多8线程
-            except:
+            except (NotImplementedError, OSError):
                 options.num_thread = 4
         
         return options
@@ -285,7 +303,7 @@ class LLMClassifier:
         
         # 缓存
         self.cache: Dict[str, Dict] = {}
-        self.cache_file = 'llm_classification_cache.json'
+        self.cache_file = os.path.join(DATA_CACHE_DIR, 'llm_classification_cache.json')
         self._load_cache()
         
         # 规则分类器（作为备份）
@@ -470,10 +488,9 @@ class LLMClassifier:
     def _check_ollama_service(self) -> bool:
         """检查Ollama服务是否运行"""
         try:
-            import requests
             response = requests.get('http://localhost:11434/api/tags', timeout=5)
             return response.status_code == 200
-        except:
+        except (requests.RequestException, ConnectionError, TimeoutError):
             return False
     
     def _load_cache(self):
@@ -504,7 +521,7 @@ class LLMClassifier:
                 # 删除损坏的缓存文件
                 try:
                     os.remove(self.cache_file)
-                except:
+                except (OSError, PermissionError):
                     pass
                 self.cache = {}
     
@@ -1351,11 +1368,10 @@ START from id=1, classify ALL {len(items)} items:"""
                             # 尝试更宽松的解析
                             try:
                                 # 修复缺少引号的键名
-                                import re
                                 fixed = re.sub(r'(\w+):', r'"\1":', json_str)
                                 obj = json.loads(fixed)
                                 json_objects.append(obj)
-                            except:
+                            except (json.JSONDecodeError, ValueError):
                                 continue
             
             # 方法3：查找所有独立的JSON对象（处理多个JSON在一行的情况）
@@ -1367,7 +1383,7 @@ START from id=1, classify ALL {len(items)} items:"""
                     try:
                         obj = json.loads(match)
                         json_objects.append(obj)
-                    except:
+                    except (json.JSONDecodeError, ValueError):
                         continue
             
             # 匹配结果到对应索引
@@ -1491,7 +1507,7 @@ def select_llm_provider() -> Tuple[str, str]:
     try:
         model_idx = int(model_choice) - 1
         model = model_list[model_idx] if 0 <= model_idx < len(model_list) else model_list[0]
-    except:
+    except (ValueError, IndexError):
         model = model_list[0]
     
     log.success(t('llm_selected', provider=provider, model=model))
@@ -1507,7 +1523,7 @@ def get_available_ollama_models() -> List[str]:
         if response.status_code == 200:
             data = response.json()
             return [model['name'] for model in data.get('models', [])]
-    except:
+    except (requests.RequestException, ConnectionError, TimeoutError, json.JSONDecodeError):
         pass
     return []
 

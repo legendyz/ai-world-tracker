@@ -7,6 +7,8 @@ import requests
 import feedparser
 import arxiv
 import json
+import os
+import yaml
 from datetime import datetime, timedelta
 from dateutil import parser
 from typing import List, Dict, Optional
@@ -27,6 +29,22 @@ except ImportError:
 
 # 模块日志器
 log = get_log_helper('data_collector')
+
+# 加载缓存目录配置
+def _get_cache_dir():
+    """获取缓存目录路径"""
+    cache_dir = 'data/cache'
+    try:
+        if os.path.exists('config.yaml'):
+            with open('config.yaml', 'r', encoding='utf-8') as f:
+                cfg = yaml.safe_load(f)
+                cache_dir = cfg.get('data', {}).get('cache_dir', cache_dir)
+    except Exception:
+        pass
+    os.makedirs(cache_dir, exist_ok=True)
+    return cache_dir
+
+DATA_CACHE_DIR = _get_cache_dir()
 
 
 class AIDataCollector:
@@ -89,13 +107,12 @@ class AIDataCollector:
         }
         
         # 采集历史缓存
-        self.history_cache_file = 'collection_history_cache.json'
+        self.history_cache_file = os.path.join(DATA_CACHE_DIR, 'collection_history_cache.json')
         self.history_cache = self._load_history_cache()
     
     def _load_history_cache(self) -> Dict:
         """加载采集历史缓存"""
         try:
-            import os
             if os.path.exists(self.history_cache_file):
                 with open(self.history_cache_file, 'r', encoding='utf-8') as f:
                     cache = json.load(f)
@@ -109,7 +126,7 @@ class AIDataCollector:
                                 if (datetime.now() - last_time).days > 7:
                                     log.warning(t('dc_cache_expired'))
                                     return {'urls': set(), 'titles': set(), 'last_updated': ''}
-                            except:
+                            except (ValueError, TypeError):
                                 pass
                         # 转换为 set 以加速查找
                         cache['urls'] = set(cache['urls'])
@@ -1080,7 +1097,7 @@ class AIDataCollector:
                     dt = parser.parse(date_val)
                     # 比较时间戳以避免时区问题
                     return dt.timestamp() >= cutoff_date.timestamp()
-                except:
+                except (ValueError, TypeError, AttributeError):
                     # 如果解析失败，尝试简单格式
                     if len(date_val) >= 10:
                         dt = datetime.strptime(date_val[:10], '%Y-%m-%d')

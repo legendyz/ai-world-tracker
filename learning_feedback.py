@@ -14,6 +14,10 @@ from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 from collections import Counter, defaultdict
 import re
+from logger import get_log_helper
+
+# 模块日志器
+log = get_log_helper('learning')
 
 
 class LearningFeedback:
@@ -40,7 +44,7 @@ class LearningFeedback:
         Returns:
             分析结果字典
         """
-        print("\n📊 正在分析审核历史...")
+        log.start("正在分析审核历史...")
         
         for record in review_history:
             action = record.get('action', '')
@@ -109,7 +113,7 @@ class LearningFeedback:
         Returns:
             各分类的特征关键词
         """
-        print("\n🔍 正在提取关键词模式...")
+        log.info("正在提取关键词模式...", emoji="🔍")
         
         category_keywords = defaultdict(lambda: defaultdict(int))
         
@@ -146,7 +150,7 @@ class LearningFeedback:
         Returns:
             权重调整建议
         """
-        print("\n⚙️ 生成权重调整建议...")
+        log.config("生成权重调整建议...")
         
         adjustments = {
             'category_thresholds': {},
@@ -194,7 +198,7 @@ class LearningFeedback:
         Returns:
             应用结果报告
         """
-        print("\n🎓 正在应用学习成果...")
+        log.ai("正在应用学习成果...")
         
         # 提取关键词模式
         patterns = self.extract_keyword_patterns(reviewed_items)
@@ -222,8 +226,8 @@ class LearningFeedback:
         self.improvement_suggestions = suggestions
         
         if auto_apply:
-            print("⚠️  自动应用功能需要重启程序才能生效")
-            print("当前版本将建议保存到文件中，供手动审查")
+            log.warning("自动应用功能需要重启程序才能生效")
+            log.info("当前版本将建议保存到文件中，供手动审查")
         
         return {
             'suggestions_count': len(suggestions),
@@ -304,41 +308,41 @@ class LearningFeedback:
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
         
-        print(f"\n✅ 学习报告已保存到: {filename}")
+        log.success(f"\n✅ 学习报告已保存到: {filename}")
         return filename
     
     def print_learning_summary(self, analysis: Dict, learning_result: Dict):
         """打印学习摘要"""
-        print("\n" + "="*70)
-        print("🎓 学习反馈摘要")
-        print("="*70)
+        log.separator()
+        log.section("🎓 学习反馈摘要")
+        log.separator()
         
-        print(f"\n📊 审核统计:")
-        print(f"   总审核数: {analysis.get('total_reviews', 0)}")
-        print(f"   修正次数: {analysis.get('corrections', 0)}")
-        print(f"   确认次数: {analysis.get('confirmations', 0)}")
-        print(f"   删除垃圾: {analysis.get('spam_removed', 0)}")
+        log.info(f"\n📊 审核统计:")
+        log.info(f"   总审核数: {analysis.get('total_reviews', 0)}")
+        log.info(f"   修正次数: {analysis.get('corrections', 0)}")
+        log.info(f"   确认次数: {analysis.get('confirmations', 0)}")
+        log.info(f"   删除垃圾: {analysis.get('spam_removed', 0)}")
         
-        print(f"\n🔄 常见修正:")
+        log.info(f"\n🔄 常见修正:")
         for transition, count in analysis.get('common_transitions', [])[:3]:
-            print(f"   {transition}: {count} 次")
+            log.info(f"   {transition}: {count} 次")
         
-        print(f"\n💡 改进建议: {learning_result.get('suggestions_count', 0)} 条")
+        log.info(f"\n💡 改进建议: {learning_result.get('suggestions_count', 0)} 条")
         
         for i, suggestion in enumerate(learning_result.get('suggestions', [])[:5], 1):
-            print(f"\n   建议 {i}:")
-            print(f"   - 类型: {suggestion.get('type')}")
+            log.info(f"\n   建议 {i}:")
+            log.info(f"   - 类型: {suggestion.get('type')}")
             if suggestion.get('category'):
-                print(f"   - 分类: {suggestion.get('category')}")
-            print(f"   - 建议: {suggestion.get('suggestion', suggestion.get('reason'))}")
+                log.info(f"   - 分类: {suggestion.get('category')}")
+            log.info(f"   - 建议: {suggestion.get('suggestion', suggestion.get('reason'))}")
             if suggestion.get('keywords'):
                 keywords_str = ', '.join(suggestion['keywords'][:3])
-                print(f"   - 关键词: {keywords_str}...")
+                log.info(f"   - 关键词: {keywords_str}...")
         
         if learning_result.get('suggestions_count', 0) > 5:
-            print(f"\n   ... 还有 {learning_result['suggestions_count'] - 5} 条建议（详见报告文件）")
+            log.info(f"\n   ... 还有 {learning_result['suggestions_count'] - 5} 条建议（详见报告文件）")
         
-        print("\n" + "="*70)
+        log.separator()
 
 
 def create_feedback_loop(review_history_file: str, 
@@ -355,7 +359,7 @@ def create_feedback_loop(review_history_file: str,
     Returns:
         学习报告文件路径
     """
-    print("\n🔄 启动学习反馈循环...")
+    log.info("\n🔄 启动学习反馈循环...")
     
     # 加载审核历史
     with open(review_history_file, 'r', encoding='utf-8') as f:
@@ -389,21 +393,21 @@ def create_feedback_loop(review_history_file: str,
 
 
 if __name__ == "__main__":
-    print("🎓 学习反馈系统")
-    print("="*70)
-    print("\n该模块从人工审核结果中学习，优化分类模型。")
-    print("\n使用方法:")
-    print("  1. 完成人工审核（会生成审核历史文件）")
-    print("  2. 调用 create_feedback_loop() 分析学习")
-    print("  3. 查看生成的学习报告")
-    print("  4. 根据建议优化分类器配置")
-    print("\n示例:")
-    print("  from learning_feedback import create_feedback_loop")
-    print("  from content_classifier import ContentClassifier")
-    print("  ")
-    print("  classifier = ContentClassifier()")
-    print("  report = create_feedback_loop(")
-    print("      'review_history_xxx.json',")
-    print("      'ai_tracker_data_reviewed_xxx.json',")
-    print("      classifier")
-    print("  )")
+    log.section("🎓 学习反馈系统")
+    log.separator()
+    log.info("\n该模块从人工审核结果中学习，优化分类模型。")
+    log.info("\n使用方法:")
+    log.info("  1. 完成人工审核（会生成审核历史文件）")
+    log.info("  2. 调用 create_feedback_loop() 分析学习")
+    log.info("  3. 查看生成的学习报告")
+    log.info("  4. 根据建议优化分类器配置")
+    log.info("\n示例:")
+    log.info("  from learning_feedback import create_feedback_loop")
+    log.info("  from content_classifier import ContentClassifier")
+    log.info("  ")
+    log.info("  classifier = ContentClassifier()")
+    log.info("  report = create_feedback_loop(")
+    log.info("      'review_history_xxx.json',")
+    log.info("      'ai_tracker_data_reviewed_xxx.json',")
+    log.info("      classifier")
+    log.info("  )")
