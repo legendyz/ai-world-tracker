@@ -271,6 +271,118 @@ class AIWorldTracker:
         
         log.success(t('clear_export_history_done', count=deleted_count))
     
+    def _clear_review_history(self):
+        """清除人工审核记录和学习报告（需要用户确认）"""
+        import glob
+        
+        # 查找所有审核历史和学习报告文件
+        review_pattern = os.path.join(DATA_EXPORTS_DIR, 'review_history_*.json')
+        learning_pattern = os.path.join(DATA_EXPORTS_DIR, 'learning_report_*.json')
+        
+        review_files = glob.glob(review_pattern)
+        learning_files = glob.glob(learning_pattern)
+        all_files = review_files + learning_files
+        
+        if not all_files:
+            log.dual_info(t('clear_review_history_empty'), emoji="ℹ️")
+            return
+        
+        # 显示警告并请求确认
+        log.dual_warning(t('clear_review_history_confirm'))
+        log.dual_info(f"   📁 {len(review_files)} review_history + {len(learning_files)} learning_report = {len(all_files)} files", emoji="")
+        
+        confirm = input(f"\n{t('clear_export_history_prompt')}").strip().lower()
+        
+        if confirm != 'y':
+            log.dual_info(t('clear_export_history_cancelled'), emoji="")
+            return
+        
+        # 执行删除
+        deleted_count = 0
+        for f in all_files:
+            try:
+                os.remove(f)
+                deleted_count += 1
+            except Exception as e:
+                log.dual_error(f"Failed to delete {f}: {e}")
+        
+        log.dual_success(t('clear_review_history_done', count=deleted_count))
+    
+    def _clear_all_data(self):
+        """清除所有数据（需要用户二次确认）"""
+        import glob
+        
+        # 显示严重警告
+        log.dual_separator()
+        log.dual_warning(t('clear_all_data_confirm'))
+        print(t('clear_all_data_list'))
+        log.file(t('clear_all_data_list'))  # 日志记录
+        print()
+        log.dual_warning(t('clear_all_data_warning'))
+        log.dual_separator()
+        
+        # 要求输入 "YES" 确认
+        confirm = input(f"\n{t('clear_all_data_prompt')}").strip()
+        
+        if confirm != 'YES':
+            log.dual_info(t('clear_all_data_cancelled'), emoji="")
+            return
+        
+        print()
+        log.file("User confirmed: clearing all data...")  # 日志记录用户确认
+        deleted_total = 0
+        
+        # 1. 清除LLM分类缓存
+        cache_file = os.path.join(DATA_CACHE_DIR, 'llm_classification_cache.json')
+        if os.path.exists(cache_file):
+            try:
+                os.remove(cache_file)
+                deleted_total += 1
+                log.dual_success(t('llm_cache_force_cleared'))
+            except Exception as e:
+                log.dual_error(f"Failed to delete LLM cache: {e}")
+        
+        # 2. 清除采集历史缓存
+        self.collector.clear_history_cache()
+        deleted_total += 1
+        
+        # 3. 清除采集结果历史
+        json_pattern = os.path.join(DATA_EXPORTS_DIR, 'ai_tracker_data_*.json')
+        txt_pattern = os.path.join(DATA_EXPORTS_DIR, 'ai_tracker_report_*.txt')
+        export_files = glob.glob(json_pattern) + glob.glob(txt_pattern)
+        for f in export_files:
+            try:
+                os.remove(f)
+                deleted_total += 1
+            except Exception as e:
+                log.dual_error(f"Failed to delete {f}: {e}")
+        
+        if export_files:
+            log.dual_info(f"Cleared {len(export_files)} export files", emoji="🗑️")
+        
+        # 4. 清除人工审核记录
+        review_pattern = os.path.join(DATA_EXPORTS_DIR, 'review_history_*.json')
+        learning_pattern = os.path.join(DATA_EXPORTS_DIR, 'learning_report_*.json')
+        review_files = glob.glob(review_pattern) + glob.glob(learning_pattern)
+        for f in review_files:
+            try:
+                os.remove(f)
+                deleted_total += 1
+            except Exception as e:
+                log.dual_error(f"Failed to delete {f}: {e}")
+        
+        if review_files:
+            log.dual_info(f"Cleared {len(review_files)} review files", emoji="🗑️")
+        
+        # 清空内存中的数据
+        self.data = []
+        self.trends = {}
+        self.chart_files = {}
+        
+        print()
+        log.dual_success(t('clear_all_data_done'))
+        log.dual_info(f"   📁 {deleted_total} files deleted", emoji="")
+    
     def _check_llm_availability(self):
         """检查LLM服务可用性，提供启动帮助"""
         status = check_ollama_status()
@@ -603,20 +715,21 @@ class AIWorldTracker:
         if LLM_AVAILABLE:
             log.menu(f"  2. {t('mode_ollama_desc')}")
             log.menu(f"  3. {t('mode_openai_desc')}")
-            log.menu(f"  4. {t('mode_anthropic_desc')}")
         else:
             log.menu(f"  {t('llm_not_available')}")
         
         # 数据维护分组
         log.menu(f"\n{t('settings_data_maintenance')}:")
         if LLM_AVAILABLE:
-            log.menu(f"  5. {t('clear_llm_cache')}")
-        log.menu(f"  6. {t('clear_collection_cache')}")
-        log.menu(f"  7. {t('clear_export_history')}")
+            log.menu(f"  4. {t('clear_llm_cache')}")
+        log.menu(f"  5. {t('clear_collection_cache')}")
+        log.menu(f"  6. {t('clear_export_history')}")
+        log.menu(f"  7. {t('clear_review_history')}")
+        log.menu(f"  8. {t('clear_all_data')}")
         
         log.menu(f"\n  0. {t('back_to_main_menu')}")
         
-        choice = input(f"\n{t('select_model')} (0-7): ").strip()
+        choice = input(f"\n{t('select_model')} (0-8): ").strip()
         
         if choice == '0' or choice == '':
             return  # 返回主菜单
@@ -634,20 +747,23 @@ class AIWorldTracker:
             self._setup_openai_mode()
         
         elif choice == '4' and LLM_AVAILABLE:
-            self._setup_anthropic_mode()
-        
-        elif choice == '5' and LLM_AVAILABLE:
             self._force_clear_llm_cache()
             # 重新加载LLM分类器（如果当前是LLM模式）
             if self.llm_classifier:
                 log.ai(t('reinit_llm_classifier'))
                 self._try_restore_llm_classifier(clear_cache=False)  # 不需要再清除，已经清除了
         
-        elif choice == '6':
+        elif choice == '5':
             self.collector.clear_history_cache()
         
-        elif choice == '7':
+        elif choice == '6':
             self._clear_export_history()
+        
+        elif choice == '7':
+            self._clear_review_history()
+        
+        elif choice == '8':
+            self._clear_all_data()
         
         else:
             log.warning(t('invalid_choice'))
@@ -1145,8 +1261,9 @@ class AIWorldTracker:
         print(t('learning_title'))
         print("="*60)
         
-        # 查找审核历史文件和审核后数据文件
-        review_files = sorted(glob.glob('review_history_*.json'), reverse=True)
+        # 查找审核历史文件和审核后数据文件（都在 data/exports 目录）
+        review_pattern = os.path.join(DATA_EXPORTS_DIR, 'review_history_*.json')
+        review_files = sorted(glob.glob(review_pattern), reverse=True)
         # 从 exports 目录查找审核后的数据文件
         data_pattern = os.path.join(DATA_EXPORTS_DIR, 'ai_tracker_data_reviewed_*.json')
         data_files = sorted(glob.glob(data_pattern), reverse=True)

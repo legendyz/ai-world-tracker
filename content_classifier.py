@@ -25,8 +25,8 @@ class ImportanceEvaluator:
     
     评估维度:
     1. 来源权威度 (source_authority) - 25%
-    2. 时效性 (recency) - 20%
-    3. 分类置信度 (confidence) - 25%
+    2. 时效性 (recency) - 25%
+    3. 分类置信度 (confidence) - 20% (对低价值内容设上限)
     4. 内容相关度 (relevance) - 20%
     5. 社交热度 (engagement) - 10%
     """
@@ -35,8 +35,8 @@ class ImportanceEvaluator:
         # 维度权重配置
         self.weights = {
             'source_authority': 0.25,
-            'recency': 0.20,
-            'confidence': 0.25,
+            'recency': 0.25,
+            'confidence': 0.20,
             'relevance': 0.20,
             'engagement': 0.10
         }
@@ -175,8 +175,17 @@ class ImportanceEvaluator:
         recency_score = self._calculate_recency(item)
         breakdown['recency'] = round(recency_score, 3)
         
-        # 3. 分类置信度 (0-1)
+        # 3. 分类置信度 (0-1) - 对低价值内容设置上限
         confidence = classification_result.get('confidence', 0.5)
+        # 低时效内容（>14天）限制置信度贡献
+        if recency_score <= 0.50:  # 14天以上的内容
+            if source_score < 0.80:  # 非官方高权威来源
+                confidence = min(confidence, 0.60)  # 置信度上限60%
+            else:
+                confidence = min(confidence, 0.75)  # 官方来源上限75%
+        elif recency_score <= 0.70:  # 7-14天的内容
+            if source_score < 0.70:
+                confidence = min(confidence, 0.75)  # 普通来源上限75%
         breakdown['confidence'] = round(confidence, 3)
         
         # 4. 内容相关度 (0-1)

@@ -10,8 +10,19 @@
 """
 
 import json
+import os
 from typing import Dict, List, Optional
 from datetime import datetime
+
+# 数据存储目录
+def _get_exports_dir():
+    """获取导出目录路径"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    exports_dir = os.path.join(base_dir, 'data', 'exports')
+    os.makedirs(exports_dir, exist_ok=True)
+    return exports_dir
+
+DATA_EXPORTS_DIR = _get_exports_dir()
 
 
 class ManualReviewer:
@@ -335,9 +346,13 @@ class ManualReviewer:
         })
     
     def save_review_history(self, filename: str = None):
-        """保存审核历史"""
+        """保存审核历史到 data/exports 目录"""
         if not filename:
             filename = f"review_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        
+        # 确保保存到 data/exports 目录
+        if not os.path.dirname(filename):
+            filename = os.path.join(DATA_EXPORTS_DIR, filename)
         
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(self.review_history, f, ensure_ascii=False, indent=2)

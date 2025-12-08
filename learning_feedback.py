@@ -10,11 +10,22 @@
 """
 
 import json
+import os
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 from collections import Counter, defaultdict
 import re
 from logger import get_log_helper
+
+# 数据存储目录
+def _get_exports_dir():
+    """获取导出目录路径"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    exports_dir = os.path.join(base_dir, 'data', 'exports')
+    os.makedirs(exports_dir, exist_ok=True)
+    return exports_dir
+
+DATA_EXPORTS_DIR = _get_exports_dir()
 
 # 模块日志器
 log = get_log_helper('learning')
@@ -288,9 +299,13 @@ class LearningFeedback:
         return patterns
     
     def save_learning_report(self, filename: str = None):
-        """保存学习报告"""
+        """保存学习报告到 data/exports 目录"""
         if not filename:
             filename = f"learning_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        
+        # 确保保存到 data/exports 目录
+        if not os.path.dirname(filename):
+            filename = os.path.join(DATA_EXPORTS_DIR, filename)
         
         report = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
