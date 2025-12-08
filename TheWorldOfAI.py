@@ -907,6 +907,24 @@ class AIWorldTracker:
             log.info("已取消设置" if is_zh else "Setup cancelled", emoji="ℹ️")
             return
         
+        # 测试 API 连接
+        log.info("正在测试 Azure OpenAI 连接..." if is_zh else "Testing Azure OpenAI connection...", emoji="🔄")
+        test_success, test_error = self._test_azure_openai_connection(
+            endpoint=endpoint,
+            api_key=api_key,
+            deployment_name=deployment_name,
+            api_version=api_version
+        )
+        
+        if not test_success:
+            log.error(("❌ 连接测试失败: " if is_zh else "❌ Connection test failed: ") + test_error)
+            retry = input("\n" + ("是否仍要保存配置? (y/N): " if is_zh else "Save configuration anyway? (y/N): ")).strip().lower()
+            if retry != 'y':
+                log.info("已取消设置" if is_zh else "Setup cancelled", emoji="ℹ️")
+                return
+        else:
+            log.success("✅ 连接测试成功！" if is_zh else "✅ Connection test successful!")
+        
         # 创建分类器
         self.classification_mode = 'llm'
         self.llm_provider = 'azure_openai'
@@ -929,6 +947,57 @@ class AIWorldTracker:
             self.classification_mode = 'rule'
             self._save_user_config()
     
+    def _test_azure_openai_connection(self, endpoint: str, api_key: str, 
+                                       deployment_name: str, api_version: str) -> tuple:
+        """
+        测试 Azure OpenAI API 连接
+        
+        Returns:
+            (success: bool, error_message: str or None)
+        """
+        try:
+            from openai import AzureOpenAI
+            
+            # 确保 endpoint 格式正确
+            if not endpoint.endswith('/'):
+                endpoint += '/'
+            
+            client = AzureOpenAI(
+                api_key=api_key,
+                api_version=api_version,
+                azure_endpoint=endpoint
+            )
+            
+            # 发送一个简单的测试请求
+            response = client.chat.completions.create(
+                model=deployment_name,
+                messages=[{"role": "user", "content": "Hi"}],
+                max_tokens=5,
+                timeout=15
+            )
+            
+            # 检查是否有有效响应
+            if response and response.choices:
+                return (True, None)
+            else:
+                return (False, "Empty response from API")
+                
+        except ImportError:
+            return (False, "openai package not installed")
+        except Exception as e:
+            error_msg = str(e)
+            # 提取更友好的错误信息
+            if "401" in error_msg or "Unauthorized" in error_msg:
+                return (False, "API Key 无效或未授权" if get_language() == 'zh' else "Invalid API Key or Unauthorized")
+            elif "404" in error_msg or "DeploymentNotFound" in error_msg:
+                return (False, "部署名称不存在" if get_language() == 'zh' else "Deployment not found")
+            elif "timeout" in error_msg.lower():
+                return (False, "连接超时" if get_language() == 'zh' else "Connection timeout")
+            elif "Could not resolve" in error_msg or "getaddrinfo" in error_msg:
+                return (False, "Endpoint 地址无法解析" if get_language() == 'zh' else "Cannot resolve endpoint address")
+            else:
+                return (False, error_msg[:100])  # 截断过长的错误信息
+
     def _classify_data(self, items: list) -> list:
         """根据当前模式分类数据"""
         if self.classification_mode == 'llm' and self.llm_classifier:
