@@ -875,12 +875,13 @@ class AIWorldTracker:
         # 2. 收集 API Key
         log.menu("\n2. Azure OpenAI API Key")
         log.menu("   " + ("从 Azure门户 -> 你的OpenAI资源 -> 密钥和终结点 获取" if is_zh else "Get from Azure Portal -> Your OpenAI Resource -> Keys and Endpoint"))
+        log.menu("   " + ("(输入时不会显示，请直接输入后按回车)" if is_zh else "(Input will be hidden, just type and press Enter)"))
         api_key = getpass("API Key: ").strip()
         if not api_key:
             log.info("已取消设置" if is_zh else "Setup cancelled", emoji="ℹ️")
             return
-        # 显示密钥输入确认
-        log.info(f"API Key: {'•' * min(len(api_key), 20)} ({len(api_key)}字符) ✓" if is_zh else f"API Key: {'•' * min(len(api_key), 20)} ({len(api_key)} chars) ✓", emoji="")
+        # 显示密钥输入确认（在同一行覆盖显示）
+        print(f"\r✓ API Key: {'•' * min(len(api_key), 20)} ({len(api_key)}" + ("字符" if is_zh else " chars") + ")")
         
         # 3. 收集 Deployment Name
         log.menu("\n3. Deployment Name (" + ("部署名称" if is_zh else "Deployment Name") + ")")
