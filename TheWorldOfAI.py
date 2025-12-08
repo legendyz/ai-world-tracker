@@ -969,15 +969,15 @@ class AIWorldTracker:
             client = AzureOpenAI(
                 api_key=api_key,
                 api_version=api_version,
-                azure_endpoint=endpoint
+                azure_endpoint=endpoint,
+                timeout=15.0  # 在客户端初始化时设置超时
             )
             
             # 发送一个简单的测试请求
             response = client.chat.completions.create(
                 model=deployment_name,
                 messages=[{"role": "user", "content": "Hi"}],
-                max_tokens=5,
-                timeout=15
+                max_tokens=5
             )
             
             # 检查是否有有效响应
