@@ -74,7 +74,7 @@ try:
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False
-    log.warning(t('llm_not_installed'))
+    log.dual_warning(t('llm_not_installed'))
 
 
 class AIWorldTracker:
@@ -205,15 +205,15 @@ class AIWorldTracker:
                         )
                         log.dual_success(t('llm_restored', model=self.llm_model))
                     else:
-                        log.warning(t('llm_restore_failed'))
+                        log.dual_warning(t('llm_restore_failed'))
                         self.classification_mode = 'rule'
                         self._save_user_config()
                 else:
                     # OpenAI/Anthropic 等云服务，需要用户手动配置
-                    log.warning(t('llm_cloud_reconfig', provider=self.llm_provider))
+                    log.dual_warning(t('llm_cloud_reconfig', provider=self.llm_provider))
                     self.classification_mode = 'rule'
             except Exception as e:
-                log.error(t('llm_restore_error', error=str(e)))
+                log.dual_error(t('llm_restore_error', error=str(e)))
                 self.classification_mode = 'rule'
                 self._save_user_config()
     
