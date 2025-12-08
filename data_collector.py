@@ -496,19 +496,40 @@ class AIDataCollector:
     
     def collect_community_trends(self, max_results: int = 15) -> List[Dict]:
         """
-        采集社区热点 (Product Hunt, Hacker News, Reddit)
+        采集社区热点 (Product Hunt, Hacker News)
+        
+        Hacker News 使用官方 API 获取更好的数据质量
         """
         log.dual_start(t('dc_collect_community'))
         trends = []
         
+        # 1. 使用 HN 官方 API 采集
+        try:
+            hn_items = self._fetch_hacker_news_api(max_items=10)
+            for item in hn_items:
+                # 根据 score 调整重要性
+                score = item.get('score', 0)
+                if score > 100:
+                    item['importance'] = 0.85
+                elif score > 50:
+                    item['importance'] = 0.75
+                else:
+                    item['importance'] = 0.65
+                trends.append(item)
+        except Exception as e:
+            log.dual_warning(t('dc_hn_api_failed', error=str(e)))
+        
+        # 2. 采集 Product Hunt 等其他 RSS 源
         for feed_url in self.rss_feeds.get('community', []):
             try:
+                # 跳过 HN RSS (已用 API 替代)
+                if "hnrss" in feed_url:
+                    continue
+                    
                 # Determine source name for better labeling
                 source_name = "Community"
                 if "producthunt" in feed_url:
                     source_name = "Product Hunt"
-                elif "hnrss" in feed_url:
-                    source_name = "Hacker News"
                 elif "reddit" in feed_url:
                     if "LocalLLaMA" in feed_url:
                         source_name = "Reddit (LocalLLaMA)"
@@ -1022,6 +1043,118 @@ class AIDataCollector:
             }
         ]
     
+    def _fetch_hacker_news_api(self, max_items: int = 15, search_terms: List[str] = None) -> List[Dict]:
+        """
+        使用 Hacker News 官方 API 采集 AI 相关内容
+        
+        API 文档: https://github.com/HackerNews/API
+        Base URL: https://hacker-news.firebaseio.com/v0/
+        
+        Args:
+            max_items: 最大返回条目数
+            search_terms: 搜索关键词列表，用于过滤相关内容
+            
+        Returns:
+            采集到的数据列表
+        """
+        if search_terms is None:
+            search_terms = ['ai', 'llm', 'gpt', 'chatgpt', 'openai', 'anthropic', 'claude', 
+                          'gemini', 'llama', 'transformer', 'machine learning', 'deep learning',
+                          'neural', 'diffusion', 'stable diffusion', 'midjourney', 'copilot',
+                          'langchain', 'rag', 'vector', 'embedding', 'fine-tune', 'rlhf']
+        
+        HN_API_BASE = "https://hacker-news.firebaseio.com/v0"
+        items = []
+        
+        try:
+            # 获取最新故事 ID 列表
+            response = requests.get(f"{HN_API_BASE}/newstories.json", timeout=10)
+            if response.status_code != 200:
+                log.dual_warning(t('dc_hn_api_failed', error=f"HTTP {response.status_code}"))
+                return []
+            
+            story_ids = response.json()[:100]  # 取最新100条进行筛选
+            
+            ai_stories = []
+            for story_id in story_ids:
+                if len(ai_stories) >= max_items * 2:  # 采集足够多再筛选
+                    break
+                    
+                try:
+                    # 获取故事详情
+                    item_response = requests.get(f"{HN_API_BASE}/item/{story_id}.json", timeout=5)
+                    if item_response.status_code != 200:
+                        continue
+                    
+                    story = item_response.json()
+                    if not story or story.get('deleted') or story.get('dead'):
+                        continue
+                    
+                    title = story.get('title', '').lower()
+                    text = story.get('text', '').lower() if story.get('text') else ''
+                    url = story.get('url', '')
+                    
+                    # 检查是否与 AI 相关
+                    combined_text = f"{title} {text} {url}".lower()
+                    if any(term in combined_text for term in search_terms):
+                        ai_stories.append(story)
+                    
+                    time.sleep(0.1)  # 避免请求过快
+                    
+                except Exception as e:
+                    continue
+            
+            # 转换为统一格式
+            for story in ai_stories[:max_items]:
+                # 转换 Unix 时间戳为日期字符串
+                pub_time = datetime.fromtimestamp(story.get('time', 0))
+                
+                # 检查是否是最近的内容
+                if not self._is_recent(pub_time):
+                    continue
+                
+                # 构建摘要：优先使用 text 字段，否则生成描述
+                text_content = story.get('text', '')
+                if text_content:
+                    # 清理 HTML 标签
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(text_content, 'html.parser')
+                    summary = soup.get_text()[:300]
+                else:
+                    # 如果没有 text，生成基于元数据的摘要
+                    score = story.get('score', 0)
+                    comments = story.get('descendants', 0)
+                    author = story.get('by', 'unknown')
+                    summary = f"Posted by {author} | {score} points | {comments} comments"
+                    if story.get('url'):
+                        # 从 URL 提取域名作为来源信息
+                        from urllib.parse import urlparse
+                        domain = urlparse(story.get('url')).netloc
+                        summary += f" | Source: {domain}"
+                
+                item = {
+                    'title': story.get('title', ''),
+                    'summary': summary,
+                    'url': story.get('url') or f"https://news.ycombinator.com/item?id={story.get('id')}",
+                    'published': pub_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'source': 'Hacker News',
+                    'category': 'community',
+                    'importance': 0.7,
+                    # HN 特有的元数据
+                    'hn_id': story.get('id'),
+                    'score': story.get('score', 0),
+                    'comments': story.get('descendants', 0),
+                    'author': story.get('by', '')
+                }
+                
+                if self._is_valid_item(item):
+                    items.append(item)
+            
+        except Exception as e:
+            log.dual_warning(t('dc_hn_api_failed', error=str(e)))
+        
+        return items
+
     def _parse_rss_feed(self, feed_url: str, category: str) -> List[Dict]:
         """解析RSS源"""
         items = []
