@@ -44,6 +44,18 @@ class OpenAIConfig:
 
 
 @dataclass
+class AzureOpenAIConfig:
+    """Azure OpenAI配置"""
+    api_key: Optional[str] = None
+    endpoint: Optional[str] = None  # Azure端点URL，如 https://xxx.openai.azure.com/
+    api_version: str = "2024-02-15-preview"
+    deployment_name: str = "gpt-4o-mini"  # Azure部署名称
+    timeout: int = 30
+    max_tokens: int = 300
+    temperature: float = 0.1
+
+
+@dataclass
 class AnthropicConfig:
     """Anthropic配置"""
     api_key: Optional[str] = None
@@ -91,6 +103,7 @@ class AppConfig:
     """应用总配置"""
     ollama: OllamaConfig = field(default_factory=OllamaConfig)
     openai: OpenAIConfig = field(default_factory=OpenAIConfig)
+    azure_openai: AzureOpenAIConfig = field(default_factory=AzureOpenAIConfig)
     anthropic: AnthropicConfig = field(default_factory=AnthropicConfig)
     classifier: ClassifierConfig = field(default_factory=ClassifierConfig)
     collector: CollectorConfig = field(default_factory=CollectorConfig)
@@ -161,6 +174,12 @@ class ConfigManager:
             openai=OpenAIConfig(
                 api_key=os.getenv('OPENAI_API_KEY'),
                 default_model=os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
+            ),
+            azure_openai=AzureOpenAIConfig(
+                api_key=os.getenv('AZURE_OPENAI_API_KEY'),
+                endpoint=os.getenv('AZURE_OPENAI_ENDPOINT'),
+                api_version=os.getenv('AZURE_OPENAI_API_VERSION', '2024-02-15-preview'),
+                deployment_name=os.getenv('AZURE_OPENAI_DEPLOYMENT', 'gpt-4o-mini'),
             ),
             anthropic=AnthropicConfig(
                 api_key=os.getenv('ANTHROPIC_API_KEY'),
@@ -253,6 +272,14 @@ class ConfigManager:
                 'model': model,
                 'api_key': self._config.openai.api_key,
             }
+        elif provider == 'azure_openai':
+            return {
+                'provider': 'azure_openai',
+                'model': self._config.azure_openai.deployment_name,
+                'api_key': self._config.azure_openai.api_key,
+                'azure_endpoint': self._config.azure_openai.endpoint,
+                'azure_api_version': self._config.azure_openai.api_version,
+            }
         elif provider == 'anthropic':
             return {
                 'provider': 'anthropic',
@@ -289,6 +316,12 @@ class ConfigManager:
         log.menu(f"  API密钥: {'已设置 ✅' if self._config.openai.api_key else '未设置 ❌'}")
         log.menu(f"  默认模型: {self._config.openai.default_model}")
         
+        log.config("【Azure OpenAI】")
+        log.menu(f"  API密钥: {'已设置 ✅' if self._config.azure_openai.api_key else '未设置 ❌'}")
+        log.menu(f"  端点: {'已设置 ✅' if self._config.azure_openai.endpoint else '未设置 ❌'}")
+        log.menu(f"  部署名称: {self._config.azure_openai.deployment_name}")
+        log.menu(f"  API版本: {self._config.azure_openai.api_version}")
+        
         log.config("【Anthropic】")
         log.menu(f"  API密钥: {'已设置 ✅' if self._config.anthropic.api_key else '未设置 ❌'}")
         log.menu(f"  默认模型: {self._config.anthropic.default_model}")
@@ -318,7 +351,7 @@ def create_env_template():
 # 默认分类模式: rule (规则) 或 llm (大模型)
 CLASSIFIER_MODE=rule
 
-# LLM提供商: ollama / openai / anthropic
+# LLM提供商: ollama / openai / azure_openai / anthropic
 LLM_PROVIDER=ollama
 
 # LLM模型名称
@@ -338,6 +371,13 @@ OLLAMA_TIMEOUT=60
 # ============ OpenAI配置 ============
 # OPENAI_API_KEY=sk-your-openai-api-key
 OPENAI_MODEL=gpt-4o-mini
+
+# ============ Azure OpenAI配置 ============
+# 从Azure门户获取这些值: Azure OpenAI资源 -> 密钥和终结点
+# AZURE_OPENAI_API_KEY=your-azure-openai-api-key
+# AZURE_OPENAI_ENDPOINT=https://your-resource-name.openai.azure.com/
+# AZURE_OPENAI_DEPLOYMENT=gpt-4o-mini
+# AZURE_OPENAI_API_VERSION=2024-02-15-preview
 
 # ============ Anthropic配置 ============
 # ANTHROPIC_API_KEY=sk-ant-your-anthropic-api-key

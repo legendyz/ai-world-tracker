@@ -290,6 +290,8 @@ LANG_PACKS = {
         'llm_ollama_error': '⚠️ Ollama API错误: {code}',
         'llm_ollama_failed': '⚠️ Ollama调用失败: {error}',
         'llm_openai_failed': '⚠️ OpenAI调用失败: {error}',
+        'llm_azure_openai_failed': '⚠️ Azure OpenAI调用失败: {error}',
+        'llm_azure_endpoint_missing': '⚠️ Azure OpenAI端点未配置，请设置 AZURE_OPENAI_ENDPOINT 环境变量',
         'llm_anthropic_failed': '⚠️ Anthropic调用失败: {error}',
         'llm_parse_failed': '⚠️ 响应解析失败: {error}',
         'llm_fallback': '⚠️ LLM分类失败，降级到规则分类: {title}...',
@@ -391,6 +393,11 @@ LANG_PACKS = {
         'dc_huggingface_failed': '   ⚠️ Hugging Face API调用失败: {error}',
         'dc_dev_blog_failed': '   ⚠️ 开发者博客采集失败: {error}',
         'dc_rss_parse_failed': '   ⚠️ RSS解析失败 {url}: {error}',
+        'dc_parallel_mode': '⚡ 启用并行采集模式 (线程数: {workers})',
+        'dc_serial_mode': '📋 使用串行采集模式',
+        'dc_parallel_task_done': '   ✓ {category} 采集完成: {count} 条',
+        'dc_parallel_task_failed': '   ✗ {category} 采集失败: {error}',
+        'dc_parallel_complete': '⏱️ 并行采集完成，耗时: {time}秒',
         
         # 可视化器
         'vis_fonts_configured': '已配置字体: {fonts}',
@@ -697,6 +704,8 @@ LANG_PACKS = {
         'llm_ollama_error': '⚠️ Ollama API error: {code}',
         'llm_ollama_failed': '⚠️ Ollama call failed: {error}',
         'llm_openai_failed': '⚠️ OpenAI call failed: {error}',
+        'llm_azure_openai_failed': '⚠️ Azure OpenAI call failed: {error}',
+        'llm_azure_endpoint_missing': '⚠️ Azure OpenAI endpoint not configured, please set AZURE_OPENAI_ENDPOINT environment variable',
         'llm_anthropic_failed': '⚠️ Anthropic call failed: {error}',
         'llm_parse_failed': '⚠️ Response parsing failed: {error}',
         'llm_fallback': '⚠️ LLM classification failed, falling back to rules: {title}...',
@@ -798,6 +807,11 @@ LANG_PACKS = {
         'dc_huggingface_failed': '   ⚠️ Hugging Face API call failed: {error}',
         'dc_dev_blog_failed': '   ⚠️ Developer blog collection failed: {error}',
         'dc_rss_parse_failed': '   ⚠️ RSS parse failed {url}: {error}',
+        'dc_parallel_mode': '⚡ Parallel collection enabled (workers: {workers})',
+        'dc_serial_mode': '📋 Using serial collection mode',
+        'dc_parallel_task_done': '   ✓ {category} collection done: {count} items',
+        'dc_parallel_task_failed': '   ✗ {category} collection failed: {error}',
+        'dc_parallel_complete': '⏱️ Parallel collection complete, time: {time}s',
         
         # Visualizer
         'vis_fonts_configured': 'Fonts configured: {fonts}',

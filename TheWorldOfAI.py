@@ -200,7 +200,7 @@ class AIWorldTracker:
                     status = check_ollama_status()
                     if status['running'] and self.llm_model in status.get('models', []):
                         self.llm_classifier = LLMClassifier(
-                            provider=LLMProvider.OLLAMA,
+                            provider='ollama',
                             model=self.llm_model
                         )
                         log.dual_success(t('llm_restored', model=self.llm_model))
@@ -845,31 +845,56 @@ class AIWorldTracker:
             self._save_user_config()
     
     def _setup_openai_mode(self):
-        """设置OpenAI模式"""
-        api_key = os.getenv('OPENAI_API_KEY')
+        """设置OpenAI模式 - 支持标准OpenAI和Azure OpenAI"""
+        is_zh = get_language() == 'zh'
         
+        # 首先询问用户选择哪种OpenAI服务
+        log.menu("\n" + ("请选择OpenAI服务类型:" if is_zh else "Select OpenAI service type:"))
+        log.menu("  1. OpenAI (官方API)" if is_zh else "  1. OpenAI (Official API)")
+        log.menu("  2. Azure OpenAI (企业级服务)" if is_zh else "  2. Azure OpenAI (Enterprise Service)")
+        
+        service_choice = input(("\n请选择 (1-2): " if is_zh else "\nSelect (1-2): ")).strip()
+        
+        if service_choice == '2':
+            # Azure OpenAI 模式
+            self._setup_azure_openai_mode()
+        else:
+            # 标准 OpenAI 模式
+            self._setup_standard_openai_mode()
+    
+    def _setup_standard_openai_mode(self):
+        """设置标准OpenAI模式"""
+        is_zh = get_language() == 'zh'
+        
+        # 收集 API Key
+        log.info("请输入OpenAI API密钥:" if is_zh else "Enter OpenAI API key:", emoji="🔑")
+        api_key = input("API Key: ").strip()
         if not api_key:
-            log.warning(t('api_key_missing', key='OPENAI_API_KEY'))
-            prompt = "Enter OpenAI API key (or press Enter to cancel): " if get_language() == 'en' else "请输入OpenAI API密钥 (或按Enter取消): "
-            api_key = input(prompt).strip()
-            if not api_key:
-                return
+            log.info("已取消设置" if is_zh else "Setup cancelled", emoji="ℹ️")
+            return
         
+        # 显示可用模型
         log.menu("\n" + t('available_openai_models'))
         models = list(AVAILABLE_MODELS[LLMProvider.OPENAI].keys())
         for i, model in enumerate(models, 1):
             info = AVAILABLE_MODELS[LLMProvider.OPENAI][model]
             log.menu(f"  {i}. {info['name']} - {info['description']}")
         
-        prompt = f"\n{t('select_model')} (1-{len(models)}) [" + ("default: 1" if get_language() == 'en' else "默认: 1") + "]: "
-        model_choice = input(prompt).strip() or '1'
+        # 选择模型
+        prompt = f"\n" + ("请选择模型" if is_zh else "Select model") + f" (1-{len(models)}): "
+        model_choice = input(prompt).strip()
         
         try:
             idx = int(model_choice) - 1
-            selected_model = models[idx] if 0 <= idx < len(models) else models[0]
+            if not (0 <= idx < len(models)):
+                log.warning("无效选择" if is_zh else "Invalid choice")
+                return
+            selected_model = models[idx]
         except (ValueError, IndexError):
-            selected_model = models[0]
+            log.warning("无效选择" if is_zh else "Invalid choice")
+            return
         
+        # 创建分类器
         self.classification_mode = 'llm'
         self.llm_provider = 'openai'
         self.llm_model = selected_model
@@ -889,12 +914,92 @@ class AIWorldTracker:
             self.classification_mode = 'rule'
             self._save_user_config()
     
+    def _setup_azure_openai_mode(self):
+        """设置Azure OpenAI模式 - 需要收集所有必要参数"""
+        is_zh = get_language() == 'zh'
+        
+        log.section("Azure OpenAI " + ("配置" if is_zh else "Configuration"))
+        log.info("请依次输入以下参数 (从Azure门户获取):" if is_zh else "Enter the following parameters (from Azure Portal):", emoji="📋")
+        
+        # 1. 收集 Endpoint
+        log.menu("\n1. Azure OpenAI Endpoint")
+        log.menu("   " + ("格式: https://你的资源名.openai.azure.com/" if is_zh else "Format: https://your-resource-name.openai.azure.com/"))
+        endpoint = input("Endpoint: ").strip()
+        if not endpoint:
+            log.info("已取消设置" if is_zh else "Setup cancelled", emoji="ℹ️")
+            return
+        
+        # 验证endpoint格式
+        if not endpoint.startswith('https://') or not endpoint.endswith('.openai.azure.com/'):
+            if not endpoint.endswith('/'):
+                endpoint += '/'
+            if not endpoint.startswith('https://'):
+                log.warning("Endpoint应以 https:// 开头" if is_zh else "Endpoint should start with https://")
+        
+        # 2. 收集 API Key
+        log.menu("\n2. Azure OpenAI API Key")
+        log.menu("   " + ("从 Azure门户 -> 你的OpenAI资源 -> 密钥和终结点 获取" if is_zh else "Get from Azure Portal -> Your OpenAI Resource -> Keys and Endpoint"))
+        api_key = input("API Key: ").strip()
+        if not api_key:
+            log.info("已取消设置" if is_zh else "Setup cancelled", emoji="ℹ️")
+            return
+        
+        # 3. 收集 Deployment Name
+        log.menu("\n3. Deployment Name (" + ("部署名称" if is_zh else "Deployment Name") + ")")
+        log.menu("   " + ("这是你在Azure中创建的模型部署名称，不是模型名称" if is_zh else "This is the deployment name you created in Azure, not the model name"))
+        deployment_name = input("Deployment Name: ").strip()
+        if not deployment_name:
+            log.info("已取消设置" if is_zh else "Setup cancelled", emoji="ℹ️")
+            return
+        
+        # 4. 收集 API Version
+        log.menu("\n4. API Version")
+        log.menu("   " + ("常用版本: 2024-02-15-preview, 2024-05-01-preview, 2024-08-01-preview" if is_zh else "Common versions: 2024-02-15-preview, 2024-05-01-preview, 2024-08-01-preview"))
+        api_version = input("API Version: ").strip()
+        if not api_version:
+            log.info("已取消设置" if is_zh else "Setup cancelled", emoji="ℹ️")
+            return
+        
+        # 显示配置摘要
+        log.section("配置摘要" if is_zh else "Configuration Summary")
+        log.menu(f"  Endpoint: {endpoint}")
+        log.menu(f"  API Key: {api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else f"  API Key: ***")
+        log.menu(f"  Deployment: {deployment_name}")
+        log.menu(f"  API Version: {api_version}")
+        
+        confirm = input("\n" + ("确认配置? (y/N): " if is_zh else "Confirm configuration? (y/N): ")).strip().lower()
+        if confirm != 'y':
+            log.info("已取消设置" if is_zh else "Setup cancelled", emoji="ℹ️")
+            return
+        
+        # 创建分类器
+        self.classification_mode = 'llm'
+        self.llm_provider = 'azure_openai'
+        self.llm_model = deployment_name
+        
+        try:
+            self.llm_classifier = LLMClassifier(
+                provider='azure_openai',
+                model=deployment_name,
+                api_key=api_key,
+                azure_endpoint=endpoint,
+                azure_api_version=api_version,
+                enable_cache=True,
+                max_workers=3
+            )
+            self._save_user_config()
+            log.success(t('switched_to_llm', provider='Azure OpenAI', model=deployment_name))
+        except Exception as e:
+            log.error(t('llm_init_failed', error=str(e)))
+            self.classification_mode = 'rule'
+            self._save_user_config()
+    
     def _setup_anthropic_mode(self):
         """设置Anthropic模式"""
         api_key = os.getenv('ANTHROPIC_API_KEY')
         
         if not api_key:
-            log.warning(t('api_key_missing', key='ANTHROPIC_API_KEY'))
+            log.warning(t('llm_api_key_missing', provider='ANTHROPIC'))
             prompt = "Enter Anthropic API key (or press Enter to cancel): " if get_language() == 'en' else "请输入Anthropic API密钥 (或按Enter取消): "
             api_key = input(prompt).strip()
             if not api_key:

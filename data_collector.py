@@ -11,10 +11,11 @@ import os
 import yaml
 from datetime import datetime, timedelta
 from dateutil import parser
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Callable, Tuple
 import time
 import random
 import difflib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from config import config
@@ -538,9 +539,13 @@ class AIDataCollector:
         log.dual_success(t('dc_got_community', count=len(result)))
         return result
 
-    def collect_all(self) -> Dict[str, List[Dict]]:
+    def collect_all(self, parallel: bool = True, max_workers: int = 6) -> Dict[str, List[Dict]]:
         """
         采集所有类型的数据
+        
+        Args:
+            parallel: 是否启用并行采集（默认启用）
+            max_workers: 并行采集的最大线程数（默认6）
         
         Returns:
             分类的数据字典
@@ -564,13 +569,51 @@ class AIDataCollector:
         research_count = config.get('collector.research_count', 15)
         developer_count = config.get('collector.developer_count', 20)
         news_count = config.get('collector.news_count', 25)
-
-        all_data['research'] = self.collect_research_papers(research_count)
-        all_data['developer'] = self.collect_developer_content(developer_count)
-        all_data['product'] = self.collect_product_releases(product_count)
-        all_data['leader'] = self.collect_ai_leaders_quotes(leader_count)
-        all_data['community'] = self.collect_community_trends(community_count)
-        all_data['news'] = self.collect_latest_news(news_count)
+        
+        # 从配置读取并行设置
+        parallel = config.get('collector.parallel_enabled', parallel)
+        max_workers = config.get('collector.parallel_workers', max_workers)
+        
+        # 定义采集任务
+        collect_tasks: List[Tuple[str, Callable, int]] = [
+            ('research', self.collect_research_papers, research_count),
+            ('developer', self.collect_developer_content, developer_count),
+            ('product', self.collect_product_releases, product_count),
+            ('leader', self.collect_ai_leaders_quotes, leader_count),
+            ('community', self.collect_community_trends, community_count),
+            ('news', self.collect_latest_news, news_count),
+        ]
+        
+        if parallel and max_workers > 1:
+            # 并行采集模式
+            log.dual_info(t('dc_parallel_mode', workers=max_workers))
+            start_time = time.time()
+            
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # 提交所有任务
+                futures = {
+                    executor.submit(func, count): category 
+                    for category, func, count in collect_tasks
+                }
+                
+                # 收集结果
+                for future in as_completed(futures):
+                    category = futures[future]
+                    try:
+                        result = future.result()
+                        all_data[category] = result
+                        log.dual_success(t('dc_parallel_task_done', category=category, count=len(result)))
+                    except Exception as e:
+                        log.error(t('dc_parallel_task_failed', category=category, error=str(e)))
+                        all_data[category] = []
+            
+            elapsed = time.time() - start_time
+            log.dual_info(t('dc_parallel_complete', time=f"{elapsed:.1f}"))
+        else:
+            # 串行采集模式
+            log.dual_info(t('dc_serial_mode'))
+            for category, func, count in collect_tasks:
+                all_data[category] = func(count)
         
         # 使用独立的采集历史缓存统计新内容（但不过滤，所有内容都传递给分类模块）
         new_stats = {}  # 记录每个类别的新内容数量

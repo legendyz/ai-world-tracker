@@ -4,6 +4,8 @@ collector:
   product_count: 15
   community_count: 10
   max_total: 100
+  parallel_enabled: true    # 是否启用并行采集
+  parallel_workers: 6       # 并行采集的最大线程数
 
 classification:
   mode: llm   # 可选: llm, rule

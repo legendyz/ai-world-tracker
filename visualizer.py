@@ -3,6 +3,11 @@
 生成各类图表展示AI趋势和数据
 """
 
+import warnings
+# 在导入 matplotlib 之前就忽略字体警告
+warnings.filterwarnings('ignore', message='.*Glyph.*missing from.*font.*')
+warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
+
 import matplotlib
 # 在导入 pyplot 之前设置后端为 Agg（非交互式），避免 CI 环境问题
 matplotlib.use('Agg')
@@ -23,21 +28,23 @@ log = get_log_helper('visualizer')
 # 配置中文字体支持
 def configure_chinese_fonts():
     """配置中文字体支持"""
-    import warnings
-    # 忽略字体警告
+    # 再次确保忽略字体警告
+    warnings.filterwarnings('ignore', message='.*Glyph.*missing from.*font.*')
     warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
     
     system = platform.system()
     
     if system == "Windows":
-        # Windows 系统中文字体
+        # Windows 系统中文字体 - 优先使用支持中文的字体
         chinese_fonts = [
-            'Microsoft YaHei',  # 微软雅黑
+            'Microsoft YaHei',  # 微软雅黑 (最佳选择)
             'SimHei',           # 黑体
             'SimSun',           # 宋体
             'KaiTi',            # 楷体
             'FangSong',         # 仿宋
-            'Arial Unicode MS'   # 备用字体
+            'DengXian',         # 等线
+            'Source Han Sans CN',  # 思源黑体
+            'Noto Sans CJK SC',    # Noto中文
         ]
     elif system == "Darwin":  # macOS
         chinese_fonts = [
@@ -109,12 +116,12 @@ class DataVisualizer:
     def _ensure_chinese_font(self):
         """确保中文字体设置正确"""
         import matplotlib
-        import warnings
         # 忽略字体警告
+        warnings.filterwarnings('ignore', message='.*Glyph.*missing from.*font.*')
         warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
         
         # 强制设置中文字体
-        chinese_fonts = ['Microsoft YaHei', 'SimHei', 'SimSun', 'KaiTi', 'FangSong']
+        chinese_fonts = ['Microsoft YaHei', 'SimHei', 'SimSun', 'KaiTi', 'FangSong', 'DengXian']
         
         # 同时设置matplotlib和plt的参数
         matplotlib.rcParams['font.sans-serif'] = chinese_fonts

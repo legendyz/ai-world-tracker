@@ -70,6 +70,7 @@ class LLMProvider(Enum):
     """LLM提供商枚举"""
     OLLAMA = "ollama"
     OPENAI = "openai"
+    AZURE_OPENAI = "azure_openai"
     ANTHROPIC = "anthropic"
 
 
@@ -254,6 +255,12 @@ AVAILABLE_MODELS = {
         'gpt-4o': {'name': 'GPT-4o', 'description': '最强性能，成本较高'},
         'gpt-3.5-turbo': {'name': 'GPT-3.5 Turbo', 'description': '经济实惠'},
     },
+    LLMProvider.AZURE_OPENAI: {
+        'gpt-4o-mini': {'name': 'GPT-4o Mini (Azure)', 'description': 'Azure部署，企业级安全'},
+        'gpt-4o': {'name': 'GPT-4o (Azure)', 'description': 'Azure部署，最强性能'},
+        'gpt-4': {'name': 'GPT-4 (Azure)', 'description': 'Azure部署，稳定可靠'},
+        'gpt-35-turbo': {'name': 'GPT-3.5 Turbo (Azure)', 'description': 'Azure部署，经济实惠'},
+    },
     LLMProvider.ANTHROPIC: {
         'claude-3-haiku-20240307': {'name': 'Claude 3 Haiku', 'description': '快速响应，成本低'},
         'claude-3-sonnet-20240229': {'name': 'Claude 3 Sonnet', 'description': '平衡性能与成本'},
@@ -272,18 +279,22 @@ class LLMClassifier:
                  enable_cache: bool = True,
                  max_workers: int = 3,  # 默认并发数
                  auto_detect_gpu: bool = True,
-                 batch_size: int = 5):  # 新增批量分类大小
+                 batch_size: int = 5,  # 新增批量分类大小
+                 azure_endpoint: Optional[str] = None,  # Azure OpenAI 端点
+                 azure_api_version: Optional[str] = None):  # Azure API 版本
         """
         初始化LLM分类器
         
         Args:
-            provider: 提供商 ('ollama', 'openai', 'anthropic')
-            model: 模型名称
+            provider: 提供商 ('ollama', 'openai', 'azure_openai', 'anthropic')
+            model: 模型名称 (对于 Azure OpenAI，这是部署名称)
             api_key: API密钥（Ollama不需要）
             enable_cache: 是否启用缓存
             max_workers: 并发工作线程数 (默认5，GPU模式可更高)
             auto_detect_gpu: 是否自动检测GPU并优化配置
             batch_size: 批量分类时每批的数量 (用于减少LLM调用次数)
+            azure_endpoint: Azure OpenAI 端点 URL (如 https://xxx.openai.azure.com/)
+            azure_api_version: Azure OpenAI API 版本 (如 2024-02-15-preview)
         """
         self.provider = LLMProvider(provider)
         self.model = model
@@ -291,6 +302,10 @@ class LLMClassifier:
         self.enable_cache = enable_cache
         self.max_workers = max_workers
         self.batch_size = batch_size
+        
+        # Azure OpenAI 特有配置
+        self.azure_endpoint = azure_endpoint or os.getenv('AZURE_OPENAI_ENDPOINT')
+        self.azure_api_version = azure_api_version or os.getenv('AZURE_OPENAI_API_VERSION', '2024-02-15-preview')
         
         # GPU检测与自适应配置
         self.gpu_info: Optional[GPUInfo] = None
@@ -471,6 +486,8 @@ class LLMClassifier:
         """从环境变量获取API密钥"""
         if self.provider == LLMProvider.OPENAI:
             return os.getenv('OPENAI_API_KEY')
+        elif self.provider == LLMProvider.AZURE_OPENAI:
+            return os.getenv('AZURE_OPENAI_API_KEY')
         elif self.provider == LLMProvider.ANTHROPIC:
             return os.getenv('ANTHROPIC_API_KEY')
         return None
@@ -481,6 +498,11 @@ class LLMClassifier:
             # 检查Ollama服务是否运行
             if not self._check_ollama_service():
                 log.error(t('llm_ollama_not_running'))
+        elif self.provider == LLMProvider.AZURE_OPENAI:
+            if not self.api_key:
+                log.error(t('llm_api_key_missing', provider='AZURE_OPENAI'))
+            if not self.azure_endpoint:
+                log.error(t('llm_azure_endpoint_missing'))
         elif self.provider in [LLMProvider.OPENAI, LLMProvider.ANTHROPIC]:
             if not self.api_key:
                 log.error(t('llm_api_key_missing', provider=self.provider.value.upper()))
@@ -787,6 +809,58 @@ START from id=1, classify ALL {len(items)} items:"""
             log.error(t('llm_anthropic_failed', error=str(e)))
             return None
     
+    def _call_azure_openai(self, prompt: str) -> Optional[str]:
+        """调用Azure OpenAI API
+        
+        Azure OpenAI 使用部署名称而非模型名称，
+        需要配置 endpoint 和 api_version
+        """
+        try:
+            from openai import AzureOpenAI
+            
+            # 从环境变量或配置获取 Azure 特定参数
+            endpoint = self.azure_endpoint or os.getenv('AZURE_OPENAI_ENDPOINT')
+            api_version = self.azure_api_version or os.getenv('AZURE_OPENAI_API_VERSION', '2024-02-15-preview')
+            
+            if not endpoint:
+                log.error(t('llm_azure_endpoint_missing'))
+                return None
+            
+            # 确保 endpoint 以 / 结尾
+            if not endpoint.endswith('/'):
+                endpoint = endpoint + '/'
+            
+            client = AzureOpenAI(
+                api_key=self.api_key,
+                api_version=api_version,
+                azure_endpoint=endpoint
+            )
+            
+            # Azure OpenAI 使用 deployment_name 作为 model 参数
+            # 注意: self.model 必须是 Azure 中的部署名称，不是模型名称
+            response = client.chat.completions.create(
+                model=self.model,  # 这里是 Azure 部署名称，不是模型名如 gpt-4o
+                messages=[
+                    {"role": "system", "content": "你是一个专业的AI内容分类助手，请严格按照JSON格式输出分类结果。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,
+                max_tokens=300
+            )
+            
+            return response.choices[0].message.content
+            
+        except Exception as e:
+            error_msg = str(e)
+            # 提供更详细的错误提示
+            if '404' in error_msg and 'Resource not found' in error_msg:
+                log.error(f"Azure OpenAI 404错误 - 请检查:")
+                log.error(f"  1. Deployment Name '{self.model}' 是否正确 (必须是Azure中创建的部署名称)")
+                log.error(f"  2. Endpoint '{self.azure_endpoint}' 是否正确")
+                log.error(f"  3. API Version '{self.azure_api_version}' 是否支持")
+            log.error(t('llm_azure_openai_failed', error=error_msg))
+            return None
+    
     def _call_llm(self, prompt: str, is_batch: bool = False) -> Optional[str]:
         """调用LLM（根据提供商选择）
         
@@ -798,6 +872,8 @@ START from id=1, classify ALL {len(items)} items:"""
             return self._call_ollama(prompt, is_batch=is_batch)
         elif self.provider == LLMProvider.OPENAI:
             return self._call_openai(prompt)
+        elif self.provider == LLMProvider.AZURE_OPENAI:
+            return self._call_azure_openai(prompt)
         elif self.provider == LLMProvider.ANTHROPIC:
             return self._call_anthropic(prompt)
         return None
@@ -810,6 +886,7 @@ START from id=1, classify ALL {len(items)} items:"""
         2. 纯文本格式: 直接返回类别名称（用于 thinking 模式的模型）
         """
         if not response:
+            log.warning("LLM响应为空")
             return None
         
         try:
@@ -834,11 +911,14 @@ START from id=1, classify ALL {len(items)} items:"""
                     result['reasoning'] = result.get('reasoning', '')
                     
                     return result
+                else:
+                    log.warning(f"JSON响应缺少content_type字段: {json_str[:100]}")
             
             # JSON解析失败，尝试从文本中提取类别（支持 thinking 模式的模型）
             return self._extract_category_from_text(response)
             
         except json.JSONDecodeError as e:
+            log.warning(f"JSON解析错误: {e}, 响应内容: {response[:200] if response else 'None'}")
             # JSON解析失败，尝试从文本中提取类别
             return self._extract_category_from_text(response)
         except Exception as e:
@@ -1542,12 +1622,13 @@ def select_llm_provider() -> Tuple[str, str]:
     print(t('llm_available_providers'))
     print(t('llm_provider_ollama'))
     print(t('llm_provider_openai'))
-    print(t('llm_provider_anthropic'))
+    print("  3. Azure OpenAI - 企业级云服务 (需要Azure订阅)")
+    print(t('llm_provider_anthropic').replace('3.', '4.'))
     
-    prompt = "Select provider (1-3) [default: 1]: " if get_language() == 'en' else "请选择提供商 (1-3) [默认: 1]: "
+    prompt = "Select provider (1-4) [default: 1]: " if get_language() == 'en' else "请选择提供商 (1-4) [默认: 1]: "
     provider_choice = input(f"\n{prompt}").strip() or '1'
     
-    provider_map = {'1': 'ollama', '2': 'openai', '3': 'anthropic'}
+    provider_map = {'1': 'ollama', '2': 'openai', '3': 'azure_openai', '4': 'anthropic'}
     provider = provider_map.get(provider_choice, 'ollama')
     
     # 选择模型
