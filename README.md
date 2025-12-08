@@ -99,7 +99,7 @@ Current Mode: 🤖 LLM Mode (ollama/qwen3:8b)
 📋 Classification Mode:
   1. 📝 Rule Mode (Rule-based) - Fast, free, no network required
   2. 🤖 LLM Mode (Ollama Local) - High accuracy, semantic understanding
-  3. 🤖 LLM Mode (OpenAI) - Highest accuracy, API key required
+  3. 🤖 LLM Mode (Azure OpenAI) - Highest accuracy, API key required
 
 🧹 Data Maintenance:
   4. 🗑️ Clear LLM classification cache

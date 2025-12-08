@@ -99,7 +99,7 @@
 📋 分类模式:
   1. 📝 规则模式 (Rule-based) - 快速、免费、无需网络
   2. 🤖 LLM模式 (Ollama本地) - 高精度、语义理解
-  3. 🤖 LLM模式 (OpenAI) - 最高精度、需要API密钥
+  3. 🤖 LLM模式 (Azure OpenAI) - 最高精度、需要API密钥
 
 🧹 数据维护:
   4. 🗑️ 清除LLM分类缓存

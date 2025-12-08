@@ -845,22 +845,9 @@ class AIWorldTracker:
             self._save_user_config()
     
     def _setup_openai_mode(self):
-        """设置OpenAI模式 - 支持标准OpenAI和Azure OpenAI"""
-        is_zh = get_language() == 'zh'
-        
-        # 首先询问用户选择哪种OpenAI服务
-        log.menu("\n" + ("请选择OpenAI服务类型:" if is_zh else "Select OpenAI service type:"))
-        log.menu("  1. OpenAI (官方API)" if is_zh else "  1. OpenAI (Official API)")
-        log.menu("  2. Azure OpenAI (企业级服务)" if is_zh else "  2. Azure OpenAI (Enterprise Service)")
-        
-        service_choice = input(("\n请选择 (1-2): " if is_zh else "\nSelect (1-2): ")).strip()
-        
-        if service_choice == '2':
-            # Azure OpenAI 模式
-            self._setup_azure_openai_mode()
-        else:
-            # 标准 OpenAI 模式
-            self._setup_standard_openai_mode()
+        """设置Azure OpenAI模式"""
+        # 直接调用Azure OpenAI设置
+        self._setup_azure_openai_mode()
     
     def _setup_standard_openai_mode(self):
         """设置标准OpenAI模式"""
