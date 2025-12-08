@@ -203,10 +203,102 @@ ai-world-tracker/
 
 ### Community & Leaders
 - Product Hunt AI
-- Hacker News AI
+- Hacker News AI (via Official API)
 - Sam Altman's Blog
 - Andrej Karpathy's Blog
 - Lex Fridman Podcast
+
+## 🔄 Data Processing Pipeline
+
+### Overall Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     AI World Tracker Data Pipeline                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐              │
+│  │Data Collector│ →  │  Classifier  │ →  │  Importance  │              │
+│  │   Module     │    │    Module    │    │  Evaluator   │              │
+│  └──────────────┘    └──────────────┘    └──────────────┘              │
+│         ↓                   ↓                   ↓                       │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐              │
+│  │ Dedup/Filter │    │  MD5 Cache   │    │ Multi-dim    │              │
+│  └──────────────┘    └──────────────┘    │   Scoring    │              │
+│         ↓                   ↓            └──────────────┘              │
+│  ┌───────────────────────────────────────────────────────┐             │
+│  │              Trend Analysis & Visualization            │             │
+│  │                     (AIAnalyzer)                       │             │
+│  └───────────────────────────────────────────────────────┘             │
+│         ↓                                                               │
+│  ┌──────────────┐    ┌──────────────┐                                  │
+│  │ Web Publisher│    │Report Export │                                  │
+│  └──────────────┘    └──────────────┘                                  │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Data Collector Module
+
+The collector gathers data from 6 source categories in parallel:
+
+| Data Type | Sources | Method | Default Count |
+|-----------|---------|--------|---------------|
+| Research Papers | arXiv API | API Call | 15 items |
+| Developer Content | GitHub Blog, HuggingFace | RSS | 20 items |
+| Product Releases | Official Blogs | RSS | 15 items |
+| Leader Quotes | Personal Blogs/Podcasts | RSS | 15 items |
+| Community Trends | HN (API) + Product Hunt | API + RSS | 10 items |
+| Industry News | Global Tech Media | RSS | 25 items |
+
+**Features**:
+- Parallel collection (6 threads) for efficiency
+- URL/title deduplication to avoid duplicates
+- 7-day cache expiration with auto-cleanup
+- AI relevance filtering
+
+### Content Classification Module
+
+#### LLM Classifier Logic
+
+```
+Input Content
+    ↓
+Calculate MD5 Hash → Cache Hit? → Yes → Return Cached Result
+    ↓ No
+Build Classification Prompt
+    ↓
+Call LLM API (supports batching)
+    ↓
+Parse JSON Response → Failed? → Fallback to Rule Classifier
+    ↓ Success
+Write to Cache
+    ↓
+Return Classification Result
+```
+
+#### Rule Classifier Logic
+
+```
+Input Content
+    ↓
+Extract Title + Summary Text
+    ↓
+┌─────────────────────────────────────────┐
+│ Parallel Match Against 6 Keyword Dicts  │
+│ research / product / market /           │
+│ developer / leader / community          │
+│ (Each dict has weights: high=3/mid=2/low=1) │
+└─────────────────────────────────────────┘
+    ↓
+Calculate Scores for Each Category
+    ↓
+Select Highest Category + Calculate Confidence
+    ↓
+Phrase Pattern Matching Validation
+    ↓
+Return Classification Result
+```
 
 ## ⚙️ Configuration
 
@@ -380,21 +472,54 @@ Where:
 | Source Type | Score Range | Examples |
 |-------------|-------------|----------|
 | Official AI Companies | 0.90 - 1.00 | OpenAI, Google AI, Anthropic, Meta AI |
+| Chinese AI Companies | 0.85 - 0.90 | Baidu, Alibaba, Tencent, DeepSeek, Zhipu, Moonshot |
 | Academic/Research | 0.90 - 0.95 | arXiv, GitHub, Hugging Face |
-| Professional Media | 0.70 - 0.85 | TechCrunch, The Verge, Wired |
-| Community | 0.50 - 0.65 | Hacker News, Reddit |
+| Professional Media | 0.70 - 0.85 | TechCrunch, The Verge, Wired, 机器之心, 量子位 |
+| Community | 0.65 - 0.70 | Hacker News, Reddit, Product Hunt |
 | Unknown | 0.40 | Default for unrecognized sources |
 
-### Recency Decay Curve
+### Recency Decay Curve (Exponential Decay)
+
+The system uses a smooth exponential decay formula: `score = (1 - min_score) × e^(-decay_rate × days) + min_score`
 
 | Age | Score | Description |
 |-----|-------|-------------|
 | Today | 1.00 | Most recent |
-| 1 day | 0.95 | Very fresh |
-| 3 days | 0.85 | Recent |
-| 7 days | 0.70 | Within a week |
-| 14 days | 0.50 | Two weeks old |
-| 30+ days | 0.20 | Older content |
+| 1 day | ~0.89 | Very fresh |
+| 3 days | ~0.70 | Recent |
+| 7 days | ~0.44 | Within a week |
+| 14 days | ~0.22 | Two weeks old |
+| 30+ days | ~0.10 | Older content |
+
+**Parameters**:
+- Decay rate: 0.12
+- Minimum score: 0.08
+
+### Content Relevance Evaluation (Tiered Keyword System)
+
+The system uses a four-tier keyword weighting system:
+
+| Tier | Weight Range | Type | Example Keywords |
+|------|--------------|------|------------------|
+| Tier 1 | 0.12-0.18 | Breakthrough/Milestone | breakthrough, SOTA, state-of-the-art |
+| Tier 2 | 0.08-0.12 | Release/Announcement | release, launch, unveil, available |
+| Tier 3 | 0.05-0.10 | Technical/Model | open source, LLM, multimodal |
+| Tier 4 | 0.02-0.05 | General Description | new, update, improve |
+
+**Negative Keywords**: Rumors, unconfirmed content receive relevance penalties (-0.02 to -0.08)
+
+### Engagement Evaluation (Unified Normalization)
+
+Uses logarithmic normalization: `score = log(value + 1) / log(threshold_high + 1) × weight`
+
+| Signal Type | Low Threshold | High Threshold | Weight |
+|-------------|---------------|----------------|--------|
+| GitHub Stars | 100 | 50,000 | 1.0 |
+| HuggingFace Downloads | 1,000 | 1,000,000 | 0.9 |
+| Reddit Score | 50 | 5,000 | 0.85 |
+| HN Points | 30 | 1,000 | 0.85 |
+| Likes | 100 | 10,000 | 0.7 |
+| Comments | 20 | 500 | 0.6 |
 
 ### Importance Levels
 
