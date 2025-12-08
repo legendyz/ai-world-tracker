@@ -929,51 +929,6 @@ class AIWorldTracker:
             self.classification_mode = 'rule'
             self._save_user_config()
     
-    def _setup_anthropic_mode(self):
-        """设置Anthropic模式"""
-        api_key = os.getenv('ANTHROPIC_API_KEY')
-        
-        if not api_key:
-            log.warning(t('llm_api_key_missing', provider='ANTHROPIC'))
-            prompt = "Enter Anthropic API key (or press Enter to cancel): " if get_language() == 'en' else "请输入Anthropic API密钥 (或按Enter取消): "
-            api_key = input(prompt).strip()
-            if not api_key:
-                return
-        
-        log.menu("\n" + t('available_anthropic_models'))
-        models = list(AVAILABLE_MODELS[LLMProvider.ANTHROPIC].keys())
-        for i, model in enumerate(models, 1):
-            info = AVAILABLE_MODELS[LLMProvider.ANTHROPIC][model]
-            log.menu(f"  {i}. {info['name']} - {info['description']}")
-        
-        prompt = f"\n{t('select_model')} (1-{len(models)}) [" + ("default: 1" if get_language() == 'en' else "默认: 1") + "]: "
-        model_choice = input(prompt).strip() or '1'
-        
-        try:
-            idx = int(model_choice) - 1
-            selected_model = models[idx] if 0 <= idx < len(models) else models[0]
-        except (ValueError, IndexError):
-            selected_model = models[0]
-        
-        self.classification_mode = 'llm'
-        self.llm_provider = 'anthropic'
-        self.llm_model = selected_model
-        
-        try:
-            self.llm_classifier = LLMClassifier(
-                provider='anthropic',
-                model=selected_model,
-                api_key=api_key,
-                enable_cache=True,
-                max_workers=3
-            )
-            self._save_user_config()
-            log.success(t('switched_to_llm', provider='Anthropic', model=selected_model))
-        except Exception as e:
-            log.error(t('llm_init_failed', error=str(e)))
-            self.classification_mode = 'rule'
-            self._save_user_config()
-    
     def _classify_data(self, items: list) -> list:
         """根据当前模式分类数据"""
         if self.classification_mode == 'llm' and self.llm_classifier:

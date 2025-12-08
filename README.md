@@ -323,7 +323,7 @@ The system uses a **dual-mode classification architecture** with automatic fallb
 
 The LLM-enhanced classifier provides semantic understanding:
 
-- **Multi-Provider Support**: Ollama (local), OpenAI, Anthropic
+- **Multi-Provider Support**: Ollama (local), Azure OpenAI
 - **MD5-based Caching**: Avoid redundant API calls
 - **Concurrent Processing**: 3-6 threads for parallel classification
 - **Auto-Fallback**: Gracefully degrades to rule-based when LLM unavailable

@@ -49,7 +49,6 @@ LANG_PACKS = {
         'mode_rule_desc': '📝 规则模式 (Rule-based) - 快速、免费、无需网络',
         'mode_ollama_desc': '🤖 LLM模式 (Ollama本地) - 高精度、语义理解',
         'mode_openai_desc': '🤖 LLM模式 (Azure OpenAI) - 最高精度、需要API密钥',
-        'mode_anthropic_desc': '🤖 LLM模式 (Anthropic) - 高精度、需要API密钥',
         'clear_llm_cache': '🗑️ 清除LLM分类缓存',
         'clear_collection_cache': '🗑️ 清除采集历史缓存',
         'clear_export_history': '🗑️ 清除采集结果历史',
@@ -239,7 +238,6 @@ LANG_PACKS = {
         # API相关
         'api_key_missing': '⚠️ 未设置 {key} 环境变量',
         'available_openai_models': '可用的OpenAI模型:',
-        'available_anthropic_models': '可用的Anthropic模型:',
         
         # 保存
         'data_saved_to': '💾 数据已保存: {file}',
@@ -292,7 +290,6 @@ LANG_PACKS = {
         'llm_openai_failed': '⚠️ OpenAI调用失败: {error}',
         'llm_azure_openai_failed': '⚠️ Azure OpenAI调用失败: {error}',
         'llm_azure_endpoint_missing': '⚠️ Azure OpenAI端点未配置，请设置 AZURE_OPENAI_ENDPOINT 环境变量',
-        'llm_anthropic_failed': '⚠️ Anthropic调用失败: {error}',
         'llm_parse_failed': '⚠️ 响应解析失败: {error}',
         'llm_fallback': '⚠️ LLM分类失败，降级到规则分类: {title}...',
         'llm_batch_start': '\n🤖 开始LLM批量分类 ({total} 条内容)',
@@ -323,7 +320,6 @@ LANG_PACKS = {
         'llm_available_providers': '\n可用的提供商:',
         'llm_provider_ollama': '  1. Ollama (本地免费) ⭐ 推荐',
         'llm_provider_openai': '  2. OpenAI (需要API密钥)',
-        'llm_provider_anthropic': '  3. Anthropic (需要API密钥)',
         'llm_available_models_for': '\n可用的 {provider} 模型:',
         'llm_selected': '\n✅ 已选择: {provider} / {model}',
         'llm_no_service': '⚠️ 未找到可用的LLM服务，将使用规则分类',
@@ -463,7 +459,6 @@ LANG_PACKS = {
         'mode_rule_desc': '📝 Rule Mode (Rule-based) - Fast, free, no network required',
         'mode_ollama_desc': '🤖 LLM Mode (Ollama Local) - High accuracy, semantic understanding',
         'mode_openai_desc': '🤖 LLM Mode (Azure OpenAI) - Highest accuracy, API key required',
-        'mode_anthropic_desc': '🤖 LLM Mode (Anthropic) - High accuracy, API key required',
         'clear_llm_cache': '🗑️ Clear LLM classification cache',
         'clear_collection_cache': '🗑️ Clear collection history cache',
         'clear_export_history': '🗑️ Clear export data history',
@@ -653,7 +648,6 @@ LANG_PACKS = {
         # API related
         'api_key_missing': '⚠️ Environment variable {key} not set',
         'available_openai_models': 'Available OpenAI models:',
-        'available_anthropic_models': 'Available Anthropic models:',
         
         # Save
         'data_saved_to': '💾 Data saved: {file}',
@@ -706,7 +700,6 @@ LANG_PACKS = {
         'llm_openai_failed': '⚠️ OpenAI call failed: {error}',
         'llm_azure_openai_failed': '⚠️ Azure OpenAI call failed: {error}',
         'llm_azure_endpoint_missing': '⚠️ Azure OpenAI endpoint not configured, please set AZURE_OPENAI_ENDPOINT environment variable',
-        'llm_anthropic_failed': '⚠️ Anthropic call failed: {error}',
         'llm_parse_failed': '⚠️ Response parsing failed: {error}',
         'llm_fallback': '⚠️ LLM classification failed, falling back to rules: {title}...',
         'llm_batch_start': '\n🤖 Starting LLM batch classification ({total} items)',
@@ -737,7 +730,6 @@ LANG_PACKS = {
         'llm_available_providers': '\nAvailable providers:',
         'llm_provider_ollama': '  1. Ollama (Local Free) ⭐ Recommended',
         'llm_provider_openai': '  2. OpenAI (API key required)',
-        'llm_provider_anthropic': '  3. Anthropic (API key required)',
         'llm_available_models_for': '\nAvailable {provider} models:',
         'llm_selected': '\n✅ Selected: {provider} / {model}',
         'llm_no_service': '⚠️ No available LLM service found, using rule-based classification',

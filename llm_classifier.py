@@ -4,8 +4,7 @@ LLM增强分类器 - LLM Classifier
 
 支持的提供商:
 - Ollama (本地): Qwen3:8b, Qwen3:4b, Llama3.2:3b
-- OpenAI: GPT-4o-mini, GPT-4o
-- Anthropic: Claude-3-Haiku, Claude-3-Sonnet
+- Azure OpenAI: GPT-4o-mini, GPT-4o
 
 功能特性:
 - 多提供商支持，灵活切换
@@ -67,11 +66,10 @@ MODEL_KEEP_ALIVE_SECONDS = 5 * 60  # 5分钟
 
 
 class LLMProvider(Enum):
-    """LLM提供商枚举"""
+    """提供商枚举"""
     OLLAMA = "ollama"
     OPENAI = "openai"
     AZURE_OPENAI = "azure_openai"
-    ANTHROPIC = "anthropic"
 
 
 @dataclass
@@ -260,11 +258,6 @@ AVAILABLE_MODELS = {
         'gpt-4o': {'name': 'GPT-4o (Azure)', 'description': 'Azure部署，最强性能'},
         'gpt-4': {'name': 'GPT-4 (Azure)', 'description': 'Azure部署，稳定可靠'},
         'gpt-35-turbo': {'name': 'GPT-3.5 Turbo (Azure)', 'description': 'Azure部署，经济实惠'},
-    },
-    LLMProvider.ANTHROPIC: {
-        'claude-3-haiku-20240307': {'name': 'Claude 3 Haiku', 'description': '快速响应，成本低'},
-        'claude-3-sonnet-20240229': {'name': 'Claude 3 Sonnet', 'description': '平衡性能与成本'},
-        'claude-3-5-sonnet-20241022': {'name': 'Claude 3.5 Sonnet', 'description': '最新最强'},
     }
 }
 
@@ -488,8 +481,6 @@ class LLMClassifier:
             return os.getenv('OPENAI_API_KEY')
         elif self.provider == LLMProvider.AZURE_OPENAI:
             return os.getenv('AZURE_OPENAI_API_KEY')
-        elif self.provider == LLMProvider.ANTHROPIC:
-            return os.getenv('ANTHROPIC_API_KEY')
         return None
     
     def _validate_config(self):
@@ -503,7 +494,7 @@ class LLMClassifier:
                 log.error(t('llm_api_key_missing', provider='AZURE_OPENAI'))
             if not self.azure_endpoint:
                 log.error(t('llm_azure_endpoint_missing'))
-        elif self.provider in [LLMProvider.OPENAI, LLMProvider.ANTHROPIC]:
+        elif self.provider == LLMProvider.OPENAI:
             if not self.api_key:
                 log.error(t('llm_api_key_missing', provider=self.provider.value.upper()))
     
@@ -789,26 +780,6 @@ START from id=1, classify ALL {len(items)} items:"""
             log.error(t('llm_openai_failed', error=str(e)))
             return None
     
-    def _call_anthropic(self, prompt: str) -> Optional[str]:
-        """调用Anthropic API"""
-        try:
-            import anthropic
-            
-            client = anthropic.Anthropic(api_key=self.api_key)
-            response = client.messages.create(
-                model=self.model,
-                max_tokens=300,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            
-            return response.content[0].text
-            
-        except Exception as e:
-            log.error(t('llm_anthropic_failed', error=str(e)))
-            return None
-    
     def _call_azure_openai(self, prompt: str) -> Optional[str]:
         """调用Azure OpenAI API
         
@@ -874,8 +845,6 @@ START from id=1, classify ALL {len(items)} items:"""
             return self._call_openai(prompt)
         elif self.provider == LLMProvider.AZURE_OPENAI:
             return self._call_azure_openai(prompt)
-        elif self.provider == LLMProvider.ANTHROPIC:
-            return self._call_anthropic(prompt)
         return None
     
     def _parse_llm_response(self, response: str) -> Optional[Dict]:
@@ -1623,12 +1592,11 @@ def select_llm_provider() -> Tuple[str, str]:
     print(t('llm_provider_ollama'))
     print(t('llm_provider_openai'))
     print("  3. Azure OpenAI - 企业级云服务 (需要Azure订阅)")
-    print(t('llm_provider_anthropic').replace('3.', '4.'))
     
-    prompt = "Select provider (1-4) [default: 1]: " if get_language() == 'en' else "请选择提供商 (1-4) [默认: 1]: "
+    prompt = "Select provider (1-3) [default: 1]: " if get_language() == 'en' else "请选择提供商 (1-3) [默认: 1]: "
     provider_choice = input(f"\n{prompt}").strip() or '1'
     
-    provider_map = {'1': 'ollama', '2': 'openai', '3': 'azure_openai', '4': 'anthropic'}
+    provider_map = {'1': 'ollama', '2': 'openai', '3': 'azure_openai'}
     provider = provider_map.get(provider_choice, 'ollama')
     
     # 选择模型
@@ -1723,9 +1691,9 @@ def create_llm_classifier(auto_select: bool = False) -> LLMClassifier:
         if os.getenv('OPENAI_API_KEY'):
             return LLMClassifier(provider='openai', model='gpt-4o-mini')
         
-        # 检查Anthropic
-        if os.getenv('ANTHROPIC_API_KEY'):
-            return LLMClassifier(provider='anthropic', model='claude-3-haiku-20240307')
+        # 检查Azure OpenAI
+        if os.getenv('AZURE_OPENAI_API_KEY') and os.getenv('AZURE_OPENAI_ENDPOINT'):
+            return LLMClassifier(provider='azure_openai', model='gpt-4o-mini')
         
         log.error(t('llm_no_service'))
         return None

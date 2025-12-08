@@ -118,7 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **LLM-Enhanced Classification System**
-  - Multi-provider support: Ollama, OpenAI, Anthropic
+  - Multi-provider support: Ollama, Azure OpenAI
   - Local model support with Ollama (Qwen3:8b) - completely free
   - Semantic understanding for 95%+ classification accuracy
   - MD5-based intelligent caching system

@@ -56,15 +56,6 @@ class AzureOpenAIConfig:
 
 
 @dataclass
-class AnthropicConfig:
-    """Anthropic配置"""
-    api_key: Optional[str] = None
-    default_model: str = "claude-3-haiku-20240307"
-    timeout: int = 30
-    max_tokens: int = 300
-
-
-@dataclass
 class ClassifierConfig:
     """分类器配置"""
     # 默认模式: 'llm' 或 'rule'
@@ -104,7 +95,6 @@ class AppConfig:
     ollama: OllamaConfig = field(default_factory=OllamaConfig)
     openai: OpenAIConfig = field(default_factory=OpenAIConfig)
     azure_openai: AzureOpenAIConfig = field(default_factory=AzureOpenAIConfig)
-    anthropic: AnthropicConfig = field(default_factory=AnthropicConfig)
     classifier: ClassifierConfig = field(default_factory=ClassifierConfig)
     collector: CollectorConfig = field(default_factory=CollectorConfig)
     
@@ -180,10 +170,6 @@ class ConfigManager:
                 endpoint=os.getenv('AZURE_OPENAI_ENDPOINT'),
                 api_version=os.getenv('AZURE_OPENAI_API_VERSION', '2024-02-15-preview'),
                 deployment_name=os.getenv('AZURE_OPENAI_DEPLOYMENT', 'gpt-4o-mini'),
-            ),
-            anthropic=AnthropicConfig(
-                api_key=os.getenv('ANTHROPIC_API_KEY'),
-                default_model=os.getenv('ANTHROPIC_MODEL', 'claude-3-haiku-20240307'),
             ),
             classifier=ClassifierConfig(
                 default_mode=os.getenv('CLASSIFIER_MODE', 
@@ -280,12 +266,6 @@ class ConfigManager:
                 'azure_endpoint': self._config.azure_openai.endpoint,
                 'azure_api_version': self._config.azure_openai.api_version,
             }
-        elif provider == 'anthropic':
-            return {
-                'provider': 'anthropic',
-                'model': model,
-                'api_key': self._config.anthropic.api_key,
-            }
         
         return {'provider': 'ollama', 'model': 'qwen3:8b'}
     
@@ -322,10 +302,6 @@ class ConfigManager:
         log.menu(f"  部署名称: {self._config.azure_openai.deployment_name}")
         log.menu(f"  API版本: {self._config.azure_openai.api_version}")
         
-        log.config("【Anthropic】")
-        log.menu(f"  API密钥: {'已设置 ✅' if self._config.anthropic.api_key else '未设置 ❌'}")
-        log.menu(f"  默认模型: {self._config.anthropic.default_model}")
-        
         log.separator()
     
     def reload(self):
@@ -351,7 +327,7 @@ def create_env_template():
 # 默认分类模式: rule (规则) 或 llm (大模型)
 CLASSIFIER_MODE=rule
 
-# LLM提供商: ollama / openai / azure_openai / anthropic
+# LLM提供商: ollama / openai / azure_openai
 LLM_PROVIDER=ollama
 
 # LLM模型名称
@@ -378,10 +354,6 @@ OPENAI_MODEL=gpt-4o-mini
 # AZURE_OPENAI_ENDPOINT=https://your-resource-name.openai.azure.com/
 # AZURE_OPENAI_DEPLOYMENT=gpt-4o-mini
 # AZURE_OPENAI_API_VERSION=2024-02-15-preview
-
-# ============ Anthropic配置 ============
-# ANTHROPIC_API_KEY=sk-ant-your-anthropic-api-key
-ANTHROPIC_MODEL=claude-3-haiku-20240307
 """
     
     env_example = Path('.env.example')
