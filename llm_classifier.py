@@ -780,11 +780,15 @@ START from id=1, classify ALL {len(items)} items:"""
             log.error(t('llm_openai_failed', error=str(e)))
             return None
     
-    def _call_azure_openai(self, prompt: str) -> Optional[str]:
+    def _call_azure_openai(self, prompt: str, is_batch: bool = False) -> Optional[str]:
         """调用Azure OpenAI API
         
         Azure OpenAI 使用部署名称而非模型名称，
         需要配置 endpoint 和 api_version
+        
+        Args:
+            prompt: 提示词
+            is_batch: 是否为批量分类模式（需要更多输出tokens）
         """
         try:
             from openai import AzureOpenAI
@@ -807,6 +811,9 @@ START from id=1, classify ALL {len(items)} items:"""
                 azure_endpoint=endpoint
             )
             
+            # 批量模式需要更多输出 tokens
+            max_tokens = 2000 if is_batch else 300
+            
             # Azure OpenAI 使用 deployment_name 作为 model 参数
             # 注意: self.model 必须是 Azure 中的部署名称，不是模型名称
             response = client.chat.completions.create(
@@ -816,7 +823,7 @@ START from id=1, classify ALL {len(items)} items:"""
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.1,
-                max_tokens=300
+                max_tokens=max_tokens
             )
             
             return response.choices[0].message.content
@@ -844,7 +851,7 @@ START from id=1, classify ALL {len(items)} items:"""
         elif self.provider == LLMProvider.OPENAI:
             return self._call_openai(prompt)
         elif self.provider == LLMProvider.AZURE_OPENAI:
-            return self._call_azure_openai(prompt)
+            return self._call_azure_openai(prompt, is_batch=is_batch)
         return None
     
     def _parse_llm_response(self, response: str) -> Optional[Dict]:
@@ -1121,8 +1128,9 @@ START from id=1, classify ALL {len(items)} items:"""
         classified_uncached = []
         
         # 选择分类策略
-        if use_batch_api and self.batch_size > 1 and self.provider == LLMProvider.OLLAMA:
-            # 批量API模式：一次调用分类多条（更快）
+        # Ollama 和 Azure OpenAI 都支持批量模式
+        if use_batch_api and self.batch_size > 1 and self.provider in (LLMProvider.OLLAMA, LLMProvider.AZURE_OPENAI):
+            # 批量API模式：一次调用分类多条（更快、更省成本）
             log.dual_info(t('llm_batch_mode', batch_size=self.batch_size))
             classified_uncached = self._classify_batch_mode(uncached_items, uncached_indices, show_progress)
         else:
