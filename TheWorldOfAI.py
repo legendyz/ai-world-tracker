@@ -849,58 +849,6 @@ class AIWorldTracker:
         # 直接调用Azure OpenAI设置
         self._setup_azure_openai_mode()
     
-    def _setup_standard_openai_mode(self):
-        """设置标准OpenAI模式"""
-        is_zh = get_language() == 'zh'
-        
-        # 收集 API Key
-        log.info("请输入OpenAI API密钥:" if is_zh else "Enter OpenAI API key:", emoji="🔑")
-        api_key = input("API Key: ").strip()
-        if not api_key:
-            log.info("已取消设置" if is_zh else "Setup cancelled", emoji="ℹ️")
-            return
-        
-        # 显示可用模型
-        log.menu("\n" + t('available_openai_models'))
-        models = list(AVAILABLE_MODELS[LLMProvider.OPENAI].keys())
-        for i, model in enumerate(models, 1):
-            info = AVAILABLE_MODELS[LLMProvider.OPENAI][model]
-            log.menu(f"  {i}. {info['name']} - {info['description']}")
-        
-        # 选择模型
-        prompt = f"\n" + ("请选择模型" if is_zh else "Select model") + f" (1-{len(models)}): "
-        model_choice = input(prompt).strip()
-        
-        try:
-            idx = int(model_choice) - 1
-            if not (0 <= idx < len(models)):
-                log.warning("无效选择" if is_zh else "Invalid choice")
-                return
-            selected_model = models[idx]
-        except (ValueError, IndexError):
-            log.warning("无效选择" if is_zh else "Invalid choice")
-            return
-        
-        # 创建分类器
-        self.classification_mode = 'llm'
-        self.llm_provider = 'openai'
-        self.llm_model = selected_model
-        
-        try:
-            self.llm_classifier = LLMClassifier(
-                provider='openai',
-                model=selected_model,
-                api_key=api_key,
-                enable_cache=True,
-                max_workers=3
-            )
-            self._save_user_config()
-            log.success(t('switched_to_llm', provider='OpenAI', model=selected_model))
-        except Exception as e:
-            log.error(t('llm_init_failed', error=str(e)))
-            self.classification_mode = 'rule'
-            self._save_user_config()
-    
     def _setup_azure_openai_mode(self):
         """设置Azure OpenAI模式 - 需要收集所有必要参数"""
         is_zh = get_language() == 'zh'
