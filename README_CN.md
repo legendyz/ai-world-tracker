@@ -100,12 +100,13 @@
   1. 📝 规则模式 (Rule-based) - 快速、免费、无需网络
   2. 🤖 LLM模式 (Ollama本地) - 高精度、语义理解
   3. 🤖 LLM模式 (OpenAI) - 最高精度、需要API密钥
-  4. 🤖 LLM模式 (Anthropic) - 高精度、需要API密钥
 
 🧹 数据维护:
-  5. 🗑️ 清除LLM分类缓存
-  6. 🗑️ 清除采集历史缓存
-  7. 🗑️ 清除采集结果历史
+  4. 🗑️ 清除LLM分类缓存
+  5. 🗑️ 清除采集历史缓存
+  6. 🗑️ 清除采集结果历史
+  7. 🗑️ 清除人工审核记录
+  8. ⚠️ 清除所有数据（需要确认）
 
   0. ↩️ 返回主菜单
 ```
@@ -127,6 +128,8 @@
 | 清除LLM分类缓存 | 🗑️ | 删除 `llm_classification_cache.json`，强制使用 LLM 重新分类 |
 | 清除采集历史缓存 | 🗑️ | 删除 `collection_history_cache.json`，允许重新采集所有 URL |
 | 清除采集结果历史 | 🗑️ | 删除所有 `data/exports/*.json` 和 `*.txt` 文件（需要确认） |
+| 清除人工审核记录 | 🗑️ | 删除 `review_history_*.json` 和 `learning_report_*.json` 文件 |
+| 清除所有数据 | ⚠️ | 清除所有缓存和数据文件（需要输入 YES 确认） |
 
 ## 📂 项目结构
 
@@ -262,16 +265,14 @@ logging:
 
 | 提供商 | 模型 | 费用 | 配置方式 |
 |--------|------|------|----------|
-| Ollama | qwen3:8b | 免费 | `ollama pull qwen3:8b` |
+| Ollama | qwen3:8b, deepseek-r1:14b | 免费 | `ollama pull qwen3:8b` |
 | OpenAI | gpt-4o-mini | 付费 | 设置 `OPENAI_API_KEY` |
-| Anthropic | claude-3-haiku | 付费 | 设置 `ANTHROPIC_API_KEY` |
 
 ### 环境变量
 
 ```bash
 # 可选：云端 LLM 提供商
 export OPENAI_API_KEY="your-key"
-export ANTHROPIC_API_KEY="your-key"
 
 # 可选：Ollama 自定义 URL
 export OLLAMA_BASE_URL="http://localhost:11434"
@@ -343,10 +344,14 @@ LLM 增强分类器提供语义理解能力：
 | 维度 | 权重 | 说明 |
 |------|------|------|
 | **来源权威度** (source_authority) | 25% | 内容来源的可信度 |
-| **时效性** (recency) | 20% | 内容的新鲜程度 |
-| **分类置信度** (confidence) | 25% | 分类结果的置信度 |
+| **时效性** (recency) | 25% | 内容的新鲜程度 |
+| **分类置信度** (confidence) | 20% | 分类结果的置信度（支持置信度上限） |
 | **内容相关度** (relevance) | 20% | 与 AI 话题的相关性 |
 | **社交热度** (engagement) | 10% | 社交信号（星标、下载量等） |
+
+> **置信度上限机制**：对于较旧内容（时效性 ≤ 0.50），系统会自动限制置信度的贡献：
+> - 低权威来源（< 0.80）：置信度上限为 60%
+> - 高权威来源（≥ 0.80）：置信度上限为 75%
 
 ### 计算公式
 
@@ -355,8 +360,8 @@ LLM 增强分类器提供语义理解能力：
 
 具体计算:
 - source_authority × 0.25
-- recency × 0.20
-- confidence × 0.25
+- recency × 0.25
+- confidence × 0.20 （可能受置信度上限影响）
 - relevance × 0.20
 - engagement × 0.10
 ```
@@ -415,8 +420,8 @@ LLM 增强分类器提供语义理解能力：
 | 功能 | v1.0 (ai-world-tracker-v1) | v2.0 (main) |
 |------|----------------------------|-------------|
 | 分类方式 | 规则分类 | LLM + 规则降级 |
-| LLM 支持 | ❌ | ✅ Ollama/OpenAI/Anthropic |
-| 本地模型 | ❌ | ✅ Qwen3:8b |
+| LLM 支持 | ❌ | ✅ Ollama/OpenAI |
+| 本地模型 | ❌ | ✅ Qwen3:8b, DeepSeek-R1:14b |
 | 并发处理 | ❌ | ✅ 多线程（3-6） |
 | 智能缓存 | ❌ | ✅ MD5 缓存 |
 | GPU 加速 | ❌ | ✅ 自动检测 |

@@ -23,7 +23,7 @@
 ### Core Capabilities
 - **🤖 Multi-Source Data Collection**: Automatically scrapes data from arXiv (latest papers), GitHub (trending projects), tech media (TechCrunch, The Verge, Wired), and AI blogs (OpenAI, Google AI, Hugging Face)
 - **🧠 Intelligent Classification**: Dual-mode classification system
-  - **LLM Mode**: Semantic understanding via Ollama/OpenAI/Anthropic (95%+ accuracy)
+  - **LLM Mode**: Semantic understanding via Ollama/OpenAI (95%+ accuracy)
   - **Rule Mode**: Keyword-based pattern recognition (fast, no dependencies)
 - **📊 Data Visualization**: Generates charts for technology hotspots, content distribution, regional distribution, and daily trends
 - **🌐 Web Dashboard**: Creates responsive HTML dashboard with categorized news
@@ -31,7 +31,7 @@
 - **🌍 Bilingual Support**: Full Chinese/English interface (i18n)
 
 ### LLM Integration (Main Branch)
-- **Multi-Provider Support**: Ollama (free, local), OpenAI, Anthropic
+- **Multi-Provider Support**: Ollama (free, local), OpenAI
 - **Local Models**: Qwen3:8b via Ollama - completely free
 - **GPU Acceleration**: Auto-detects NVIDIA, AMD, Apple Silicon
 - **Concurrent Processing**: 3-6 thread parallel processing for speed
@@ -100,12 +100,13 @@ Current Mode: 🤖 LLM Mode (ollama/qwen3:8b)
   1. 📝 Rule Mode (Rule-based) - Fast, free, no network required
   2. 🤖 LLM Mode (Ollama Local) - High accuracy, semantic understanding
   3. 🤖 LLM Mode (OpenAI) - Highest accuracy, API key required
-  4. 🤖 LLM Mode (Anthropic) - High accuracy, API key required
 
 🧹 Data Maintenance:
-  5. 🗑️ Clear LLM classification cache
-  6. 🗑️ Clear collection history cache
-  7. 🗑️ Clear export data history
+  4. 🗑️ Clear LLM classification cache
+  5. 🗑️ Clear collection history cache
+  6. 🗑️ Clear export data history
+  7. 🗑️ Clear manual review records
+  8. ⚠️ Clear ALL data (requires confirmation)
 
   0. ↩️ Back to main menu
 ```
@@ -126,7 +127,9 @@ Current Mode: 🤖 LLM Mode (ollama/qwen3:8b)
 |--------|----------|-------------|
 | Clear LLM Cache | 🗑️ | Delete `llm_classification_cache.json`, force re-classification with LLM |
 | Clear Collection Cache | 🗑️ | Delete `collection_history_cache.json`, allow re-collection of all URLs |
-| Clear Export History | 🗑️ | Delete all `data/exports/*.json` and `*.txt` files (requires confirmation) |
+| Clear Export History | 🗑️ | Delete all `data/exports/ai_tracker_*.json` and `*.txt` files (requires confirmation) |
+| Clear Review Records | 🗑️ | Delete all `data/exports/review_history_*.json` and `learning_report_*.json` files |
+| Clear ALL Data | ⚠️ | Delete all cache and export files - **requires typing "YES" to confirm** |
 
 ## 📂 Project Structure
 
@@ -153,7 +156,9 @@ ai-world-tracker/
 ├── data/                    # Generated data directory
 │   ├── exports/             # Exported data and reports
 │   │   ├── ai_tracker_data_*.json    # Collected data with timestamps
-│   │   └── ai_tracker_report_*.txt   # Text reports
+│   │   ├── ai_tracker_report_*.txt   # Text reports
+│   │   ├── review_history_*.json     # Manual review records
+│   │   └── learning_report_*.json    # Learning feedback reports
 │   └── cache/               # Cache files
 │       ├── collection_history_cache.json  # URL/title deduplication
 │       └── llm_classification_cache.json  # LLM classification results
@@ -264,14 +269,12 @@ logging:
 |----------|-------|------|-------|
 | Ollama | qwen3:8b | Free | `ollama pull qwen3:8b` |
 | OpenAI | gpt-4o-mini | Paid | Set `OPENAI_API_KEY` |
-| Anthropic | claude-3-haiku | Paid | Set `ANTHROPIC_API_KEY` |
 
 ### Environment Variables
 
 ```bash
 # Optional: Cloud LLM providers
 export OPENAI_API_KEY="your-key"
-export ANTHROPIC_API_KEY="your-key"
 
 # Optional: Custom Ollama URL
 export OLLAMA_BASE_URL="http://localhost:11434"
@@ -343,10 +346,21 @@ The `ImportanceEvaluator` calculates content importance using **5 weighted dimen
 | Dimension | Weight | Description |
 |-----------|--------|-------------|
 | **Source Authority** | 25% | Credibility of the content source |
-| **Recency** | 20% | How recent the content is |
-| **Confidence** | 25% | Classification confidence score |
+| **Recency** | 25% | How recent the content is |
+| **Confidence** | 20% | Classification confidence score (capped for old content) |
 | **Relevance** | 20% | Relevance to AI topics |
 | **Engagement** | 10% | Social signals (stars, downloads, etc.) |
+
+### Confidence Cap Mechanism
+
+To prevent old, low-value content from ranking too high, the system applies confidence caps:
+
+| Content Age | Source Authority | Confidence Cap |
+|-------------|-----------------|----------------|
+| > 14 days | < 0.80 (non-official) | 60% |
+| > 14 days | ≥ 0.80 (official) | 75% |
+| 7-14 days | < 0.70 (low authority) | 75% |
+| ≤ 7 days | Any | No cap |
 
 ### Calculation Formula
 
@@ -355,8 +369,8 @@ Importance = Σ (dimension_score × weight)
 
 Where:
 - source_authority × 0.25
-- recency × 0.20
-- confidence × 0.25
+- recency × 0.25
+- confidence × 0.20  (with cap for old content)
 - relevance × 0.20
 - engagement × 0.10
 ```
@@ -415,7 +429,7 @@ Where:
 | Feature | v1.0 (ai-world-tracker-v1) | v2.0 (main) |
 |---------|----------------------------|-------------|
 | Classification | Rule-based | LLM + Rule fallback |
-| LLM Support | ❌ | ✅ Ollama/OpenAI/Anthropic |
+| LLM Support | ❌ | ✅ Ollama/OpenAI |
 | Local Models | ❌ | ✅ Qwen3:8b |
 | Concurrent Processing | ❌ | ✅ Multi-threaded (3-6) |
 | Smart Caching | ❌ | ✅ MD5-based |
@@ -428,6 +442,9 @@ Where:
 | Bilingual UI | ❌ | ✅ Chinese/English |
 | Resource Cleanup | ❌ | ✅ Auto unload LLM on exit |
 | Cache Management | ❌ | ✅ Clear cache via menu |
+| Review Data Management | ❌ | ✅ Clear review records |
+| Bulk Data Cleanup | ❌ | ✅ Clear ALL data option |
+| Confidence Cap | ❌ | ✅ Cap for old content |
 | Accuracy | ~70% | ~95% |
 | Use Case | Learning, customization | Production |
 

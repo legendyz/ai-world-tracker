@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3] - 2025-12-08 (Main Branch)
+
+### Added
+- **New Data Maintenance Options**
+  - "Clear manual review records" (option 7): Clears `review_history_*.json` and `learning_report_*.json` files
+  - "Clear all data" (option 8): Comprehensive data reset with YES confirmation required
+  - Both functions support dual output mode (console + log file)
+
+- **Confidence Cap Mechanism**
+  - Prevents older low-authority content from ranking too high
+  - For content older than 14 days (recency ≤ 0.50):
+    - Low authority sources (< 0.80): confidence capped at 60%
+    - High authority sources (≥ 0.80): confidence capped at 75%
+
+- **Ollama Local Models**
+  - Added DeepSeek-R1:14b as additional local model option
+
+### Changed
+- **Importance Weight Adjustment**
+  - Recency weight: 20% → 25% (increased to favor fresh content)
+  - Confidence weight: 25% → 20% (reduced to prevent overconfidence)
+  - Other weights unchanged: source_authority 25%, relevance 20%, engagement 10%
+
+- **Menu Restructuring**
+  - Classification modes: Options 1-3 (Rule, Ollama, OpenAI)
+  - Data maintenance: Options 4-8 (LLM cache, collection cache, export history, review history, all data)
+  - Settings menu now shows 8 options plus back option
+
+### Removed
+- **Anthropic Provider**
+  - Removed Anthropic from classification mode options
+  - Simplified to two cloud providers: Ollama (local) and OpenAI
+
+### Fixed
+- Review history and learning report files now correctly saved to `data/exports/` directory
+- Consistent dual output mode for all data maintenance functions
+
+---
+
 ## [2.0.2] - 2025-12-07 (Main Branch)
 
 ### Added
