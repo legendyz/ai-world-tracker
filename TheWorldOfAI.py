@@ -912,7 +912,7 @@ class AIWorldTracker:
             return
         
         # 测试 API 连接
-        log.info("正在测试 Azure OpenAI 连接..." if is_zh else "Testing Azure OpenAI connection...", emoji="🔄")
+        log.dual_info("正在测试 Azure OpenAI 连接..." if is_zh else "Testing Azure OpenAI connection...", emoji="🔄")
         test_success, test_error = self._test_azure_openai_connection(
             endpoint=endpoint,
             api_key=api_key,
@@ -927,7 +927,7 @@ class AIWorldTracker:
                 log.info("已取消设置" if is_zh else "Setup cancelled", emoji="ℹ️")
                 return
         else:
-            log.success("✅ 连接测试成功！" if is_zh else "✅ Connection test successful!")
+            log.dual_success("✅ 连接测试成功！" if is_zh else "✅ Connection test successful!")
         
         # 创建分类器
         self.classification_mode = 'llm'
