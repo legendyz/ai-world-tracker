@@ -157,3 +157,6 @@ Thumbs.db
 review_history_*.json
 learning_report_*.json
 
+# User config (may contain provider/model preferences)
+ai_tracker_config.json
+
