@@ -898,7 +898,7 @@ class AIWorldTracker:
         # 显示配置摘要
         log.section("配置摘要" if is_zh else "Configuration Summary")
         log.menu(f"  Endpoint: {endpoint}")
-        log.menu(f"  API Key: {api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else f"  API Key: ***")
+        log.menu(f"  API Key: {'•' * min(len(api_key), 20)} ({len(api_key)}字符) ✓" if is_zh else f"  API Key: {'•' * min(len(api_key), 20)} ({len(api_key)} chars) ✓")
         log.menu(f"  Deployment: {deployment_name}")
         log.menu(f"  API Version: {api_version}")
         
