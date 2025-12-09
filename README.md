@@ -135,23 +135,22 @@ Current Mode: 🤖 LLM Mode (ollama/qwen3:8b)
 
 ```
 ai-world-tracker/
-├── TheWorldOfAI.py          # Main application entry point
-├── data_collector.py        # Multi-source data collection
-├── content_classifier.py    # Rule-based content classifier
-├── llm_classifier.py        # LLM-enhanced classifier
+├── TheWorldOfAI.py          # Main application entry point (AIWorldTracker class)
+├── data_collector.py        # Multi-source data collection (DataCollector)
+├── content_classifier.py    # Rule-based classifier + ImportanceEvaluator
+├── llm_classifier.py        # LLM-enhanced classifier (Ollama/Azure OpenAI)
+├── ai_analyzer.py           # Trend analysis engine (AIAnalyzer)
+├── visualizer.py            # Data visualization - Matplotlib (DataVisualizer)
+├── web_publisher.py         # Web page generator (WebPublisher)
+├── manual_reviewer.py       # Manual review interface (ManualReviewer)
+├── learning_feedback.py     # Learning feedback system (LearningFeedback)
 ├── config.py                # Unified configuration management
-├── logger.py                # Unified logging system
-├── ai_analyzer.py           # Trend analysis engine
-├── visualizer.py            # Data visualization (Matplotlib)
-├── web_publisher.py         # Web page generator
-├── manual_reviewer.py       # Manual review interface
-├── learning_feedback.py     # Learning feedback system
+├── logger.py                # Unified logging system (colored console + file)
 ├── i18n.py                  # Internationalization (EN/CN)
 ├── link_validator.py        # URL validation utility
 ├── regenerate_web.py        # Quick web regeneration utility
 ├── requirements.txt         # Python dependencies
 ├── config.yaml              # Application configuration
-├── ai_tracker_config.json   # User preferences (auto-generated)
 ├── pytest.ini               # Test configuration
 ├── data/                    # Generated data directory
 │   ├── exports/             # Exported data and reports
@@ -168,10 +167,93 @@ ai-world-tracker/
 │   ├── test_llm_*.py
 │   └── ...
 ├── logs/                    # Log files directory
-├── visualizations/          # Generated charts
+├── visualizations/          # Generated charts (PNG)
+│   ├── tech_hotspots.png
+│   ├── content_distribution.png
+│   ├── region_distribution.png
+│   ├── daily_trends.png
+│   └── dashboard.png
 ├── web_output/              # Generated web pages (backup)
 │   └── index.html
 └── index.html               # Main dashboard (GitHub Pages)
+```
+
+## 🏛️ System Architecture
+
+### Module Dependency Diagram
+
+```
+                              ┌─────────────────────┐
+                              │   TheWorldOfAI.py   │
+                              │  (Main Entry Point) │
+                              │   AIWorldTracker    │
+                              └─────────┬───────────┘
+                                        │
+        ┌───────────────┬───────────────┼───────────────┬───────────────┐
+        │               │               │               │               │
+        ▼               ▼               ▼               ▼               ▼
+┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐
+│data_collector │ │content_       │ │ai_analyzer    │ │visualizer     │ │web_publisher  │
+│   .py         │ │classifier.py  │ │   .py         │ │   .py         │ │   .py         │
+│               │ │               │ │               │ │               │ │               │
+│• DataCollector│ │• Importance   │ │• AIAnalyzer   │ │• DataVisualizer│ │• WebPublisher │
+│• collect_all()│ │  Evaluator    │ │• analyze_     │ │• visualize_   │ │• generate_    │
+│               │ │• Content      │ │  trends()     │ │  all()        │ │  html_page()  │
+│               │ │  Classifier   │ │               │ │               │ │               │
+└───────┬───────┘ └───────┬───────┘ └───────────────┘ └───────────────┘ └───────────────┘
+        │                 │
+        │                 │         ┌───────────────┐
+        │                 ├────────▶│llm_classifier │ (Optional)
+        │                 │         │   .py         │
+        │                 │         │• LLMClassifier│
+        │                 │         │• GPU Detection│
+        │                 │         │• Multi-Provider│
+        │                 │         └───────────────┘
+        │                 │
+        ▼                 ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            Infrastructure Layer                              │
+├───────────────┬───────────────┬───────────────┬─────────────────────────────┤
+│  config.py    │  logger.py    │   i18n.py     │ manual_reviewer.py          │
+│               │               │               │ learning_feedback.py        │
+│• OllamaConfig │• get_log_     │• t() translate│• ManualReviewer             │
+│• OpenAIConfig │  helper()     │• LANG_PACKS   │• LearningFeedback           │
+│• Classifier   │• dual_* methods│• zh/en       │  (Human-in-the-loop)        │
+│  Config       │• colored output│              │                             │
+└───────────────┴───────────────┴───────────────┴─────────────────────────────┘
+```
+
+### Main Menu Function Mapping
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Main Menu Functions                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  1. 🚀 Auto Update & Generate                                               │
+│     └── run_full_pipeline()                                                  │
+│         → Data Collection → Classification → Analysis → Visualization → Web │
+│                                                                              │
+│  2. 🌐 Generate & Open Web Page                                             │
+│     └── _generate_web_page()                                                 │
+│         → Regenerate HTML based on existing data                            │
+│                                                                              │
+│  3. 📝 Manual Review                                                        │
+│     └── _manual_review()                                                     │
+│         → Filter low-confidence → Interactive review → Save history         │
+│                                                                              │
+│  4. 🎓 Learning Feedback                                                    │
+│     └── _learning_feedback()                                                 │
+│         → Analyze review history → Extract patterns → Generate suggestions  │
+│                                                                              │
+│  5. ⚙️ Settings & Management                                                │
+│     └── _switch_classification_mode()                                        │
+│         ├── Classification: Rule / Ollama / Azure OpenAI                    │
+│         └── Data Maintenance: Clear cache / history / review records        │
+│                                                                              │
+│  0. Exit                                                                     │
+│     └── cleanup() + Save config                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 📰 Data Sources
