@@ -33,6 +33,7 @@ from enum import Enum
 
 # 导入规则分类器作为备份
 from content_classifier import ContentClassifier
+from importance_evaluator import ImportanceEvaluator
 from logger import get_log_helper
 
 # 导入国际化模块
@@ -316,6 +317,9 @@ class LLMClassifier:
         
         # 规则分类器（作为备份）
         self.rule_classifier = ContentClassifier()
+        
+        # 独立的重要性评估器 (解耦后的设计)
+        self.importance_evaluator = ImportanceEvaluator()
         
         # 模型预热状态
         self.is_warmed_up = False
@@ -988,14 +992,14 @@ START from id=1, classify ALL {len(items)} items:"""
             
             # 重要性分数始终重新计算（因为时效性会随时间变化）
             # 不从缓存读取 importance，确保时效性分数是最新的
-            importance, breakdown = self.rule_classifier.importance_evaluator.calculate_importance(
+            importance, breakdown = self.importance_evaluator.calculate_importance(
                 item,
                 {'content_type': classified.get('content_type', 'news'), 
                  'confidence': classified.get('confidence', 0.5)}
             )
             classified['importance'] = importance
             classified['importance_breakdown'] = breakdown
-            level, _ = self.rule_classifier.importance_evaluator.get_importance_level(importance)
+            level, _ = self.importance_evaluator.get_importance_level(importance)
             classified['importance_level'] = level
             
             return classified
@@ -1021,13 +1025,13 @@ START from id=1, classify ALL {len(items)} items:"""
             classified['region'] = self.rule_classifier.classify_region(item)
             
             # 计算多维度重要性分数（使用统一的评估器）
-            importance, importance_breakdown = self.rule_classifier.importance_evaluator.calculate_importance(
+            importance, importance_breakdown = self.importance_evaluator.calculate_importance(
                 item,
                 {'content_type': result['content_type'], 'confidence': result['confidence']}
             )
             classified['importance'] = importance
             classified['importance_breakdown'] = importance_breakdown
-            level, _ = self.rule_classifier.importance_evaluator.get_importance_level(importance)
+            level, _ = self.importance_evaluator.get_importance_level(importance)
             classified['importance_level'] = level
             
             # 保存到缓存（不保存importance，因为时效性会变化，需要每次重新计算）
@@ -1093,14 +1097,14 @@ START from id=1, classify ALL {len(items)} items:"""
                     classified['classified_by'] = 'llm:cached'
                 
                 # 重要性分数始终重新计算（因为时效性会随时间变化）
-                importance, breakdown = self.rule_classifier.importance_evaluator.calculate_importance(
+                importance, breakdown = self.importance_evaluator.calculate_importance(
                     item,
                     {'content_type': classified.get('content_type', 'news'), 
                      'confidence': classified.get('confidence', 0.5)}
                 )
                 classified['importance'] = importance
                 classified['importance_breakdown'] = breakdown
-                level, _ = self.rule_classifier.importance_evaluator.get_importance_level(importance)
+                level, _ = self.importance_evaluator.get_importance_level(importance)
                 classified['importance_level'] = level
                 
                 cached_items.append((i, classified))
@@ -1195,13 +1199,13 @@ START from id=1, classify ALL {len(items)} items:"""
                     classified['region'] = self.rule_classifier.classify_region(item)
                     
                     # 计算多维度重要性分数
-                    importance, importance_breakdown = self.rule_classifier.importance_evaluator.calculate_importance(
+                    importance, importance_breakdown = self.importance_evaluator.calculate_importance(
                         item,
                         {'content_type': classified['content_type'], 'confidence': classified['confidence']}
                     )
                     classified['importance'] = importance
                     classified['importance_breakdown'] = importance_breakdown
-                    level, _ = self.rule_classifier.importance_evaluator.get_importance_level(importance)
+                    level, _ = self.importance_evaluator.get_importance_level(importance)
                     classified['importance_level'] = level
                     
                     # 缓存（不保存importance，因为时效性会变化）
@@ -1243,13 +1247,13 @@ START from id=1, classify ALL {len(items)} items:"""
                         classified['region'] = self.rule_classifier.classify_region(item)
                         
                         # 计算多维度重要性分数
-                        importance, importance_breakdown = self.rule_classifier.importance_evaluator.calculate_importance(
+                        importance, importance_breakdown = self.importance_evaluator.calculate_importance(
                             item,
                             {'content_type': classified['content_type'], 'confidence': classified['confidence']}
                         )
                         classified['importance'] = importance
                         classified['importance_breakdown'] = importance_breakdown
-                        level, _ = self.rule_classifier.importance_evaluator.get_importance_level(importance)
+                        level, _ = self.importance_evaluator.get_importance_level(importance)
                         classified['importance_level'] = level
                         
                         # 缓存（不保存importance）
