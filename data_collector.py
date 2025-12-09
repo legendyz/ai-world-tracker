@@ -1638,7 +1638,7 @@ class AIDataCollector:
             return None
     
     async def _fetch_json_async(self, session: aiohttp.ClientSession, url: str,
-                                 semaphore: asyncio.Semaphore, params: Optional[Dict] = None) -> Optional[Dict]:
+                                 semaphore: asyncio.Semaphore, params: Optional[Dict] = None) -> Optional[Any]:
         """异步获取JSON内容"""
         async with semaphore:
             for attempt in range(self.async_config.max_retries + 1):
@@ -1699,6 +1699,247 @@ class AIDataCollector:
         
         return items
     
+    async def _collect_research_papers_async(self, max_results: int = 10) -> List[Dict]:
+        """异步采集研究论文 (arxiv库不支持异步，使用executor)"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.collect_research_papers, max_results)
+    
+    async def _collect_github_trending_async(self, session: aiohttp.ClientSession, 
+                                            semaphore: asyncio.Semaphore) -> List[Dict]:
+        """异步采集GitHub热门项目"""
+        projects = []
+        try:
+            last_month = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+            url = "https://api.github.com/search/repositories"
+            query = f'(machine-learning OR artificial-intelligence OR deep-learning OR llm) created:>{last_month}'
+            
+            params = {
+                'q': query,
+                'sort': 'stars',
+                'order': 'desc',
+                'per_page': 15
+            }
+            
+            data = await self._fetch_json_async(session, url, semaphore, params)
+            if data:
+                for repo in data.get('items', [])[:15]:
+                    if not self._is_recent(repo.get('updated_at', '')):
+                        continue
+                    
+                    project = {
+                        'title': repo['full_name'],
+                        'summary': repo.get('description') or 'No description',
+                        'url': repo['html_url'],
+                        'stars': repo.get('stargazers_count', 0),
+                        'language': repo.get('language', 'Unknown'),
+                        'updated': repo['updated_at'][:10],
+                        'published': repo['updated_at'][:10],
+                        'source': 'GitHub',
+                        'category': 'developer',
+                        'importance': min(repo.get('stargazers_count', 0) / 1000, 1.0)
+                    }
+                    projects.append(project)
+        except Exception as e:
+            log.warning(f"GitHub trending async failed: {e}")
+        
+        return projects
+    
+    async def _collect_huggingface_async(self, session: aiohttp.ClientSession,
+                                        semaphore: asyncio.Semaphore) -> List[Dict]:
+        """异步采集Hugging Face更新"""
+        updates = []
+        try:
+            url = "https://huggingface.co/api/models"
+            params = {'limit': 10, 'sort': 'lastModified', 'direction': -1}
+            
+            data = await self._fetch_json_async(session, url, semaphore, params)
+            if data:
+                for model in data[:10]:
+                    if not self._is_recent(model.get('lastModified', '')):
+                        continue
+                    
+                    update = {
+                        'title': f"HF Model: {model['id']}",
+                        'summary': f"Latest AI model: {model['id']}, downloads: {model.get('downloads', 0)}",
+                        'url': f"https://huggingface.co/{model['id']}",
+                        'downloads': model.get('downloads', 0),
+                        'updated': model.get('lastModified', '')[:10],
+                        'published': model.get('lastModified', '')[:10],
+                        'source': 'Hugging Face',
+                        'category': 'developer',
+                        'importance': min(model.get('downloads', 0) / 10000, 1.0)
+                    }
+                    updates.append(update)
+        except Exception as e:
+            log.warning(f"Hugging Face async failed: {e}")
+        
+        return updates
+    
+    async def _collect_hacker_news_async(self, session: aiohttp.ClientSession,
+                                        semaphore: asyncio.Semaphore,
+                                        max_items: int = 10) -> List[Dict]:
+        """异步采集Hacker News"""
+        items = []
+        try:
+            # 获取top stories
+            top_url = "https://hacker-news.firebaseio.com/v0/topstories.json"
+            story_ids = await self._fetch_json_async(session, top_url, semaphore, None)
+            
+            if not story_ids:
+                return items
+            
+            # 并发获取story详情
+            ai_keywords = ['ai', 'llm', 'gpt', 'machine learning', 'deep learning', 
+                          'neural', 'openai', 'anthropic', 'chatgpt']
+            
+            story_tasks = []
+            for story_id in story_ids[:50]:  # 检查前50个
+                story_url = f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
+                story_tasks.append(self._fetch_json_async(session, story_url, semaphore, None))
+            
+            stories = await asyncio.gather(*story_tasks, return_exceptions=True)
+            
+            for story in stories:
+                if isinstance(story, dict) and story.get('title'):
+                    title_lower = story['title'].lower()
+                    if any(kw in title_lower for kw in ai_keywords):
+                        # 检查时间
+                        if story.get('time'):
+                            published = datetime.fromtimestamp(story['time'])
+                            if not self._is_recent(published):
+                                continue
+                            published_str = published.strftime('%Y-%m-%d')
+                        else:
+                            published_str = datetime.now().strftime('%Y-%m-%d')
+                        
+                        item = {
+                            'title': story['title'],
+                            'summary': story.get('text', story['title'])[:300],
+                            'url': story.get('url', f"https://news.ycombinator.com/item?id={story['id']}"),
+                            'published': published_str,
+                            'source': 'Hacker News',
+                            'category': 'community',
+                            'score': story.get('score', 0),
+                            'importance': min(story.get('score', 0) / 100, 1.0)
+                        }
+                        items.append(item)
+                        
+                        if len(items) >= max_items:
+                            break
+        except Exception as e:
+            log.warning(f"Hacker News async failed: {e}")
+        
+        return items
+    
+    async def _collect_product_releases_async(self, session: aiohttp.ClientSession,
+                                             semaphore: asyncio.Semaphore,
+                                             max_results: int = 10) -> List[Dict]:
+        """异步采集产品发布（通过RSS源）"""
+        products = []
+        
+        # 使用产品相关的RSS源
+        product_feeds = RSS_FEEDS.get('product_news', [])
+        
+        tasks = []
+        for feed_url in product_feeds:
+            tasks.append(self._parse_rss_feed_async(session, feed_url, 'product', semaphore))
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for result in results:
+            if isinstance(result, list):
+                for item in result:
+                    if self._is_product_related(item):
+                        item['importance'] = item.get('importance', 0.6) + 0.2
+                        products.append(item)
+        
+        # 按重要性排序
+        products.sort(key=lambda x: x.get('importance', 0), reverse=True)
+        return products[:max_results]
+    
+    async def _collect_leaders_quotes_async(self, session: aiohttp.ClientSession,
+                                           semaphore: asyncio.Semaphore,
+                                           max_results: int = 15) -> List[Dict]:
+        """异步采集AI领袖言论"""
+        quotes = []
+        
+        leaders = {
+            "Sam Altman": "OpenAI CEO",
+            "Elon Musk": "xAI Founder",
+            "Jensen Huang": "NVIDIA CEO",
+            "Demis Hassabis": "Google DeepMind CEO",
+            "Yann LeCun": "Meta Chief AI Scientist",
+            "Geoffrey Hinton": "AI Pioneer",
+            "Andrew Ng": "AI Fund Managing General Partner",
+            "Kai-Fu Lee": "01.AI CEO",
+            "Robin Li": "Baidu CEO"
+        }
+        
+        # 使用Google News RSS搜索每个领袖
+        tasks = []
+        for leader_name in leaders.keys():
+            query_name = leader_name.replace(' ', '+')
+            feed_url = f"https://news.google.com/rss/search?q={query_name}+AI+when:30d&hl=en-US&gl=US&ceid=US:en"
+            tasks.append(self._parse_rss_feed_async(session, feed_url, 'leader', semaphore))
+        
+        # 同时采集个人博客
+        for source in self.rss_feeds.get('leader_blogs', []):
+            tasks.append(self._parse_rss_feed_async(session, source['url'], 'leader', semaphore))
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 处理结果
+        for i, result in enumerate(results):
+            if isinstance(result, list):
+                for item in result:
+                    # 如果是新闻搜索结果，添加领袖信息
+                    if i < len(leaders):
+                        leader_name = list(leaders.keys())[i]
+                        item['author'] = leader_name
+                        item['author_title'] = leaders[leader_name]
+                    
+                    item['importance'] = 0.9
+                    quotes.append(item)
+        
+        # 如果数量不足，添加备用数据
+        if len(quotes) < 5:
+            quotes.extend(self._get_backup_leaders_data())
+        
+        # 去重
+        quotes = self._deduplicate_items(quotes)
+        return quotes[:max_results]
+    
+    async def _collect_community_async(self, session: aiohttp.ClientSession,
+                                      semaphore: asyncio.Semaphore,
+                                      max_results: int = 15) -> List[Dict]:
+        """异步采集社区热点"""
+        trends = []
+        
+        # Hacker News (使用API)
+        hn_items = await self._collect_hacker_news_async(session, semaphore, max_items=10)
+        trends.extend(hn_items)
+        
+        # 其他社区RSS源
+        community_feeds = [f for f in self.rss_feeds.get('community', []) if 'hnrss' not in f]
+        
+        tasks = []
+        for feed_url in community_feeds:
+            tasks.append(self._parse_rss_feed_async(session, feed_url, 'community', semaphore))
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for result in results:
+            if isinstance(result, list):
+                for item in result:
+                    item['importance'] = item.get('importance', 0.6) + 0.1
+                    trends.append(item)
+        
+        # 去重并排序
+        trends = self._deduplicate_items(trends)
+        trends.sort(key=lambda x: x.get('published', ''), reverse=True)
+        
+        return trends[:max_results]
+    
     async def _collect_all_async(self) -> Dict[str, List[Dict]]:
         """
         异步采集所有类型的数据
@@ -1739,39 +1980,52 @@ class AIDataCollector:
         timeout = aiohttp.ClientTimeout(total=self.async_config.total_timeout)
         
         async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
-            # 异步采集各类数据（简化版本，使用RSS采集）
+            # 并发采集所有数据源
+            log.dual_info("📡 启动并发采集任务...", emoji="")
+            
+            # 创建所有采集任务
+            tasks = []
+            
+            # 1. 新闻RSS源
             news_feeds = RSS_FEEDS['news'] + RSS_FEEDS.get('product_news', [])
-            developer_feeds = RSS_FEEDS['developer']
+            for feed_url in news_feeds:
+                tasks.append(self._parse_rss_feed_async(session, feed_url, 'news', semaphore))
             
-            # 并发采集所有RSS源
-            news_tasks = [
-                self._parse_rss_feed_async(session, feed_url, 'news', semaphore)
-                for feed_url in news_feeds
-            ]
+            # 2. 开发者内容 (GitHub + Hugging Face + 博客RSS)
+            tasks.append(self._collect_github_trending_async(session, semaphore))
+            tasks.append(self._collect_huggingface_async(session, semaphore))
+            for feed_url in RSS_FEEDS['developer']:
+                tasks.append(self._parse_rss_feed_async(session, feed_url, 'developer', semaphore))
             
-            developer_tasks = [
-                self._parse_rss_feed_async(session, feed_url, 'developer', semaphore)
-                for feed_url in developer_feeds
-            ]
+            # 3. 产品发布
+            tasks.append(self._collect_product_releases_async(session, semaphore, product_count))
             
-            # 同时采集
-            all_results = await asyncio.gather(
-                *news_tasks, *developer_tasks,
-                return_exceptions=True
-            )
+            # 4. AI领袖言论
+            tasks.append(self._collect_leaders_quotes_async(session, semaphore, leader_count))
             
-            # 收集结果
+            # 5. 社区热点
+            tasks.append(self._collect_community_async(session, semaphore, community_count))
+            
+            # 6. 研究论文 (在executor中运行)
+            tasks.append(self._collect_research_papers_async(research_count))
+            
+            # 并发执行所有任务
+            log.dual_info(f"⚡ 并发执行 {len(tasks)} 个采集任务", emoji="")
+            all_results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 分类收集结果
             for result in all_results:
                 if isinstance(result, list):
                     for item in result:
                         category = item.get('category', 'news')
-                        all_data[category].append(item)
-            
-            # 同步采集研究论文（arxiv库不支持异步）
-            all_data['research'] = self.collect_research_papers(research_count)
-            all_data['product'] = self.collect_product_releases(product_count)
-            all_data['leader'] = self.collect_ai_leaders_quotes(leader_count)
-            all_data['community'] = self.collect_community_trends(community_count)
+                        if category in all_data:
+                            all_data[category].append(item)
+                elif isinstance(result, Exception):
+                    log.warning(f"Task failed: {result}")
+        
+        # 去重
+        for cat in all_data:
+            all_data[cat] = self._deduplicate_items(all_data[cat])
         
         # 统计新旧内容
         new_stats = {}
