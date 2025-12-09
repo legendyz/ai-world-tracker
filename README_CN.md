@@ -147,7 +147,6 @@ ai-world-tracker/
 ├── config.py                # 统一配置管理
 ├── logger.py                # 统一日志系统（彩色控制台 + 文件）
 ├── i18n.py                  # 国际化（中/英文）
-├── link_validator.py        # URL 验证工具
 ├── regenerate_web.py        # 快速网页重生成工具
 ├── requirements.txt         # Python 依赖
 ├── config.yaml              # 应用配置

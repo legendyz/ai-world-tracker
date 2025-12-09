@@ -147,7 +147,6 @@ ai-world-tracker/
 ├── config.py                # Unified configuration management
 ├── logger.py                # Unified logging system (colored console + file)
 ├── i18n.py                  # Internationalization (EN/CN)
-├── link_validator.py        # URL validation utility
 ├── regenerate_web.py        # Quick web regeneration utility
 ├── requirements.txt         # Python dependencies
 ├── config.yaml              # Application configuration
