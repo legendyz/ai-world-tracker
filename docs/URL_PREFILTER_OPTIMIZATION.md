@@ -196,7 +196,7 @@ if source in last_fetch and (now - last_fetch[source]) < 3600:
 ## 🔗 相关文件
 
 - `data_collector.py`: 核心实现
-- `test_url_filter_optimization.py`: 性能测试脚本
+- `tests/test_url_filter_optimization.py`: 性能测试脚本
 - `data/cache/collection_history_cache.json`: 历史缓存文件
 
 ## 🏆 总结
