@@ -222,6 +222,9 @@ class AIDataCollector:
         else:
             self._use_async = async_mode and ASYNC_AVAILABLE
         
+        # 异步采集器（当前版本未使用独立的异步采集器类）
+        self._async_collector = None
+        
         # 异步配置
         if self._use_async:
             self.async_config = _load_async_config()
@@ -359,7 +362,7 @@ class AIDataCollector:
                     
                 paper = {
                     'title': result.title,
-                    'summary': result.summary[:300] + "..." if len(result.summary) > 300 else result.summary,
+                    'summary': self._clean_html(result.summary),
                     'authors': [str(author) for author in result.authors],
                     'url': result.entry_id,
                     'published': result.published.strftime('%Y-%m-%d'),
@@ -505,9 +508,13 @@ class AIDataCollector:
                     # 简单的关键词过滤，确保是言论相关的
                     text = (entry.title + " " + entry.get('summary', '')).lower()
                     if any(k in text for k in ['said', 'says', 'stated', 'warns', 'believes', 'predicts', 'interview', 'speech', 'tweet', 'post']):
+                        # 清理 summary 中的 HTML 标签
+                        raw_summary = entry.get('summary', entry.title)
+                        clean_summary = self._clean_html(raw_summary, max_length=300)
+                        
                         quote = {
                             'title': f"{leader_name}: {entry.title}",
-                            'summary': entry.get('summary', entry.title)[:300],
+                            'summary': clean_summary,
                             'url': entry.link,
                             'published': entry.get('published', datetime.now().strftime('%Y-%m-%d')),
                             'source': f"News about {leader_name}",
@@ -551,7 +558,7 @@ class AIDataCollector:
 
                     quote = {
                         'title': f"[{source['author']}] {entry.title}",
-                        'summary': entry.get('summary', entry.get('description', ''))[:300],
+                        'summary': self._clean_html(entry.get('summary', entry.get('description', ''))),
                         'url': entry.link,
                         'published': entry.get('published', datetime.now().strftime('%Y-%m-%d')),
                         'source': 'Personal Blog/Podcast',
@@ -678,8 +685,6 @@ class AIDataCollector:
                 
                 for item in feed_items:
                     item['source'] = source_name
-                    # Boost importance for these high-signal sources
-                    item['importance'] = item.get('importance', 0.6) + 0.1
                     trends.append(item)
                     time.sleep(0.2)
                     
@@ -953,7 +958,6 @@ class AIDataCollector:
             updates = self._parse_rss_feed(rss_url, category='product')
             for item in updates:
                 item['company'] = 'OpenAI'
-                item['importance'] = 0.95 # OpenAI新闻通常很重要
         except Exception:
             pass
             
@@ -990,7 +994,6 @@ class AIDataCollector:
             updates = self._parse_rss_feed(rss_url, category='product')
             for item in updates:
                 item['company'] = 'Google'
-                item['importance'] = 0.92
         except Exception:
             pass
             
@@ -1026,7 +1029,6 @@ class AIDataCollector:
             updates = self._parse_rss_feed(rss_url, category='product')
             for item in updates:
                 item['company'] = 'Microsoft'
-                item['importance'] = 0.90
         except Exception:
             pass
             
@@ -1062,7 +1064,6 @@ class AIDataCollector:
             updates = self._parse_rss_feed(rss_url, category='product')
             for item in updates:
                 item['company'] = 'Meta'
-                item['importance'] = 0.90
         except Exception:
             pass
             
@@ -1098,7 +1099,6 @@ class AIDataCollector:
             updates = self._parse_rss_feed(rss_url, category='product')
             for item in updates:
                 item['company'] = 'Anthropic'
-                item['importance'] = 0.88
         except Exception:
             pass
             
@@ -1147,7 +1147,6 @@ class AIDataCollector:
                 for item in feed_updates:
                     if any(c in item['title'] for c in ['百度', '阿里', '腾讯', '华为', '字节', '文心一言', '通义千问', '混元', '盘古', 'Kimi', '智谱', 'DeepSeek']):
                         item['company'] = 'China Tech'
-                        item['importance'] = 0.9
                         updates.append(item)
             except Exception:
                 continue
@@ -1269,9 +1268,7 @@ class AIDataCollector:
                 text_content = story.get('text', '')
                 if text_content:
                     # 清理 HTML 标签
-                    from bs4 import BeautifulSoup
-                    soup = BeautifulSoup(text_content, 'html.parser')
-                    summary = soup.get_text()[:300]
+                    summary = self._clean_html(text_content)
                 else:
                     # 如果没有 text，生成基于元数据的摘要
                     score = story.get('score', 0)
@@ -1325,9 +1322,13 @@ class AIDataCollector:
                 if date_val and not self._is_recent(date_val):
                     continue
 
+                # 清理 summary 中的 HTML 标签
+                raw_summary = entry.get('summary', entry.get('description', ''))
+                clean_summary = self._clean_html(raw_summary, max_length=300)
+
                 item = {
                     'title': entry.get('title', ''),
-                    'summary': entry.get('summary', entry.get('description', ''))[:300] + "...",
+                    'summary': clean_summary,
                     'url': entry.get('link', ''),
                     'published': entry.get('published', ''),
                     'source': feed.feed.get('title', feed_url),
@@ -1395,6 +1396,37 @@ class AIDataCollector:
         return (item.get('title') and 
                 item.get('url') and 
                 len(item.get('title', '')) > 10)
+    
+    def _clean_html(self, text: str, max_length: int = 300) -> str:
+        """
+        清理文本中的 HTML 标签
+        
+        Args:
+            text: 原始文本（可能包含 HTML）
+            max_length: 最大长度
+            
+        Returns:
+            清理后的纯文本
+        """
+        if not text:
+            return ''
+        
+        try:
+            # 使用 BeautifulSoup 清理 HTML 标签
+            soup = BeautifulSoup(text, 'html.parser')
+            clean_text = soup.get_text(separator=' ', strip=True)
+            
+            # 清理多余空白
+            clean_text = ' '.join(clean_text.split())
+            
+            # 截断到最大长度
+            if len(clean_text) > max_length:
+                clean_text = clean_text[:max_length] + '...'
+            
+            return clean_text
+        except Exception:
+            # 如果清理失败，返回原始文本的截断版本
+            return text[:max_length] + '...' if len(text) > max_length else text
     
     def _is_recent(self, date_val) -> bool:
         """检查日期是否在最近30天内"""
@@ -1636,11 +1668,13 @@ class AIDataCollector:
                 if date_val and not self._is_recent(date_val):
                     continue
                 
+                # 清理 summary 中的 HTML 标签
+                raw_summary = entry.get('summary', entry.get('description', ''))
+                clean_summary = self._clean_html(raw_summary, max_length=300)
+                
                 item = {
                     'title': entry.get('title', ''),
-                    'summary': (entry.get('summary', entry.get('description', ''))[:300] + "...") 
-                               if len(entry.get('summary', entry.get('description', ''))) > 300 else 
-                               entry.get('summary', entry.get('description', '')),
+                    'summary': clean_summary,
                     'url': entry.get('link', ''),
                     'published': entry.get('published', ''),
                     'source': feed.feed.get('title', feed_url)[:50],
@@ -1802,7 +1836,7 @@ class AIDataCollector:
                         
                         item = {
                             'title': story['title'],
-                            'summary': story.get('text', story['title'])[:300],
+                            'summary': self._clean_html(story.get('text', story['title'])),
                             'url': story_url,
                             'published': published_str,
                             'source': 'Hacker News',
@@ -1837,11 +1871,10 @@ class AIDataCollector:
             if isinstance(result, list):
                 for item in result:
                     if self._is_product_related(item):
-                        item['importance'] = item.get('importance', 0.6) + 0.2
                         products.append(item)
         
-        # 按重要性排序
-        products.sort(key=lambda x: x.get('importance', 0), reverse=True)
+        # 按发布时间排序
+        products.sort(key=lambda x: x.get('published', ''), reverse=True)
         return products[:max_results]
     
     async def _collect_leaders_quotes_async(self, session: aiohttp.ClientSession,
@@ -1885,7 +1918,6 @@ class AIDataCollector:
                         item['author'] = leader_name
                         item['author_title'] = leaders[leader_name]
                     
-                    item['importance'] = 0.9
                     quotes.append(item)
         
         # 如果数量不足，添加备用数据
@@ -1918,7 +1950,6 @@ class AIDataCollector:
         for result in results:
             if isinstance(result, list):
                 for item in result:
-                    item['importance'] = item.get('importance', 0.6) + 0.1
                     trends.append(item)
         
         # 去重并排序

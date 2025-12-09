@@ -75,6 +75,12 @@ try:
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False
+    LLMClassifier = None  # type: ignore
+    AVAILABLE_MODELS = []
+    LLMProvider = None  # type: ignore
+    def check_ollama_status() -> dict:
+        """占位函数，当llm_classifier未安装时使用"""
+        return {'running': False, 'models': [], 'recommended': None}
     log.dual_warning(t('llm_not_installed'))
 
 
@@ -540,8 +546,9 @@ class AIWorldTracker:
                 bufsize=1
             )
             
-            for line in process.stdout:
-                print(f"  {line.strip()}")
+            if process.stdout:
+                for line in process.stdout:
+                    print(f"  {line.strip()}")
             
             process.wait()
             
