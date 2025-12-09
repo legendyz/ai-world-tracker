@@ -23,13 +23,15 @@ import json
 import os
 import yaml
 from datetime import datetime, timedelta
-from dateutil import parser
-from typing import List, Dict, Optional, Callable, Tuple
+from dateutil import parser as date_parser
+from typing import List, Dict, Optional, Callable, Tuple, Any
+from dataclasses import dataclass
 import time
 import random
 import difflib
+import hashlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 from config import config
 from logger import get_log_helper
@@ -41,10 +43,10 @@ except ImportError:
     def t(key, **kwargs): return key
     def get_language(): return 'zh'
 
-# 尝试导入异步采集器
+# 尝试导入异步库
 try:
     import asyncio
-    from async_data_collector import AsyncDataCollector, AsyncCollectorConfig
+    import aiohttp
     ASYNC_AVAILABLE = True
 except ImportError:
     ASYNC_AVAILABLE = False
@@ -69,6 +71,52 @@ def _get_cache_dir():
 DATA_CACHE_DIR = _get_cache_dir()
 
 
+# ============== 异步采集器配置 ==============
+
+@dataclass
+class AsyncCollectorConfig:
+    """异步采集器配置"""
+    # 并发控制
+    max_concurrent_requests: int = 20      # 最大并发请求数
+    max_concurrent_per_host: int = 3       # 每个主机最大并发数
+    
+    # 超时设置（秒）
+    request_timeout: int = 15              # 单个请求超时
+    total_timeout: int = 120               # 总采集超时
+    
+    # 重试设置
+    max_retries: int = 2                   # 最大重试次数
+    retry_delay: float = 1.0               # 重试延迟（秒）
+    
+    # 速率限制
+    rate_limit_delay: float = 0.2          # 请求间隔（秒）
+    
+    # 数据目录
+    cache_dir: str = 'data/cache'
+
+
+def _load_async_config() -> AsyncCollectorConfig:
+    """从 config.yaml 加载异步采集配置"""
+    cfg = AsyncCollectorConfig()
+    try:
+        if os.path.exists('config.yaml'):
+            with open('config.yaml', 'r', encoding='utf-8') as f:
+                yaml_cfg = yaml.safe_load(f)
+                async_cfg = yaml_cfg.get('async_collector', {})
+                
+                cfg.max_concurrent_requests = async_cfg.get('max_concurrent_requests', cfg.max_concurrent_requests)
+                cfg.max_concurrent_per_host = async_cfg.get('max_concurrent_per_host', cfg.max_concurrent_per_host)
+                cfg.request_timeout = async_cfg.get('request_timeout', cfg.request_timeout)
+                cfg.total_timeout = async_cfg.get('total_timeout', cfg.total_timeout)
+                cfg.max_retries = async_cfg.get('max_retries', cfg.max_retries)
+                cfg.cache_dir = yaml_cfg.get('data', {}).get('cache_dir', cfg.cache_dir)
+    except Exception:
+        pass
+    
+    os.makedirs(cfg.cache_dir, exist_ok=True)
+    return cfg
+
+
 def _check_async_mode() -> bool:
     """检查是否应该使用异步模式"""
     if not ASYNC_AVAILABLE:
@@ -84,6 +132,81 @@ def _check_async_mode() -> bool:
         pass
     
     return True  # 默认使用异步模式
+
+
+# ============== AI相关常量定义 ==============
+
+# AI领袖列表
+AI_LEADERS = {
+    "Sam Altman": "OpenAI CEO",
+    "Elon Musk": "xAI Founder",
+    "Jensen Huang": "NVIDIA CEO",
+    "Demis Hassabis": "Google DeepMind CEO",
+    "Yann LeCun": "Meta Chief AI Scientist",
+    "Geoffrey Hinton": "AI Pioneer",
+    "Andrew Ng": "AI Fund Managing General Partner",
+    "Kai-Fu Lee": "01.AI CEO",
+    "Robin Li": "Baidu CEO"
+}
+
+# AI相关关键词
+AI_KEYWORDS = [
+    'ai', 'artificial intelligence', 'machine learning', 'deep learning',
+    'neural network', 'llm', 'gpt', 'transformer', 'chatgpt', 'claude',
+    'gemini', 'llama', 'anthropic', 'openai',
+    '人工智能', '机器学习', '深度学习', '神经网络', '大模型'
+]
+
+# HN搜索关键词
+HN_SEARCH_TERMS = [
+    'ai', 'llm', 'gpt', 'chatgpt', 'openai', 'anthropic', 'claude',
+    'gemini', 'llama', 'transformer', 'machine learning', 'deep learning',
+    'neural', 'diffusion', 'stable diffusion', 'midjourney', 'copilot',
+    'langchain', 'rag', 'vector', 'embedding', 'fine-tune', 'rlhf'
+]
+
+# RSS源配置 - 统一配置
+RSS_FEEDS = {
+    'research': [
+        'http://export.arxiv.org/rss/cs.AI',
+        'http://export.arxiv.org/rss/cs.CL',
+        'http://export.arxiv.org/rss/cs.CV',
+        'http://export.arxiv.org/rss/cs.LG',
+    ],
+    'news': [
+        'https://www.theverge.com/rss/ai-artificial-intelligence/index.xml',
+        'https://techcrunch.com/category/artificial-intelligence/feed/',
+        'https://www.wired.com/feed/tag/ai/latest/rss',
+        'https://spectrum.ieee.org/rss/topic/artificial-intelligence',
+        'https://www.technologyreview.com/feed/',
+        'https://artificialintelligence-news.com/feed/',
+        'https://syncedreview.com/feed/',
+        'https://www.36kr.com/feed',
+        'https://www.ithome.com/rss/',
+        'https://www.jiqizhixin.com/rss',
+        'https://www.qbitai.com/feed',
+        'https://www.infoq.cn/feed/topic/18',
+    ],
+    'developer': [
+        'https://github.blog/feed/',
+        'https://huggingface.co/blog/feed.xml',
+        'https://openai.com/blog/rss.xml',
+        'https://blog.google/technology/ai/rss/',
+    ],
+    'product_news': [
+        'https://openai.com/blog/rss.xml',
+        'https://blog.google/technology/ai/rss/',
+        'https://blogs.microsoft.com/ai/feed/',
+    ],
+    'community': [
+        'https://www.producthunt.com/feed?category=artificial-intelligence',
+    ],
+    'leader_blogs': [
+        {'url': 'http://blog.samaltman.com/posts.atom', 'author': 'Sam Altman', 'title': 'OpenAI CEO'},
+        {'url': 'https://karpathy.github.io/feed.xml', 'author': 'Andrej Karpathy', 'title': 'AI Researcher'},
+        {'url': 'https://lexfridman.com/feed/podcast/', 'author': 'Lex Fridman', 'title': 'Podcast Host', 'type': 'podcast'},
+    ]
+}
 
 
 class AIDataCollector:
@@ -104,77 +227,33 @@ class AIDataCollector:
         else:
             self._use_async = async_mode and ASYNC_AVAILABLE
         
-        # 如果使用异步模式，创建异步采集器
-        self._async_collector = None
+        # 异步配置
         if self._use_async:
-            try:
-                self._async_collector = AsyncDataCollector()
-                log.config("📡 Collector mode: Async (aiohttp)")
-            except Exception as e:
-                log.warning(f"Failed to init async collector: {e}, falling back to sync mode")
-                self._use_async = False
-        
-        if not self._use_async:
+            self.async_config = _load_async_config()
+            log.config("📡 Collector mode: Async (aiohttp)")
+        else:
+            self.async_config = None
             log.config("📡 Collector mode: Sync (ThreadPool)")
         
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
         
-        # RSS源配置 - 真实可用的AI新闻源
-        self.rss_feeds = {
-            'research': [
-                'http://export.arxiv.org/rss/cs.AI',  # ArXiv AI
-                'http://export.arxiv.org/rss/cs.CL',  # 计算语言学  
-                'http://export.arxiv.org/rss/cs.CV',  # 计算机视觉
-                'http://export.arxiv.org/rss/cs.LG',  # 机器学习
-            ],
-            'news': [
-                # 国际AI新闻源
-                'https://www.theverge.com/rss/ai-artificial-intelligence/index.xml',  # The Verge AI
-                'https://techcrunch.com/category/artificial-intelligence/feed/',  # TechCrunch AI
-                'https://www.wired.com/feed/tag/ai/latest/rss',  # Wired AI
-                'https://spectrum.ieee.org/rss/topic/artificial-intelligence',  # IEEE Spectrum AI
-                'https://www.technologyreview.com/feed/',  # MIT Technology Review
-                'https://artificialintelligence-news.com/feed/',  # AI News
-                'https://syncedreview.com/feed/',  # Synced Review (AI专业)
-                # 中国AI新闻源
-                'https://www.36kr.com/feed',  # 36氪 (科技创业)
-                'https://www.ithome.com/rss/',  # IT之家
-                'https://www.jiqizhixin.com/rss',  # 机器之心
-                'https://www.qbitai.com/feed',  # 量子位
-                'https://www.infoq.cn/feed/topic/18',  # InfoQ AI
-            ],
-            'developer': [
-                'https://github.blog/feed/',  # GitHub Blog
-                'https://huggingface.co/blog/feed.xml',  # Hugging Face
-                'https://openai.com/blog/rss.xml',  # OpenAI Blog
-                'https://blog.google/technology/ai/rss/',  # Google AI Blog
-            ],
-            'product_news': [  # 新增专门的产品发布新闻源
-                # 公司官方博客
-                'https://openai.com/blog/rss.xml',  # OpenAI官方博客
-                'https://blog.google/technology/ai/rss/',  # Google AI博客
-                'https://blogs.microsoft.com/ai/feed/',  # Microsoft AI博客
-                # Meta和Anthropic因RSS不稳定，主要依赖备用数据或新闻聚合
-                
-                # 中国公司
-                # 腾讯云RSS存在解析错误，已移除
-            ],
-            'community': [  # 新增社区热点源
-                'https://www.producthunt.com/feed?category=artificial-intelligence', # Product Hunt AI
-                'https://hnrss.org/newest?q=AI+LLM', # Hacker News AI (简化查询以提高命中率)
-            ],
-            'leader_blogs': [  # 新增领袖个人渠道
-                {'url': 'http://blog.samaltman.com/posts.atom', 'author': 'Sam Altman', 'title': 'OpenAI CEO'},
-                {'url': 'https://karpathy.github.io/feed.xml', 'author': 'Andrej Karpathy', 'title': 'AI Researcher'},
-                {'url': 'https://lexfridman.com/feed/podcast/', 'author': 'Lex Fridman', 'title': 'Podcast Host', 'type': 'podcast'},
-            ]
-        }
+        # 使用统一的RSS源配置
+        self.rss_feeds = RSS_FEEDS
         
         # 采集历史缓存
         self.history_cache_file = os.path.join(DATA_CACHE_DIR, 'collection_history_cache.json')
         self.history_cache = self._load_history_cache()
+        
+        # 统计信息（用于异步模式）
+        self.stats = {
+            'requests_made': 0,
+            'requests_failed': 0,
+            'items_collected': 0,
+            'start_time': None,
+            'end_time': None
+        }
     
     def _load_history_cache(self) -> Dict:
         """加载采集历史缓存"""
@@ -644,21 +723,21 @@ class AIDataCollector:
         Returns:
             分类的数据字典
         """
-        # 如果使用异步模式，委托给异步采集器
-        if self._use_async and self._async_collector:
-            return self._collect_all_async()
+        # 如果使用异步模式，委托给异步采集
+        if self._use_async and ASYNC_AVAILABLE:
+            return self._collect_all_async_wrapper()
         
         # 同步模式 - 原有实现
         return self._collect_all_sync(parallel, max_workers)
     
-    def _collect_all_async(self) -> Dict[str, List[Dict]]:
-        """使用异步采集器采集所有数据"""
+    def _collect_all_async_wrapper(self) -> Dict[str, List[Dict]]:
+        """异步采集的同步包装器"""
         try:
             # 在新的事件循环中运行异步采集
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                return loop.run_until_complete(self._async_collector.collect_all_async())
+                return loop.run_until_complete(self._collect_all_async())
             finally:
                 loop.close()
         except Exception as e:
@@ -1374,7 +1453,7 @@ class AIDataCollector:
             if isinstance(date_val, str):
                 # 尝试解析字符串日期
                 try:
-                    dt = parser.parse(date_val)
+                    dt = date_parser.parse(date_val)
                     # 比较时间戳以避免时区问题
                     return dt.timestamp() >= cutoff_date.timestamp()
                 except (ValueError, TypeError, AttributeError):
@@ -1528,6 +1607,215 @@ class AIDataCollector:
                 'importance': 0.80
             }
         ]
+    
+    # ============== 异步采集方法 ==============
+    
+    async def _fetch_url_async(self, session: aiohttp.ClientSession, url: str,
+                                semaphore: asyncio.Semaphore) -> Optional[str]:
+        """异步获取URL内容（带重试）"""
+        async with semaphore:
+            for attempt in range(self.async_config.max_retries + 1):
+                try:
+                    self.stats['requests_made'] += 1
+                    await asyncio.sleep(self.async_config.rate_limit_delay)
+                    
+                    timeout = aiohttp.ClientTimeout(total=self.async_config.request_timeout)
+                    async with session.get(url, headers=self.headers, timeout=timeout) as response:
+                        if response.status == 200:
+                            return await response.text()
+                        elif response.status == 429:
+                            wait_time = self.async_config.retry_delay * (2 ** attempt)
+                            await asyncio.sleep(wait_time)
+                        else:
+                            return None
+                except (asyncio.TimeoutError, aiohttp.ClientError):
+                    if attempt < self.async_config.max_retries:
+                        await asyncio.sleep(self.async_config.retry_delay * (attempt + 1))
+                except Exception:
+                    pass
+            
+            self.stats['requests_failed'] += 1
+            return None
+    
+    async def _fetch_json_async(self, session: aiohttp.ClientSession, url: str,
+                                 semaphore: asyncio.Semaphore, params: Optional[Dict] = None) -> Optional[Dict]:
+        """异步获取JSON内容"""
+        async with semaphore:
+            for attempt in range(self.async_config.max_retries + 1):
+                try:
+                    self.stats['requests_made'] += 1
+                    await asyncio.sleep(self.async_config.rate_limit_delay)
+                    
+                    timeout = aiohttp.ClientTimeout(total=self.async_config.request_timeout)
+                    async with session.get(url, headers=self.headers, timeout=timeout, params=params) as response:
+                        if response.status == 200:
+                            return await response.json()
+                        elif response.status == 429:
+                            wait_time = self.async_config.retry_delay * (2 ** attempt)
+                            await asyncio.sleep(wait_time)
+                except (asyncio.TimeoutError, aiohttp.ClientError):
+                    if attempt < self.async_config.max_retries:
+                        await asyncio.sleep(self.async_config.retry_delay * (attempt + 1))
+                except Exception:
+                    pass
+            
+            self.stats['requests_failed'] += 1
+            return None
+    
+    async def _parse_rss_feed_async(self, session: aiohttp.ClientSession,
+                                     feed_url: str, category: str,
+                                     semaphore: asyncio.Semaphore) -> List[Dict]:
+        """异步解析RSS源"""
+        items = []
+        try:
+            content = await self._fetch_url_async(session, feed_url, semaphore)
+            if not content:
+                return items
+            
+            loop = asyncio.get_event_loop()
+            feed = await loop.run_in_executor(None, feedparser.parse, content)
+            
+            for entry in feed.entries[:10]:
+                date_val = entry.get('published_parsed') or entry.get('published')
+                if date_val and not self._is_recent(date_val):
+                    continue
+                
+                item = {
+                    'title': entry.get('title', ''),
+                    'summary': (entry.get('summary', entry.get('description', ''))[:300] + "...") 
+                               if len(entry.get('summary', entry.get('description', ''))) > 300 else 
+                               entry.get('summary', entry.get('description', '')),
+                    'url': entry.get('link', ''),
+                    'published': entry.get('published', ''),
+                    'source': feed.feed.get('title', feed_url)[:50],
+                    'category': category,
+                    'importance': 0.6
+                }
+                
+                if self._is_valid_item(item):
+                    items.append(item)
+        except Exception:
+            pass
+        
+        return items
+    
+    async def _collect_all_async(self) -> Dict[str, List[Dict]]:
+        """
+        异步采集所有类型的数据
+        
+        Returns:
+            分类的数据字典
+        """
+        self.stats['start_time'] = time.time()
+        log.dual_start(t('dc_start_collection'))
+        log.dual_separator("=", 50)
+        log.dual_info("🚀 异步采集模式 (Async Mode)", emoji="")
+        
+        all_data = {
+            'research': [],
+            'developer': [],
+            'product': [],
+            'news': [],
+            'leader': [],
+            'community': []
+        }
+        
+        # 从配置读取采集数量
+        product_count = config.get('collector.product_count', 15)
+        community_count = config.get('collector.community_count', 10)
+        leader_count = config.get('collector.leader_count', 15)
+        research_count = config.get('collector.research_count', 15)
+        developer_count = config.get('collector.developer_count', 20)
+        news_count = config.get('collector.news_count', 25)
+        
+        # 创建信号量控制并发
+        semaphore = asyncio.Semaphore(self.async_config.max_concurrent_requests)
+        
+        # 创建共享的aiohttp会话
+        connector = aiohttp.TCPConnector(
+            limit=self.async_config.max_concurrent_requests,
+            limit_per_host=self.async_config.max_concurrent_per_host
+        )
+        timeout = aiohttp.ClientTimeout(total=self.async_config.total_timeout)
+        
+        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+            # 异步采集各类数据（简化版本，使用RSS采集）
+            news_feeds = RSS_FEEDS['news'] + RSS_FEEDS.get('product_news', [])
+            developer_feeds = RSS_FEEDS['developer']
+            
+            # 并发采集所有RSS源
+            news_tasks = [
+                self._parse_rss_feed_async(session, feed_url, 'news', semaphore)
+                for feed_url in news_feeds
+            ]
+            
+            developer_tasks = [
+                self._parse_rss_feed_async(session, feed_url, 'developer', semaphore)
+                for feed_url in developer_feeds
+            ]
+            
+            # 同时采集
+            all_results = await asyncio.gather(
+                *news_tasks, *developer_tasks,
+                return_exceptions=True
+            )
+            
+            # 收集结果
+            for result in all_results:
+                if isinstance(result, list):
+                    for item in result:
+                        category = item.get('category', 'news')
+                        all_data[category].append(item)
+            
+            # 同步采集研究论文（arxiv库不支持异步）
+            all_data['research'] = self.collect_research_papers(research_count)
+            all_data['product'] = self.collect_product_releases(product_count)
+            all_data['leader'] = self.collect_ai_leaders_quotes(leader_count)
+            all_data['community'] = self.collect_community_trends(community_count)
+        
+        # 统计新旧内容
+        new_stats = {}
+        cached_stats = {}
+        new_items_for_cache = []
+        
+        for cat in all_data:
+            new_count = 0
+            cached_count = 0
+            for item in all_data[cat]:
+                if self._is_in_history(item):
+                    cached_count += 1
+                else:
+                    new_count += 1
+                    new_items_for_cache.append(item)
+            new_stats[cat] = new_count
+            cached_stats[cat] = cached_count
+        
+        # 更新历史缓存
+        for item in new_items_for_cache:
+            self._add_to_history(item)
+        
+        if new_items_for_cache:
+            self._save_history_cache()
+        
+        # 更新统计信息
+        self.stats['end_time'] = time.time()
+        self.stats['items_collected'] = sum(len(items) for items in all_data.values())
+        
+        # 打印统计
+        total_items = self.stats['items_collected']
+        total_new = sum(new_stats.values())
+        total_cached = sum(cached_stats.values())
+        elapsed = self.stats['end_time'] - self.stats['start_time']
+        
+        log.dual_separator("=", 50)
+        log.dual_done(f"采集完成: {total_items} items ({total_new} new, {total_cached} cached)")
+        log.dual_info(f"⏱️ 耗时: {elapsed:.1f}s | 请求: {self.stats['requests_made']} | 失败: {self.stats['requests_failed']}", emoji="")
+        
+        for category, items in all_data.items():
+            new_count = new_stats.get(category, 0)
+            log.dual_data(f"  {category}: {len(items)} ({new_count} new)")
+        
+        return all_data
 
 
 # 用于向后兼容
