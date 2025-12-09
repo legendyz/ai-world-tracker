@@ -1,6 +1,19 @@
 """
 AI世界追踪器 - 数据采集模块
 专注于收集最新AI研究、产品、开发者社区和行业信息
+
+支持两种模式:
+- 同步模式 (ThreadPoolExecutor): 兼容旧代码
+- 异步模式 (asyncio + aiohttp): 高性能采集
+
+使用方式:
+    # 自动选择最优模式
+    collector = DataCollector()
+    data = collector.collect_all()
+    
+    # 强制使用异步模式
+    collector = DataCollector(async_mode=True)
+    data = collector.collect_all()
 """
 
 import requests
@@ -28,6 +41,14 @@ except ImportError:
     def t(key, **kwargs): return key
     def get_language(): return 'zh'
 
+# 尝试导入异步采集器
+try:
+    import asyncio
+    from async_data_collector import AsyncDataCollector, AsyncCollectorConfig
+    ASYNC_AVAILABLE = True
+except ImportError:
+    ASYNC_AVAILABLE = False
+
 # 模块日志器
 log = get_log_helper('data_collector')
 
@@ -48,10 +69,54 @@ def _get_cache_dir():
 DATA_CACHE_DIR = _get_cache_dir()
 
 
-class AIDataCollector:
-    """AI数据采集器 - 收集真实最新的AI信息"""
+def _check_async_mode() -> bool:
+    """检查是否应该使用异步模式"""
+    if not ASYNC_AVAILABLE:
+        return False
     
-    def __init__(self):
+    # 从配置读取
+    try:
+        if os.path.exists('config.yaml'):
+            with open('config.yaml', 'r', encoding='utf-8') as f:
+                cfg = yaml.safe_load(f)
+                return cfg.get('collector', {}).get('async_mode', True)
+    except Exception:
+        pass
+    
+    return True  # 默认使用异步模式
+
+
+class AIDataCollector:
+    """AI数据采集器 - 收集真实最新的AI信息
+    
+    支持两种模式:
+    - 同步模式: 使用ThreadPoolExecutor并行采集
+    - 异步模式: 使用asyncio+aiohttp高性能采集（推荐）
+    
+    Args:
+        async_mode: 是否使用异步模式，None表示自动检测
+    """
+    
+    def __init__(self, async_mode: Optional[bool] = None):
+        # 确定采集模式
+        if async_mode is None:
+            self._use_async = _check_async_mode()
+        else:
+            self._use_async = async_mode and ASYNC_AVAILABLE
+        
+        # 如果使用异步模式，创建异步采集器
+        self._async_collector = None
+        if self._use_async:
+            try:
+                self._async_collector = AsyncDataCollector()
+                log.config("📡 Collector mode: Async (aiohttp)")
+            except Exception as e:
+                log.warning(f"Failed to init async collector: {e}, falling back to sync mode")
+                self._use_async = False
+        
+        if not self._use_async:
+            log.config("📡 Collector mode: Sync (ThreadPool)")
+        
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
@@ -179,7 +244,15 @@ class AIDataCollector:
         self.history_cache = {'urls': set(), 'titles': set(), 'last_updated': ''}
         if os.path.exists(self.history_cache_file):
             os.remove(self.history_cache_file)
+        # 如果有异步采集器，也清除其缓存
+        if self._async_collector:
+            self._async_collector.clear_history_cache()
         log.success(t('dc_cache_cleared'))
+    
+    @property
+    def is_async_mode(self) -> bool:
+        """检查是否使用异步模式"""
+        return self._use_async and self._async_collector is not None
     
     def collect_research_papers(self, max_results: int = 10) -> List[Dict]:
         """
@@ -563,6 +636,38 @@ class AIDataCollector:
     def collect_all(self, parallel: bool = True, max_workers: int = 6) -> Dict[str, List[Dict]]:
         """
         采集所有类型的数据
+        
+        Args:
+            parallel: 是否启用并行采集（同步模式参数）
+            max_workers: 并行采集的最大线程数（同步模式参数）
+        
+        Returns:
+            分类的数据字典
+        """
+        # 如果使用异步模式，委托给异步采集器
+        if self._use_async and self._async_collector:
+            return self._collect_all_async()
+        
+        # 同步模式 - 原有实现
+        return self._collect_all_sync(parallel, max_workers)
+    
+    def _collect_all_async(self) -> Dict[str, List[Dict]]:
+        """使用异步采集器采集所有数据"""
+        try:
+            # 在新的事件循环中运行异步采集
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(self._async_collector.collect_all_async())
+            finally:
+                loop.close()
+        except Exception as e:
+            log.error(f"Async collection failed: {e}, falling back to sync mode")
+            return self._collect_all_sync(True, 6)
+    
+    def _collect_all_sync(self, parallel: bool = True, max_workers: int = 6) -> Dict[str, List[Dict]]:
+        """
+        同步采集所有类型的数据（原有实现）
         
         Args:
             parallel: 是否启用并行采集（默认启用）

@@ -3,9 +3,24 @@
 collector:
   product_count: 15
   community_count: 10
+  leader_count: 15
+  research_count: 15
+  developer_count: 20
+  news_count: 25
   max_total: 100
-  parallel_enabled: true    # 是否启用并行采集
-  parallel_workers: 6       # 并行采集的最大线程数
+  parallel_enabled: true    # 是否启用并行采集（同步模式）
+  parallel_workers: 6       # 并行采集的最大线程数（同步模式）
+  async_mode: true          # 是否使用异步模式（推荐开启，性能更好）
+
+# 异步采集器配置
+async_collector:
+  max_concurrent_requests: 20    # 最大并发请求数
+  max_concurrent_per_host: 3     # 每个主机最大并发数
+  request_timeout: 15            # 单个请求超时（秒）
+  total_timeout: 120             # 总采集超时（秒）
+  max_retries: 2                 # 最大重试次数
+  retry_delay: 1.0               # 重试延迟（秒）
+  rate_limit_delay: 0.2          # 请求间隔（秒）
 
 classification:
   mode: llm   # 可选: llm, rule
