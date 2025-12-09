@@ -52,28 +52,33 @@ class ContentClassifier:
             '官方', '官网', '新闻稿', '公告'
         }
         
-        # 研究类关键词（带权重）- 2025年更新版
+        # 研究类关键词（带权重）- 2025年更新版（严格版）
+        # 注意：研究类必须包含强研究指标才能被分类为研究
         self.research_keywords = {
-            # 高权重（3分）- 强研究指标
-            'arxiv': 3, 'conference': 3, 'journal': 3, 'paper': 3, 'publication': 3,
-            'peer-reviewed': 3, 'proceedings': 3, 'academic': 3, 'neurips': 3, 'icml': 3,
-            'iclr': 3, 'cvpr': 3, 'acl': 3, 'emnlp': 3, 'aaai': 3,
-            '论文': 3, '学术': 3, '期刊': 3, '会议': 3,
+            # 高权重（4分）- 强研究指标（必须出现其中之一才能归类为研究）
+            'arxiv': 4, 'paper': 4, 'publication': 4, 'peer-reviewed': 4,
+            'neurips': 4, 'icml': 4, 'iclr': 4, 'cvpr': 4, 'acl': 4, 'emnlp': 4, 'aaai': 4,
+            'sigir': 4, 'kdd': 4, 'naacl': 4, 'coling': 4,
+            '论文': 4, '学术': 4,
             
-            # 中权重（2分）- 研究相关 + 2024-2025新研究方向
-            'research': 2, 'study': 2, 'experiment': 2, 'methodology': 2,
-            'findings': 2, 'analysis': 2, 'survey': 2, 'benchmark': 2,
-            'state-of-the-art': 2, 'sota': 2, 'baseline': 2, 'ablation': 2,
-            'reasoning': 2, 'chain-of-thought': 2, 'cot': 2, 'in-context learning': 2,
-            'multimodal': 2, 'moe': 2, 'mixture of experts': 2, 'sparse': 2,
-            'distillation': 2, 'quantization': 2, 'pruning': 2, 'efficient': 2,
-            'scaling law': 2, 'emergent': 2, 'alignment': 2, 'rlhf': 2, 'dpo': 2,
-            '研究': 2, '实验': 2, '分析': 2, '基准': 2, '消融': 2,
+            # 中权重（2分）- 研究辅助词（仅在有强指标时才有意义）
+            'conference': 2, 'journal': 2, 'proceedings': 2, 'academic': 2,
+            'methodology': 2, 'ablation': 2, 'baseline': 2,
+            'state-of-the-art': 2, 'sota': 2,
+            '期刊': 2, '会议': 2, '消融': 2,
             
-            # 低权重（1分）- 技术术语
-            'algorithm': 1, 'model': 1, 'neural network': 1, 'deep learning': 1, 
-            'machine learning': 1, 'architecture': 1, 'attention': 1, 'transformer': 1,
-            '算法': 1, '模型': 1, '神经网络': 1, '学习': 1
+            # 低权重（1分）- 论文特征词
+            'we propose': 1, 'we present': 1, 'our method': 1, 'our approach': 1,
+            'experiments show': 1, 'results demonstrate': 1,
+            '本文提出': 1, '实验表明': 1
+        }
+        
+        # 研究类强指标（必须包含其中之一才能归类为研究）
+        self.research_strong_indicators = {
+            'arxiv', 'paper', 'publication', 'peer-reviewed',
+            'neurips', 'icml', 'iclr', 'cvpr', 'acl', 'emnlp', 'aaai',
+            'sigir', 'kdd', 'naacl', 'coling',
+            '论文', '学术'
         }
         
         # 开发者类关键词（带权重）
@@ -119,7 +124,9 @@ class ContentClassifier:
             'official': 1, 'commercial': 1, 'enterprise': 1, 'product': 1,
             'platform': 1, 'service': 1, 'solution': 1, 'beta': 1, 'preview': 1,
             'pro': 1, 'plus': 1, 'premium': 1, 'subscription': 1,
-            '官方': 1, '商业': 1, '企业': 1, '产品': 1, '平台': 1, '服务': 1, '公测': 1, '订阅': 1
+            'model': 1, 'api': 1, 'app': 1, 'tool': 1, 'assistant': 1,
+            '官方': 1, '商业': 1, '企业': 1, '产品': 1, '平台': 1, '服务': 1, '公测': 1, '订阅': 1,
+            '模型': 1, '助手': 1, '工具': 1, '应用': 1
         }
         
         # 市场类关键词（带权重）- 2025年更新版
@@ -143,7 +150,10 @@ class ContentClassifier:
             # 低权重（1分）- 商业术语
             'funding': 1, 'partnership': 1, 'collaboration': 1, 'deal': 1,
             'contract': 1, 'profit': 1, 'loss': 1, 'growth': 1,
-            '合作': 1, '伙伴': 1, '交易': 1, '合同': 1, '营收': 1, '增长': 1
+            'strategy': 1, 'compete': 1, 'competition': 1, 'rival': 1,
+            'ceo': 1, 'executive': 1, 'hire': 1, 'hiring': 1,
+            '合作': 1, '伙伴': 1, '交易': 1, '合同': 1, '营收': 1, '增长': 1,
+            '战略': 1, '竞争': 1, '对手': 1, '招聘': 1
         }
         
         # 领袖言论关键词（带权重）
@@ -273,6 +283,14 @@ class ContentClassifier:
             '机器之心': {'research': 0.35, 'product': 0.30, 'developer': 0.15, 'market': 0.10, 'leader': 0.10},
             '量子位': {'product': 0.35, 'research': 0.30, 'market': 0.15, 'developer': 0.10, 'leader': 0.10},
             'it之家': {'product': 0.50, 'market': 0.25, 'developer': 0.10, 'research': 0.05, 'leader': 0.10},
+            
+            # RSS通用源 - 偏向产品和市场
+            'rss': {'product': 0.35, 'market': 0.30, 'developer': 0.15, 'research': 0.10, 'leader': 0.10},
+            'feed': {'product': 0.35, 'market': 0.30, 'developer': 0.15, 'research': 0.10, 'leader': 0.10},
+            'news': {'product': 0.30, 'market': 0.35, 'leader': 0.15, 'developer': 0.10, 'research': 0.10},
+            
+            # 默认先验（用于未匹配的来源）
+            '_default': {'product': 0.30, 'market': 0.25, 'developer': 0.20, 'research': 0.15, 'leader': 0.10},
         }
         
         # 编译正则表达式（提高性能）
@@ -295,10 +313,9 @@ class ContentClassifier:
         Returns:
             (主分类, 置信度分数 0-1, 次要标签列表)
         """
-        # 如果采集时已经指定了类型，直接使用（高置信度）
-        category = item.get('category')
-        if category in ['research', 'developer', 'product', 'market', 'leader', 'community']:
-            return str(category), 1.0, []
+        # 注意：已移除对采集器 category 字段的直接采纳
+        # 所有数据统一通过关键词评分和来源先验规则进行分类
+        # 这确保了分类结果的一致性和可解释性
 
         # ============ 分离标题和内容 ============
         title = item.get('title', '').lower()
@@ -320,14 +337,23 @@ class ContentClassifier:
             secondary = self._get_secondary_labels(full_text, exclude='research')
             return 'research', 0.95, secondary
         
-        # 产品类严格规则：必须同时包含公司名称和产品发布关键词
+        # 产品类规则：公司名称或知名产品名称
         company_indicators = ['google', 'microsoft', 'openai', 'anthropic', 'meta', 'apple', 'amazon', 
-                             'baidu', 'alibaba', 'tencent', 'bytedance', 'huawei', 'xiaomi',
-                             '百度', '阿里', '腾讯', '字节', '华为', '小米',
+                             'baidu', 'alibaba', 'tencent', 'bytedance', 'huawei', 'xiaomi', 'nvidia',
+                             'xai', 'x.ai', 'elon musk', 'sam altman', 'sundar pichai',
+                             '百度', '阿里', '腾讯', '字节', '华为', '小米', '英伟达',
                              'deepseek', 'mistral', 'cohere', 'stability', 'midjourney', 'runway',
                              '智谱', '月之暗面', '零一万物', '百川', '科大讯飞']
         
+        # 知名产品名称（直接触发产品类加成）
+        product_names = ['chatgpt', 'gpt-4', 'gpt-5', 'gpt4', 'gpt5', 'o1', 'o3',
+                        'claude', 'gemini', 'copilot', 'cursor', 'sora', 'midjourney',
+                        'llama', 'mistral', 'qwen', 'deepseek', 'kimi', 'doubao',
+                        'grok', 'perplexity', 'poe', 'character.ai', 'pi',
+                        '文心', '通义', '豆包', '星火', 'spark']
+        
         has_company = any(company in full_text or company in source for company in company_indicators)
+        has_product_name = any(product in full_text for product in product_names)
         
         # ============ 新增：标题/内容分离加权评分 ============
         all_keywords = {
@@ -355,11 +381,23 @@ class ContentClassifier:
         # ============ 新增：来源先验概率加成 ============
         scores = self._apply_source_prior(scores, source)
         
-        # 产品类加成规则（保持原有逻辑）
-        if has_company and scores['product'] > 0:
+        # 产品类加成规则（优化版：公司名或产品名都能触发加成）
+        if (has_company or has_product_name) and scores['product'] > 0:
             scores['product'] *= 2.5
         elif scores['product'] > 0:
-            scores['product'] *= 1.3
+            scores['product'] *= 1.5  # 提高基础加成
+        
+        # ============ 研究类严格限制 ============
+        # 必须包含强研究指标才能归类为研究
+        has_research_indicator = any(ind in full_text for ind in self.research_strong_indicators)
+        
+        if not has_research_indicator:
+            # 没有强研究指标，大幅降低研究类分数
+            scores['research'] *= 0.3
+        
+        # 如果同时包含产品名或公司名，进一步降低研究类分数（可能是产品新闻）
+        if (has_company or has_product_name) and not has_research_indicator:
+            scores['research'] *= 0.5
         
         # 否定词影响（改进版：根据否定强度调整）
         if negative_score > 0:
@@ -376,6 +414,27 @@ class ContentClassifier:
         
         # 获取主分类和次要标签
         max_category = max(scores.items(), key=lambda x: x[1])
+        
+        # 如果所有分数都为 0，根据来源先验选择默认分类
+        if max_category[1] == 0:
+            # 检查是否有产品名或公司名
+            if has_company or has_product_name:
+                return 'product', 0.3, []
+            # 否则按来源先验选择最可能的分类
+            # 获取来源先验
+            default_prior = self.source_priors.get('_default', {})
+            for source_key, priors in self.source_priors.items():
+                if source_key.startswith('_'):
+                    continue
+                if source_key in source:
+                    default_prior = priors
+                    break
+            if default_prior:
+                default_cat = max(default_prior.items(), key=lambda x: x[1])[0]
+                return default_cat, 0.2, []
+            # 最后默认返回产品类（新闻类内容最可能是产品新闻）
+            return 'product', 0.15, []
+        
         confidence = self._calculate_confidence(scores, max_category[0])
         secondary_labels = self._get_secondary_labels_from_scores(scores, max_category[0])
         
@@ -414,9 +473,15 @@ class ContentClassifier:
         # 查找匹配的来源
         matched_prior = None
         for source_key, priors in self.source_priors.items():
+            if source_key.startswith('_'):  # 跳过特殊键如 _default
+                continue
             if source_key in source:
                 matched_prior = priors
                 break
+        
+        # 如果没有匹配到任何来源，使用默认先验
+        if not matched_prior:
+            matched_prior = self.source_priors.get('_default')
         
         if matched_prior:
             # 应用先验概率加成（先验概率 * 权重系数）
@@ -425,6 +490,12 @@ class ContentClassifier:
                     # 高先验概率的分类获得更多加成
                     boost = 1 + (prior * 0.5)  # 最高加成 50%
                     scores[cat] *= boost
+            
+            # 特殊处理：非研究类来源惩罚研究分数
+            research_prior = matched_prior.get('research', 0.15)
+            if research_prior < 0.2 and 'research' in scores:
+                # 该来源的研究先验概率很低，额外惩罚
+                scores['research'] *= 0.7
         
         return scores
     

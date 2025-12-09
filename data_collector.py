@@ -32,7 +32,7 @@ import difflib
 import hashlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urljoin, urlparse
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 from config import config
 from logger import get_log_helper
 
@@ -367,8 +367,7 @@ class AIDataCollector:
                     'url': result.entry_id,
                     'published': result.published.strftime('%Y-%m-%d'),
                     'categories': [str(cat) for cat in result.categories],
-                    'source': 'arXiv',
-                    'category': 'research'
+                    'source': 'arXiv'
                 }
                 papers.append(paper)
                 
@@ -518,7 +517,6 @@ class AIDataCollector:
                             'url': entry.link,
                             'published': entry.get('published', datetime.now().strftime('%Y-%m-%d')),
                             'source': f"News about {leader_name}",
-                            'category': 'leader',
                             'author': leader_name,
                             'author_title': title
                         }
@@ -562,7 +560,6 @@ class AIDataCollector:
                         'url': entry.link,
                         'published': entry.get('published', datetime.now().strftime('%Y-%m-%d')),
                         'source': 'Personal Blog/Podcast',
-                        'category': 'leader',
                         'author': source['author'],
                         'author_title': source['title']
                     }
@@ -882,8 +879,7 @@ class AIDataCollector:
                         'stars': repo['stargazers_count'],
                         'language': repo['language'],
                         'updated': repo['updated_at'][:10],
-                        'source': 'GitHub',
-                        'category': 'developer'
+                        'source': 'GitHub'
                     }
                     projects.append(project)
             
@@ -922,8 +918,7 @@ class AIDataCollector:
                         'url': f"https://huggingface.co/{model['id']}",
                         'downloads': model.get('downloads', 0),
                         'updated': model.get('lastModified', '')[:10],
-                        'source': 'Hugging Face',
-                        'category': 'developer'
+                        'source': 'Hugging Face'
                     }
                     updates.append(update)
         
@@ -972,8 +967,7 @@ class AIDataCollector:
                 'url': 'https://openai.com/index/hello-gpt-4o/',
                 'company': 'OpenAI',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'OpenAI',
-                'category': 'product'
+                'source': 'OpenAI'
 },
             {
                 'title': 'OpenAI API 定价更新公告',
@@ -981,8 +975,7 @@ class AIDataCollector:
                 'url': 'https://openai.com/api/pricing/',
                 'company': 'OpenAI',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'OpenAI',
-                'category': 'product'
+                'source': 'OpenAI'
 }
         ]
     
@@ -1007,8 +1000,7 @@ class AIDataCollector:
                 'url': 'https://gemini.google.com/',
                 'company': 'Google',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Google AI',
-                'category': 'product'
+                'source': 'Google AI'
 },
             {
                 'title': 'Google AI Studio 产品发布',
@@ -1016,8 +1008,7 @@ class AIDataCollector:
                 'url': 'https://aistudio.google.com/',
                 'company': 'Google',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Google AI',
-                'category': 'product'
+                'source': 'Google AI'
 }
         ]
     
@@ -1042,8 +1033,7 @@ class AIDataCollector:
                 'url': 'https://copilot.microsoft.com/',
                 'company': 'Microsoft',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Microsoft',
-                'category': 'product'
+                'source': 'Microsoft'
 },
             {
                 'title': 'Azure AI Services 产品介绍',
@@ -1051,8 +1041,7 @@ class AIDataCollector:
                 'url': 'https://azure.microsoft.com/en-us/products/ai-services',
                 'company': 'Microsoft',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Microsoft Azure',
-                'category': 'product'
+                'source': 'Microsoft Azure'
 }
         ]
     
@@ -1077,8 +1066,7 @@ class AIDataCollector:
                 'url': 'https://llama.meta.com/',
                 'company': 'Meta',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Meta AI',
-                'category': 'product'
+                'source': 'Meta AI'
 },
             {
                 'title': 'Meta AI Assistant 产品介绍',
@@ -1086,8 +1074,7 @@ class AIDataCollector:
                 'url': 'https://www.meta.ai/',
                 'company': 'Meta',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Meta AI',
-                'category': 'product'
+                'source': 'Meta AI'
 }
         ]
     
@@ -1112,8 +1099,7 @@ class AIDataCollector:
                 'url': 'https://www.anthropic.com/claude',
                 'company': 'Anthropic',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Anthropic',
-                'category': 'product'
+                'source': 'Anthropic'
 },
             {
                 'title': 'Anthropic Claude API 文档',
@@ -1121,8 +1107,7 @@ class AIDataCollector:
                 'url': 'https://docs.anthropic.com/',
                 'company': 'Anthropic',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Anthropic',
-                'category': 'product'
+                'source': 'Anthropic'
 }
         ]
     
@@ -1162,8 +1147,7 @@ class AIDataCollector:
                 'url': 'https://yiyan.baidu.com/',
                 'company': 'Baidu',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Baidu AI',
-                'category': 'product'
+                'source': 'Baidu AI'
 },
             {
                 'title': '阿里通义千问 2.5 发布',
@@ -1171,8 +1155,7 @@ class AIDataCollector:
                 'url': 'https://tongyi.aliyun.com/',
                 'company': 'Alibaba',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Aliyun',
-                'category': 'product'
+                'source': 'Aliyun'
 },
              {
                 'title': '腾讯混元大模型升级',
@@ -1180,8 +1163,7 @@ class AIDataCollector:
                 'url': 'https://hunyuan.tencent.com/',
                 'company': 'Tencent',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Tencent Cloud',
-                'category': 'product'
+                'source': 'Tencent Cloud'
 },
             {
                 'title': 'DeepSeek V2 开源发布',
@@ -1189,8 +1171,7 @@ class AIDataCollector:
                 'url': 'https://www.deepseek.com/',
                 'company': 'DeepSeek',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'DeepSeek',
-                'category': 'product'
+                'source': 'DeepSeek'
 }
         ]
     
@@ -1287,8 +1268,6 @@ class AIDataCollector:
                     'url': story.get('url') or f"https://news.ycombinator.com/item?id={story.get('id')}",
                     'published': pub_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'source': 'Hacker News',
-                    'category': 'community'
-,
                     # HN 特有的元数据
                     'hn_id': story.get('id'),
                     'score': story.get('score', 0),
@@ -1331,8 +1310,7 @@ class AIDataCollector:
                     'summary': clean_summary,
                     'url': entry.get('link', ''),
                     'published': entry.get('published', ''),
-                    'source': feed.feed.get('title', feed_url),
-                    'category': category
+                    'source': feed.feed.get('title', feed_url)
 }
                 
                 if self._is_valid_item(item):
@@ -1413,7 +1391,10 @@ class AIDataCollector:
         
         try:
             # 使用 BeautifulSoup 清理 HTML 标签
-            soup = BeautifulSoup(text, 'html.parser')
+            # 注意：使用 features 参数并将 text 包装确保 BS4 不会误判为文件名
+            from warnings import filterwarnings
+            filterwarnings('ignore', category=MarkupResemblesLocatorWarning)
+            soup = BeautifulSoup(text, features='html.parser')
             clean_text = soup.get_text(separator=' ', strip=True)
             
             # 清理多余空白
@@ -1477,7 +1458,6 @@ class AIDataCollector:
                 'url': 'https://openai.com/blog',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Interview',
-                'category': 'leader',
                 'author': 'Sam Altman',
                 'author_title': 'OpenAI CEO'
 },
@@ -1487,7 +1467,6 @@ class AIDataCollector:
                 'url': 'https://x.ai',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'X (Twitter)',
-                'category': 'leader',
                 'author': 'Elon Musk',
                 'author_title': 'xAI Founder'
 },
@@ -1497,7 +1476,6 @@ class AIDataCollector:
                 'url': 'https://nvidianews.nvidia.com/',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Keynote',
-                'category': 'leader',
                 'author': 'Jensen Huang',
                 'author_title': 'NVIDIA CEO'
 },
@@ -1507,7 +1485,6 @@ class AIDataCollector:
                 'url': 'https://ai.meta.com/blog/',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Interview',
-                'category': 'leader',
                 'author': 'Yann LeCun',
                 'author_title': 'Meta Chief AI Scientist'
 },
@@ -1517,7 +1494,6 @@ class AIDataCollector:
                 'url': 'https://www.01.ai/',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Speech',
-                'category': 'leader',
                 'author': 'Kai-Fu Lee',
                 'author_title': '01.AI CEO'
 }
@@ -1533,8 +1509,7 @@ class AIDataCollector:
                 'url': 'https://arxiv.org/abs/1706.03762',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'categories': ['cs.CL', 'cs.AI'],
-                'source': 'arXiv',
-                'category': 'research'
+                'source': 'arXiv'
 }
         ]
     
@@ -1548,8 +1523,7 @@ class AIDataCollector:
                 'stars': 132000,
                 'language': 'Python',
                 'updated': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'GitHub',
-                'category': 'developer'
+                'source': 'GitHub'
 }
         ]
     
@@ -1562,8 +1536,7 @@ class AIDataCollector:
                 'url': 'https://huggingface.co/microsoft/DialoGPT-medium',
                 'downloads': 1500000,
                 'updated': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Hugging Face',
-                'category': 'developer'
+                'source': 'Hugging Face'
 }
         ]
     
@@ -1575,8 +1548,7 @@ class AIDataCollector:
                 'summary': 'GitHub Copilot推出新功能，支持更多编程语言和更智能的代码建议，提升开发效率。',
                 'url': 'https://github.blog',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'GitHub Blog',
-                'category': 'developer'
+                'source': 'GitHub Blog'
 }
         ]
     
@@ -1678,7 +1650,7 @@ class AIDataCollector:
                     'url': entry.get('link', ''),
                     'published': entry.get('published', ''),
                     'source': feed.feed.get('title', feed_url)[:50],
-                    'category': category
+                    '_source_type': category  # 内部分组用，不用于分类
 }
                 
                 if self._is_valid_item(item):
@@ -1691,7 +1663,11 @@ class AIDataCollector:
     async def _collect_research_papers_async(self, max_results: int = 10) -> List[Dict]:
         """异步采集研究论文 (arxiv库不支持异步，使用executor)"""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self.collect_research_papers, max_results)
+        papers = await loop.run_in_executor(None, self.collect_research_papers, max_results)
+        # 添加 _source_type 用于内部分组
+        for paper in papers:
+            paper['_source_type'] = 'research'
+        return papers
     
     async def _collect_github_trending_async(self, session: aiohttp.ClientSession, 
                                             semaphore: asyncio.Semaphore,
@@ -1736,7 +1712,7 @@ class AIDataCollector:
                         'updated': repo['updated_at'][:10],
                         'published': repo['updated_at'][:10],
                         'source': 'GitHub',
-                        'category': 'developer'
+                        '_source_type': 'developer'  # 内部分组用
                     }
                     projects.append(project)
         except Exception as e:
@@ -1778,7 +1754,7 @@ class AIDataCollector:
                         'updated': model.get('lastModified', '')[:10],
                         'published': model.get('lastModified', '')[:10],
                         'source': 'Hugging Face',
-                        'category': 'developer'
+                        '_source_type': 'developer'  # 内部分组用
                     }
                     updates.append(update)
         except Exception as e:
@@ -1840,8 +1816,8 @@ class AIDataCollector:
                             'url': story_url,
                             'published': published_str,
                             'source': 'Hacker News',
-                            'category': 'community',
-                            'score': story.get('score', 0)
+                            'score': story.get('score', 0),
+                            '_source_type': 'community'  # 内部分组用
                         }
                         items.append(item)
                         
@@ -1922,7 +1898,10 @@ class AIDataCollector:
         
         # 如果数量不足，添加备用数据
         if len(quotes) < 5:
-            quotes.extend(self._get_backup_leaders_data())
+            backup_data = self._get_backup_leaders_data()
+            for item in backup_data:
+                item['_source_type'] = 'leader'  # 为备用数据添加分组标记
+            quotes.extend(backup_data)
         
         # 去重
         quotes = self._deduplicate_items(quotes)
@@ -2035,9 +2014,10 @@ class AIDataCollector:
             for result in all_results:
                 if isinstance(result, list):
                     for item in result:
-                        category = item.get('category', 'news')
-                        if category in all_data:
-                            all_data[category].append(item)
+                        # 使用 _source_type 进行内部分组（不是分类标签）
+                        source_type = item.pop('_source_type', 'news')  # 移除并获取，默认为 news
+                        if source_type in all_data:
+                            all_data[source_type].append(item)
                 elif isinstance(result, Exception):
                     log.warning(f"Task failed: {result}")
         
