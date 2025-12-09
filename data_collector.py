@@ -70,7 +70,6 @@ def _get_cache_dir():
 
 DATA_CACHE_DIR = _get_cache_dir()
 
-
 # ============== 异步采集器配置 ==============
 
 @dataclass
@@ -94,7 +93,6 @@ class AsyncCollectorConfig:
     # 数据目录
     cache_dir: str = 'data/cache'
 
-
 def _load_async_config() -> AsyncCollectorConfig:
     """从 config.yaml 加载异步采集配置"""
     cfg = AsyncCollectorConfig()
@@ -116,7 +114,6 @@ def _load_async_config() -> AsyncCollectorConfig:
     os.makedirs(cfg.cache_dir, exist_ok=True)
     return cfg
 
-
 def _check_async_mode() -> bool:
     """检查是否应该使用异步模式"""
     if not ASYNC_AVAILABLE:
@@ -132,7 +129,6 @@ def _check_async_mode() -> bool:
         pass
     
     return True  # 默认使用异步模式
-
 
 # ============== AI相关常量定义 ==============
 
@@ -207,7 +203,6 @@ RSS_FEEDS = {
         {'url': 'https://lexfridman.com/feed/podcast/', 'author': 'Lex Fridman', 'title': 'Podcast Host', 'type': 'podcast'},
     ]
 }
-
 
 class AIDataCollector:
     """AI数据采集器 - 收集真实最新的AI信息
@@ -370,8 +365,7 @@ class AIDataCollector:
                     'published': result.published.strftime('%Y-%m-%d'),
                     'categories': [str(cat) for cat in result.categories],
                     'source': 'arXiv',
-                    'category': 'research',
-                    'importance': self._calculate_importance(result.title, result.summary)
+                    'category': 'research'
                 }
                 papers.append(paper)
                 
@@ -445,8 +439,7 @@ class AIDataCollector:
             except Exception as e:
                 log.warning(t('dc_product_failed', company=company, error=str(e)))
         
-        # 按重要性排序并限制数量
-        products.sort(key=lambda x: x.get('importance', 0), reverse=True)
+        # 按发布时间排序并限制数量
         products = products[:max_results]
         
         log.dual_success(t('dc_got_products', count=len(products)))
@@ -520,8 +513,7 @@ class AIDataCollector:
                             'source': f"News about {leader_name}",
                             'category': 'leader',
                             'author': leader_name,
-                            'author_title': title,
-                            'importance': 0.95
+                            'author_title': title
                         }
                         quotes.append(quote)
                         count += 1
@@ -565,8 +557,7 @@ class AIDataCollector:
                         'source': 'Personal Blog/Podcast',
                         'category': 'leader',
                         'author': source['author'],
-                        'author_title': source['title'],
-                        'importance': 1.0 # 个人博客内容权重最高
+                        'author_title': source['title']
                     }
                     quotes.append(quote)
             except Exception as e:
@@ -659,14 +650,7 @@ class AIDataCollector:
         try:
             hn_items = self._fetch_hacker_news_api(max_items=10)
             for item in hn_items:
-                # 根据 score 调整重要性
-                score = item.get('score', 0)
-                if score > 100:
-                    item['importance'] = 0.85
-                elif score > 50:
-                    item['importance'] = 0.75
-                else:
-                    item['importance'] = 0.65
+                # 保留 score 信息供评估器使用
                 trends.append(item)
         except Exception as e:
             log.dual_warning(t('dc_hn_api_failed', error=str(e)))
@@ -894,8 +878,7 @@ class AIDataCollector:
                         'language': repo['language'],
                         'updated': repo['updated_at'][:10],
                         'source': 'GitHub',
-                        'category': 'developer',
-                        'importance': min(repo['stargazers_count'] / 1000, 1.0)
+                        'category': 'developer'
                     }
                     projects.append(project)
             
@@ -935,8 +918,7 @@ class AIDataCollector:
                         'downloads': model.get('downloads', 0),
                         'updated': model.get('lastModified', '')[:10],
                         'source': 'Hugging Face',
-                        'category': 'developer',
-                        'importance': min(model.get('downloads', 0) / 10000, 1.0)
+                        'category': 'developer'
                     }
                     updates.append(update)
         
@@ -987,9 +969,8 @@ class AIDataCollector:
                 'company': 'OpenAI',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'OpenAI',
-                'category': 'product',
-                'importance': 0.95
-            },
+                'category': 'product'
+},
             {
                 'title': 'OpenAI API 定价更新公告',
                 'summary': 'OpenAI更新API定价策略，降低GPT-4使用成本，同时推出更经济的GPT-4 Turbo选项，为开发者提供更灵活的选择。',
@@ -997,9 +978,8 @@ class AIDataCollector:
                 'company': 'OpenAI',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'OpenAI',
-                'category': 'product',
-                'importance': 0.88
-            }
+                'category': 'product'
+}
         ]
     
     def _collect_google_ai_updates(self) -> List[Dict]:
@@ -1025,9 +1005,8 @@ class AIDataCollector:
                 'company': 'Google',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Google AI',
-                'category': 'product',
-                'importance': 0.92
-            },
+                'category': 'product'
+},
             {
                 'title': 'Google AI Studio 产品发布',
                 'summary': 'Google AI Studio为开发者提供快速原型设计和测试生成式AI想法的平台，支持Gemini模型的快速集成和部署。',
@@ -1035,9 +1014,8 @@ class AIDataCollector:
                 'company': 'Google',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Google AI',
-                'category': 'product',
-                'importance': 0.85
-            }
+                'category': 'product'
+}
         ]
     
     def _collect_microsoft_ai_updates(self) -> List[Dict]:
@@ -1063,9 +1041,8 @@ class AIDataCollector:
                 'company': 'Microsoft',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Microsoft',
-                'category': 'product',
-                'importance': 0.90
-            },
+                'category': 'product'
+},
             {
                 'title': 'Azure AI Services 产品介绍',
                 'summary': 'Azure AI Services提供完整的AI和机器学习服务套件，包括认知服务、机器学习平台和OpenAI服务，为企业AI转型提供支持。',
@@ -1073,9 +1050,8 @@ class AIDataCollector:
                 'company': 'Microsoft',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Microsoft Azure',
-                'category': 'product',
-                'importance': 0.88
-            }
+                'category': 'product'
+}
         ]
     
     def _collect_meta_ai_updates(self) -> List[Dict]:
@@ -1101,9 +1077,8 @@ class AIDataCollector:
                 'company': 'Meta',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Meta AI',
-                'category': 'product',
-                'importance': 0.90
-            },
+                'category': 'product'
+},
             {
                 'title': 'Meta AI Assistant 产品介绍',
                 'summary': 'Meta AI是智能助手产品，集成到Facebook、Instagram、WhatsApp等平台，为用户提供AI驱动的对话、创作和搜索体验。',
@@ -1111,9 +1086,8 @@ class AIDataCollector:
                 'company': 'Meta',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Meta AI',
-                'category': 'product',
-                'importance': 0.85
-            }
+                'category': 'product'
+}
         ]
     
     def _collect_anthropic_updates(self) -> List[Dict]:
@@ -1139,9 +1113,8 @@ class AIDataCollector:
                 'company': 'Anthropic',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Anthropic',
-                'category': 'product',
-                'importance': 0.88
-            },
+                'category': 'product'
+},
             {
                 'title': 'Anthropic Claude API 文档',
                 'summary': 'Anthropic提供Claude API服务，为开发者提供高质量的对话AI能力，支持多种使用场景，包括内容创作、分析和编程辅助等。',
@@ -1149,9 +1122,8 @@ class AIDataCollector:
                 'company': 'Anthropic',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Anthropic',
-                'category': 'product',
-                'importance': 0.82
-            }
+                'category': 'product'
+}
         ]
     
     def _collect_chinese_ai_updates(self) -> List[Dict]:
@@ -1192,9 +1164,8 @@ class AIDataCollector:
                 'company': 'Baidu',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Baidu AI',
-                'category': 'product',
-                'importance': 0.92
-            },
+                'category': 'product'
+},
             {
                 'title': '阿里通义千问 2.5 发布',
                 'summary': '阿里云发布通义千问2.5，模型性能全面升级，在中文语境下表现优异，开源多款尺寸模型供开发者使用。',
@@ -1202,9 +1173,8 @@ class AIDataCollector:
                 'company': 'Alibaba',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Aliyun',
-                'category': 'product',
-                'importance': 0.90
-            },
+                'category': 'product'
+},
              {
                 'title': '腾讯混元大模型升级',
                 'summary': '腾讯混元大模型迎来重要升级，扩展了上下文窗口，增强了代码生成和数学推理能力，已接入腾讯全系产品。',
@@ -1212,9 +1182,8 @@ class AIDataCollector:
                 'company': 'Tencent',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Tencent Cloud',
-                'category': 'product',
-                'importance': 0.88
-            },
+                'category': 'product'
+},
             {
                 'title': 'DeepSeek V2 开源发布',
                 'summary': '深度求索(DeepSeek)发布DeepSeek-V2，这是一款强大的开源MoE大语言模型，在多项基准测试中表现优异，且推理成本极低。',
@@ -1222,9 +1191,8 @@ class AIDataCollector:
                 'company': 'DeepSeek',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'DeepSeek',
-                'category': 'product',
-                'importance': 0.95
-            }
+                'category': 'product'
+}
         ]
     
     def _fetch_hacker_news_api(self, max_items: int = 15, search_terms: List[str] = None) -> List[Dict]:
@@ -1322,8 +1290,8 @@ class AIDataCollector:
                     'url': story.get('url') or f"https://news.ycombinator.com/item?id={story.get('id')}",
                     'published': pub_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'source': 'Hacker News',
-                    'category': 'community',
-                    'importance': 0.7,
+                    'category': 'community'
+,
                     # HN 特有的元数据
                     'hn_id': story.get('id'),
                     'score': story.get('score', 0),
@@ -1363,9 +1331,8 @@ class AIDataCollector:
                     'url': entry.get('link', ''),
                     'published': entry.get('published', ''),
                     'source': feed.feed.get('title', feed_url),
-                    'category': category,
-                    'importance': 0.6
-                }
+                    'category': category
+}
                 
                 if self._is_valid_item(item):
                     items.append(item)
@@ -1384,10 +1351,8 @@ class AIDataCollector:
             return []
             
         unique_items = []
-        # 按重要性排序，保留重要的
-        sorted_items = sorted(items, key=lambda x: x.get('importance', 0), reverse=True)
         
-        for item in sorted_items:
+        for item in items:
             is_duplicate = False
             for existing in unique_items:
                 # 计算标题相似度
@@ -1470,22 +1435,6 @@ class AIDataCollector:
             return True # 无法解析时默认保留
         except Exception:
             return True
-
-    def _calculate_importance(self, title: str, summary: str) -> float:
-        """计算内容重要性"""
-        text = f"{title} {summary}".lower()
-        
-        high_value_keywords = [
-            'breakthrough', 'new', 'launch', 'release', 'breakthrough',
-            '突破', '发布', '新', '最新'
-        ]
-        
-        score = 0.5  # 基础分数
-        for keyword in high_value_keywords:
-            if keyword in text:
-                score += 0.1
-        
-        return min(score, 1.0)
     
     def _get_backup_leaders_data(self) -> List[Dict]:
         """备用领袖言论数据"""
@@ -1498,9 +1447,8 @@ class AIDataCollector:
                 'source': 'Interview',
                 'category': 'leader',
                 'author': 'Sam Altman',
-                'author_title': 'OpenAI CEO',
-                'importance': 0.98
-            },
+                'author_title': 'OpenAI CEO'
+},
             {
                 'title': 'Elon Musk: AI安全是未来的首要任务',
                 'summary': 'Elon Musk再次强调AI安全的重要性，并表示xAI的目标是理解宇宙的本质，构建最大限度追求真理的AI。',
@@ -1509,9 +1457,8 @@ class AIDataCollector:
                 'source': 'X (Twitter)',
                 'category': 'leader',
                 'author': 'Elon Musk',
-                'author_title': 'xAI Founder',
-                'importance': 0.95
-            },
+                'author_title': 'xAI Founder'
+},
             {
                 'title': 'Jensen Huang: 生成式AI是计算领域的转折点',
                 'summary': 'NVIDIA CEO黄仁勋表示，生成式AI正在重塑每一个行业，计算方式正在发生根本性的转变。',
@@ -1520,9 +1467,8 @@ class AIDataCollector:
                 'source': 'Keynote',
                 'category': 'leader',
                 'author': 'Jensen Huang',
-                'author_title': 'NVIDIA CEO',
-                'importance': 0.92
-            },
+                'author_title': 'NVIDIA CEO'
+},
             {
                 'title': 'Yann LeCun: 现在的LLM还不是真正的智能',
                 'summary': 'Meta首席AI科学家Yann LeCun认为，目前的大语言模型缺乏对物理世界的理解，距离真正的通用人工智能还有很长的路要走。',
@@ -1531,9 +1477,8 @@ class AIDataCollector:
                 'source': 'Interview',
                 'category': 'leader',
                 'author': 'Yann LeCun',
-                'author_title': 'Meta Chief AI Scientist',
-                'importance': 0.90
-            },
+                'author_title': 'Meta Chief AI Scientist'
+},
             {
                 'title': '李开复: AI 2.0时代已经到来',
                 'summary': '零一万物CEO李开复表示，AI 2.0时代将带来比移动互联网大十倍的机会，中国在应用层有巨大优势。',
@@ -1542,9 +1487,8 @@ class AIDataCollector:
                 'source': 'Speech',
                 'category': 'leader',
                 'author': 'Kai-Fu Lee',
-                'author_title': '01.AI CEO',
-                'importance': 0.88
-            }
+                'author_title': '01.AI CEO'
+}
         ]
 
     def _get_backup_research_data(self) -> List[Dict]:
@@ -1558,9 +1502,8 @@ class AIDataCollector:
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'categories': ['cs.CL', 'cs.AI'],
                 'source': 'arXiv',
-                'category': 'research',
-                'importance': 0.95
-            }
+                'category': 'research'
+}
         ]
     
     def _get_backup_github_data(self) -> List[Dict]:
@@ -1574,9 +1517,8 @@ class AIDataCollector:
                 'language': 'Python',
                 'updated': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'GitHub',
-                'category': 'developer',
-                'importance': 0.98
-            }
+                'category': 'developer'
+}
         ]
     
     def _get_backup_hf_data(self) -> List[Dict]:
@@ -1589,9 +1531,8 @@ class AIDataCollector:
                 'downloads': 1500000,
                 'updated': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Hugging Face',
-                'category': 'developer',
-                'importance': 0.85
-            }
+                'category': 'developer'
+}
         ]
     
     def _get_backup_blog_data(self) -> List[Dict]:
@@ -1603,9 +1544,8 @@ class AIDataCollector:
                 'url': 'https://github.blog',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'GitHub Blog',
-                'category': 'developer',
-                'importance': 0.80
-            }
+                'category': 'developer'
+}
         ]
     
     # ============== 异步采集方法 ==============
@@ -1704,9 +1644,8 @@ class AIDataCollector:
                     'url': entry.get('link', ''),
                     'published': entry.get('published', ''),
                     'source': feed.feed.get('title', feed_url)[:50],
-                    'category': category,
-                    'importance': 0.6
-                }
+                    'category': category
+}
                 
                 if self._is_valid_item(item):
                     items.append(item)
@@ -1763,8 +1702,7 @@ class AIDataCollector:
                         'updated': repo['updated_at'][:10],
                         'published': repo['updated_at'][:10],
                         'source': 'GitHub',
-                        'category': 'developer',
-                        'importance': min(repo.get('stargazers_count', 0) / 1000, 1.0)
+                        'category': 'developer'
                     }
                     projects.append(project)
         except Exception as e:
@@ -1806,8 +1744,7 @@ class AIDataCollector:
                         'updated': model.get('lastModified', '')[:10],
                         'published': model.get('lastModified', '')[:10],
                         'source': 'Hugging Face',
-                        'category': 'developer',
-                        'importance': min(model.get('downloads', 0) / 10000, 1.0)
+                        'category': 'developer'
                     }
                     updates.append(update)
         except Exception as e:
@@ -1870,8 +1807,7 @@ class AIDataCollector:
                             'published': published_str,
                             'source': 'Hacker News',
                             'category': 'community',
-                            'score': story.get('score', 0),
-                            'importance': min(story.get('score', 0) / 100, 1.0)
+                            'score': story.get('score', 0)
                         }
                         items.append(item)
                         
@@ -2121,7 +2057,6 @@ class AIDataCollector:
             log.dual_data(f"  {category}: {len(items)} ({new_count} new)")
         
         return all_data
-
 
 # 用于向后兼容
 DataCollector = AIDataCollector
