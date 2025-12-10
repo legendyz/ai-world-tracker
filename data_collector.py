@@ -1362,6 +1362,138 @@ class AIDataCollector:
         
         return items
     
+    # ============== 语义去重相关方法 ==============
+    
+    # 英文停用词（用于关键词提取）
+    _STOPWORDS = frozenset({
+        'the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but',
+        'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
+        'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might',
+        'that', 'this', 'these', 'those', 'with', 'from', 'by', 'as', 'into',
+        'through', 'during', 'before', 'after', 'above', 'below', 'between',
+        'says', 'said', 'predicts', 'predicted', 'tells', 'told', 'according',
+        'thanks', 'about', 'over', 'under', 'again', 'further', 'then', 'once',
+        'here', 'there', 'when', 'where', 'why', 'how', 'all', 'each', 'every',
+        'both', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'not',
+        'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just', 'also',
+        'now', 'new', 'first', 'last', 'long', 'great', 'little', 'own', 'make',
+        'can', 'like', 'back', 'even', 'well', 'way', 'our', 'out', 'its', 'it',
+        'up', 'go', 'going', 'get', 'getting', 'come', 'coming', 'become', 'becoming'
+    })
+    
+    def _normalize_title(self, title: str) -> str:
+        """
+        归一化标题：去除来源后缀、标点、多余词汇
+        
+        Args:
+            title: 原始标题
+            
+        Returns:
+            归一化后的标题
+        """
+        import re
+        if not title:
+            return ''
+        
+        # 去除来源后缀 (- Source Name, | Source, — Source)
+        # 匹配模式: " - Fox Business", " | Reuters", " — The Guardian"
+        title = re.sub(r'\s*[-|—]\s*[A-Z][a-zA-Z\s&.\']+$', '', title)
+        
+        # 小写
+        title = title.lower()
+        
+        # 移除标点符号（保留字母、数字、空格）
+        title = re.sub(r'[^\w\s]', ' ', title)
+        
+        # 移除多余空格
+        title = ' '.join(title.split())
+        
+        return title
+    
+    def _extract_keywords(self, title: str) -> set:
+        """
+        提取标题关键词（去除停用词）
+        
+        Args:
+            title: 原始标题
+            
+        Returns:
+            关键词集合
+        """
+        normalized = self._normalize_title(title)
+        words = normalized.split()
+        # 过滤停用词和过短的词（<3字符）
+        return {w for w in words if len(w) >= 3 and w not in self._STOPWORDS}
+    
+    def _semantic_similarity(self, title1: str, title2: str) -> tuple:
+        """
+        计算两个标题的语义相似度
+        
+        采用双重策略:
+        1. 关键词Jaccard相似度（语义层面）
+        2. 归一化字符串相似度（字面层面）
+        
+        Args:
+            title1: 第一个标题
+            title2: 第二个标题
+            
+        Returns:
+            (jaccard_sim, string_sim, common_keywords)
+        """
+        # 提取关键词
+        kw1 = self._extract_keywords(title1)
+        kw2 = self._extract_keywords(title2)
+        
+        # Jaccard相似度
+        intersection = len(kw1 & kw2)
+        union = len(kw1 | kw2)
+        jaccard_sim = intersection / union if union > 0 else 0
+        
+        # 归一化字符串相似度
+        norm1 = self._normalize_title(title1)
+        norm2 = self._normalize_title(title2)
+        string_sim = difflib.SequenceMatcher(None, norm1, norm2).ratio()
+        
+        return (jaccard_sim, string_sim, kw1 & kw2)
+    
+    def _is_semantic_duplicate(self, title1: str, title2: str, 
+                                jaccard_threshold: float = 0.35,
+                                string_threshold: float = 0.50,
+                                min_common_keywords: int = 3) -> bool:
+        """
+        判断两个标题是否为语义重复
+        
+        判定规则（满足任一条件即为重复）:
+        1. 关键词Jaccard >= 0.35 且 共同关键词 >= 3
+        2. 归一化字符串相似度 >= 0.50
+        3. 关键词Jaccard >= 0.50（即使共同词少于3个）
+        
+        Args:
+            title1: 第一个标题
+            title2: 第二个标题
+            jaccard_threshold: Jaccard相似度阈值
+            string_threshold: 字符串相似度阈值
+            min_common_keywords: 最小共同关键词数
+            
+        Returns:
+            是否为重复内容
+        """
+        jaccard_sim, string_sim, common_kw = self._semantic_similarity(title1, title2)
+        
+        # 规则1: Jaccard >= 0.35 且 共同关键词 >= 3
+        if jaccard_sim >= jaccard_threshold and len(common_kw) >= min_common_keywords:
+            return True
+        
+        # 规则2: 归一化字符串相似度 >= 0.50
+        if string_sim >= string_threshold:
+            return True
+        
+        # 规则3: 高Jaccard（>= 0.50）即使共同词少
+        if jaccard_sim >= 0.50:
+            return True
+        
+        return False
+    
     def _generate_item_fingerprint(self, item: Dict) -> str:
         """
         生成内容指纹用于快速去重
@@ -1405,14 +1537,15 @@ class AIDataCollector:
     
     def _deduplicate_items(self, items: List[Dict], threshold: float = 0.6) -> List[Dict]:
         """
-        对内容列表进行去重（两阶段策略）
+        对内容列表进行去重（三阶段策略）
         
-        阶段1: 基于指纹快速去重 (O(n))
-        阶段2: 基于标题相似度精细去重 (O(n²)，但数据量已大幅减少)
+        阶段1: 基于指纹快速去重 (O(n)) - 完全相同的URL+标题
+        阶段2: 基于语义相似度去重 - 处理同一事件不同来源的报道
+        阶段3: 基于传统字符串相似度去重 - 兜底
         
         Args:
             items: 数据项列表
-            threshold: 标题相似度阈值
+            threshold: 传统字符串相似度阈值（兜底用）
             
         Returns:
             去重后的列表
@@ -1423,23 +1556,31 @@ class AIDataCollector:
         # 阶段1: 指纹快速去重
         items = self._deduplicate_by_fingerprint(items)
         
-        # 阶段2: 相似度精细去重（处理标题略有不同但实质相同的内容）
+        # 阶段2+3: 语义相似度精细去重
         unique_items = []
+        removed_as_duplicate = []  # 记录被去重的标题（调试用）
         
         for item in items:
             is_duplicate = False
-            item_title = item.get('title', '').lower()
+            item_title = item.get('title', '')
             
             for existing in unique_items:
-                existing_title = existing.get('title', '').lower()
-                # 计算标题相似度
-                seq = difflib.SequenceMatcher(None, item_title, existing_title)
-                if seq.ratio() > threshold:
+                existing_title = existing.get('title', '')
+                
+                # 使用语义去重判断
+                if self._is_semantic_duplicate(item_title, existing_title):
                     is_duplicate = True
+                    removed_as_duplicate.append((item_title[:50], existing_title[:50]))
                     break
             
             if not is_duplicate:
                 unique_items.append(item)
+        
+        # 记录语义去重结果（仅在DEBUG模式下输出）
+        if removed_as_duplicate and len(removed_as_duplicate) > 0:
+            log.file(f"语义去重移除 {len(removed_as_duplicate)} 条相似内容")
+            for new_t, old_t in removed_as_duplicate[:3]:  # 只显示前3条
+                log.file(f"  - '{new_t}...' 与 '{old_t}...' 相似")
                 
         return unique_items
     
