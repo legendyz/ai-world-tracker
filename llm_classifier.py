@@ -65,6 +65,9 @@ DATA_CACHE_DIR = _get_cache_dir()
 # 模型保活时间（秒）
 MODEL_KEEP_ALIVE_SECONDS = 5 * 60  # 5分钟
 
+# 统一的 LLM System Prompt（所有提供商使用相同的系统提示）
+LLM_SYSTEM_PROMPT = "你是一个专业的AI内容分类助手，请严格按照JSON格式输出分类结果。"
+
 
 class LLMProvider(Enum):
     """提供商枚举"""
@@ -585,18 +588,45 @@ class LLMClassifier:
 类型选项:
 - research: 学术论文、科研报告
 - product: 产品发布、功能更新
-- market: 融资新闻、行业分析、公司动态、播客节目
+- market: 融资新闻、行业分析、公司动态（无引语的人物新闻）
 - developer: 开源工具、技术框架
-- leader: 知名人士直接发言（必须含引语标记如"说"、"表示"、"称"、"warns"、"says"）
+- leader: 知名人士发言（含引语标记）★优先级最高★
 - community: 社区讨论、趋势话题
 
-★ leader判断核心规则:
-1. 必须有直接引语标记："XXX说"、"XXX表示"、"XXX warns"、"XXX says"、"据XXX称"
-2. 没有引语标记的公司/人物新闻 → market
-3. 标题格式如"Sam Altman: ..."或"[人名]: ..."通常是leader
+★★★ leader判断 - 优先级最高 ★★★
+引语标记词（任一出现即为leader）:
+英文: says, said, warns, predicts, believes, stated, told, claims, according to
+中文: 说、表示、称、认为、指出、透露、预测、警告
+
+判断流程:
+1. 标题含上述引语词 → leader（即使涉及公司动态）
+2. 标题格式"人名: ..."或"人名：..." → leader
+3. 无引语标记的人物/公司新闻 → market
+
+示例:
+- "Elon Musk says AI will change work" → leader ✓
+- "Sam Altman predicts AGI timeline" → leader ✓
+- "OpenAI CEO warns about AI risks" → leader ✓
+- "OpenAI launches new model" → product ✗
+- "OpenAI faces competition from Google" → market ✗
+
+★ AI相关性(ai_relevance)评分规则 - 严格评估:
+- 0.9-1.0: 核心AI（LLM、深度学习、神经网络、模型训练、AI算法）
+- 0.7-0.9: 主要AI（AI产品如ChatGPT/Claude、AI公司核心业务、AI应用）
+- 0.5-0.7: 部分AI（科技新闻明确提及AI技术、AI作为主要卖点）
+- 0.2-0.5: 弱相关（智能设备但非AI驱动、自动化但非机器学习）
+- 0.0-0.2: 非AI（与AI完全无关）
+
+★ 非AI内容示例（应给低分0.0-0.3）:
+- 汽车新闻（电动车、数字钥匙、智能座舱≠AI）
+- 手机/电脑硬件（芯片、存储、屏幕≠AI，除非是AI芯片）
+- 普通软件更新（非AI功能的App更新）
+- 游戏新闻（除非涉及AI NPC、AI生成内容）
+- 金融/股票（除非是AI公司融资或AI量化）
+- NFC/蓝牙/UWB等通信技术≠AI
 
 输出格式(严格JSON):
-{{"content_type": "类型", "confidence": 0.8, "tech_fields": ["领域"], "reasoning": "原因"}}"""
+{{"content_type": "类型", "confidence": 0.8, "ai_relevance": 0.85, "tech_fields": ["领域"], "reasoning": "原因"}}"""
         
         return prompt
     
@@ -627,30 +657,58 @@ Items to classify:
 IMPORTANT: Use ONLY these exact values for content_type:
 - research: Academic papers, scientific studies, technical reports from arxiv/conferences
 - product: Product launches, new features, version releases, API announcements  
-- market: Funding news, investments, company analysis, industry competition, podcasts, general news
+- market: Funding news, investments, company analysis, industry competition (NO quote markers)
 - developer: Tools, frameworks, models, open source projects, technical tutorials
-- leader: Contains DIRECT SPEECH from a notable person (must have quote markers)
+- leader: Person's statement with quote markers ★★★ HIGHEST PRIORITY ★★★
 - community: Forum discussions, social media trends, community events
 
-★★★ LEADER CLASSIFICATION - CRITICAL RULES ★★★
-Only classify as "leader" when ALL conditions are met:
-1. Contains quote markers like: "said", "says", "warns", "believes", "stated", "according to", "表示", "称", "说"
-2. Title format like "Person Name: ..." or "[Name]: ..." indicates leader
-3. If NO quote markers found -> classify as "market" even if about famous people
+★★★ LEADER CLASSIFICATION - HIGHEST PRIORITY ★★★
+Quote marker words (ANY of these = leader):
+  says, said, warns, predicts, believes, stated, told, claims, according to, 表示, 称, 说
 
-Examples:
-- "Sam Altman says AI will change everything" -> leader (has "says")
-- "OpenAI's code red response to Google" -> market (no quote marker)
-- "Sam Altman: We need to move fast" -> leader (has "Name:" format)
+Decision flow:
+1. Title contains ANY quote marker word → "leader" (even if about company news)
+2. Title format "Person Name: ..." → "leader"
+3. About famous person but NO quote marker → "market"
+
+★ LEADER EXAMPLES (classify as leader) ★
+- "Elon Musk says AI will make work optional" → leader ✓ (has "says")
+- "Sam Altman predicts AGI in 5 years" → leader ✓ (has "predicts")
+- "Jensen Huang believes AI approach human intelligence" → leader ✓ (has "believes")
+- "OpenAI CEO warns about AI risks" → leader ✓ (has "warns")
+- "Bill Gates: AI will transform education" → leader ✓ (has "Name:" format)
+
+★ MARKET EXAMPLES (NO quote markers) ★
+- "OpenAI declares code red as Google threatens" → market (no quote marker)
+- "Sam Altman eyes rocket company" → market (no quote marker)
+- "Elon Musk's Grok AI launches new feature" → product (no quote marker)
 
 Other rules:
 - Items marked [PAPER] -> research
 
+★★★ AI RELEVANCE SCORING (ai_relevance: 0.0-1.0) - BE STRICT ★★★
+Score based on ACTUAL AI technology involvement, not just "smart" or "digital" features:
+
+- 0.9-1.0: Core AI (LLM, deep learning, neural networks, model training, transformers, diffusion models)
+- 0.7-0.9: Primary AI (ChatGPT, Claude, Midjourney, AI company core business, ML applications)
+- 0.5-0.7: Partial AI (tech news with explicit AI/ML mention as main topic)
+- 0.2-0.5: Weak AI (smart devices without ML, automation without AI)
+- 0.0-0.2: Non-AI (completely unrelated to AI)
+
+★★★ NON-AI EXAMPLES (score 0.0-0.3) ★★★
+- Car news: EVs, digital keys, smart cockpit, autonomous driving sensors (unless ML-based)
+- Hardware: CPUs, GPUs (unless AI chips like TPU/NPU), storage, displays, phones
+- Software: Regular app updates, OS features (unless AI-powered)
+- Gaming: Unless AI NPCs, procedural generation, AI content creation
+- Finance: Unless AI company funding or AI trading algorithms
+- Communication tech: NFC, Bluetooth, UWB, 5G = NOT AI
+- IoT/Smart home: Unless using ML for predictions/recommendations
+
 tech_fields options: LLM, Computer Vision, NLP, Robotics, AI Safety, MLOps, Multimodal, Audio/Speech, Healthcare AI, General AI
 
 Output format - EXACTLY {len(items)} lines starting from id=1:
-{{"id":1,"content_type":"TYPE","confidence":0.8,"tech_fields":["FIELD"]}}
-{{"id":2,"content_type":"TYPE","confidence":0.8,"tech_fields":["FIELD"]}}
+{{"id":1,"content_type":"TYPE","confidence":0.8,"ai_relevance":0.85,"tech_fields":["FIELD"]}}
+{{"id":2,"content_type":"TYPE","confidence":0.8,"ai_relevance":0.85,"tech_fields":["FIELD"]}}
 ...continue until id={len(items)}
 
 START from id=1, classify ALL {len(items)} items:"""
@@ -687,7 +745,7 @@ START from id=1, classify ALL {len(items)} items:"""
                     json={
                         'model': self.model,
                         'messages': [
-                            {'role': 'system', 'content': '你是一个专业的AI内容分类助手，请严格按照JSON格式输出分类结果。'},
+                            {'role': 'system', 'content': LLM_SYSTEM_PROMPT},
                             {'role': 'user', 'content': prompt}
                         ],
                         'stream': False,
@@ -706,11 +764,14 @@ START from id=1, classify ALL {len(items)} items:"""
                 # 使用 Generate API（适用于其他模型）
                 options = self._get_ollama_options()
                 
+                # Generate API 不支持 system message，将其添加到 prompt 前面
+                full_prompt = f"System: {LLM_SYSTEM_PROMPT}\n\nUser: {prompt}"
+                
                 response = requests.post(
                     'http://localhost:11434/api/generate',
                     json={
                         'model': self.model,
-                        'prompt': prompt,
+                        'prompt': full_prompt,
                         'stream': False,
                         'keep_alive': keep_alive,  # 保持模型活跃
                         'options': options
@@ -762,20 +823,29 @@ START from id=1, classify ALL {len(items)} items:"""
                 'num_thread': 4
             }
     
-    def _call_openai(self, prompt: str) -> Optional[str]:
-        """调用OpenAI API"""
+    def _call_openai(self, prompt: str, is_batch: bool = False) -> Optional[str]:
+        """调用OpenAI API
+        
+        Args:
+            prompt: 提示词
+            is_batch: 是否为批量分类模式（需要更多输出tokens）
+        """
         try:
             from openai import OpenAI
             
             client = OpenAI(api_key=self.api_key)
+            
+            # 批量模式需要更多输出 tokens
+            max_tokens = 2000 if is_batch else 300
+            
             response = client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "你是一个专业的AI内容分类助手，请严格按照JSON格式输出分类结果。"},
+                    {"role": "system", "content": LLM_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.1,
-                max_tokens=300
+                max_tokens=max_tokens
             )
             
             return response.choices[0].message.content
@@ -823,7 +893,7 @@ START from id=1, classify ALL {len(items)} items:"""
             response = client.chat.completions.create(
                 model=self.model,  # 这里是 Azure 部署名称，不是模型名如 gpt-4o
                 messages=[
-                    {"role": "system", "content": "你是一个专业的AI内容分类助手，请严格按照JSON格式输出分类结果。"},
+                    {"role": "system", "content": LLM_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.1,
@@ -853,7 +923,7 @@ START from id=1, classify ALL {len(items)} items:"""
         if self.provider == LLMProvider.OLLAMA:
             return self._call_ollama(prompt, is_batch=is_batch)
         elif self.provider == LLMProvider.OPENAI:
-            return self._call_openai(prompt)
+            return self._call_openai(prompt, is_batch=is_batch)
         elif self.provider == LLMProvider.AZURE_OPENAI:
             return self._call_azure_openai(prompt, is_batch=is_batch)
         return None
@@ -886,6 +956,7 @@ START from id=1, classify ALL {len(items)} items:"""
                     # 规范化字段
                     result['content_type'] = result['content_type'].lower()
                     result['confidence'] = float(result.get('confidence', 0.8))
+                    result['ai_relevance'] = float(result.get('ai_relevance', 0.7))  # 默认0.7（假设大部分采集内容是AI相关）
                     result['tech_fields'] = result.get('tech_fields', ['General AI'])
                     result['is_verified'] = result.get('is_verified', True)
                     result['reasoning'] = result.get('reasoning', '')
@@ -938,6 +1009,7 @@ START from id=1, classify ALL {len(items)} items:"""
                 return {
                     'content_type': category,
                     'confidence': 0.85,
+                    'ai_relevance': 0.7,  # 默认中等相关性
                     'tech_fields': ['General AI'],
                     'is_verified': True,
                     'reasoning': 'Extracted from LLM thinking output'
@@ -955,6 +1027,7 @@ START from id=1, classify ALL {len(items)} items:"""
             return {
                 'content_type': best_category,
                 'confidence': min(0.7 + category_scores[best_category] * 0.05, 0.9),
+                'ai_relevance': 0.7,  # 默认中等相关性
                 'tech_fields': ['General AI'],
                 'is_verified': True,
                 'reasoning': f'Inferred from text analysis (score: {category_scores[best_category]})'
@@ -995,7 +1068,8 @@ START from id=1, classify ALL {len(items)} items:"""
             importance, breakdown = self.importance_evaluator.calculate_importance(
                 item,
                 {'content_type': classified.get('content_type', 'news'), 
-                 'confidence': classified.get('confidence', 0.5)}
+                 'confidence': classified.get('confidence', 0.5),
+                 'ai_relevance': classified.get('ai_relevance', 0.7)}  # 包含AI相关性
             )
             classified['importance'] = importance
             classified['importance_breakdown'] = breakdown
@@ -1015,6 +1089,7 @@ START from id=1, classify ALL {len(items)} items:"""
             # 更新分类结果
             classified['content_type'] = result['content_type']
             classified['confidence'] = result['confidence']
+            classified['ai_relevance'] = result.get('ai_relevance', 0.7)  # AI相关性评分
             classified['tech_categories'] = result['tech_fields']
             classified['is_verified'] = result['is_verified']
             classified['llm_reasoning'] = result['reasoning']
@@ -1027,7 +1102,8 @@ START from id=1, classify ALL {len(items)} items:"""
             # 计算多维度重要性分数（使用统一的评估器）
             importance, importance_breakdown = self.importance_evaluator.calculate_importance(
                 item,
-                {'content_type': result['content_type'], 'confidence': result['confidence']}
+                {'content_type': result['content_type'], 'confidence': result['confidence'],
+                 'ai_relevance': classified['ai_relevance']}  # 传入AI相关性
             )
             classified['importance'] = importance
             classified['importance_breakdown'] = importance_breakdown
@@ -1039,6 +1115,7 @@ START from id=1, classify ALL {len(items)} items:"""
                 self.cache[content_hash] = {
                     'content_type': classified['content_type'],
                     'confidence': classified['confidence'],
+                    'ai_relevance': classified['ai_relevance'],  # 缓存AI相关性
                     'tech_categories': classified['tech_categories'],
                     'is_verified': classified['is_verified'],
                     'llm_reasoning': classified['llm_reasoning'],
@@ -1100,7 +1177,8 @@ START from id=1, classify ALL {len(items)} items:"""
                 importance, breakdown = self.importance_evaluator.calculate_importance(
                     item,
                     {'content_type': classified.get('content_type', 'news'), 
-                     'confidence': classified.get('confidence', 0.5)}
+                     'confidence': classified.get('confidence', 0.5),
+                     'ai_relevance': classified.get('ai_relevance', 0.7)}  # 包含AI相关性
                 )
                 classified['importance'] = importance
                 classified['importance_breakdown'] = breakdown
@@ -1191,6 +1269,7 @@ START from id=1, classify ALL {len(items)} items:"""
                     
                     classified['content_type'] = result.get('content_type', 'market')
                     classified['confidence'] = result.get('confidence', 0.7)
+                    classified['ai_relevance'] = result.get('ai_relevance', 0.7)  # AI相关性评分
                     classified['tech_categories'] = result.get('tech_fields', ['General AI'])
                     classified['is_verified'] = result.get('is_verified', True)
                     classified['llm_reasoning'] = result.get('reasoning', '')
@@ -1201,7 +1280,8 @@ START from id=1, classify ALL {len(items)} items:"""
                     # 计算多维度重要性分数
                     importance, importance_breakdown = self.importance_evaluator.calculate_importance(
                         item,
-                        {'content_type': classified['content_type'], 'confidence': classified['confidence']}
+                        {'content_type': classified['content_type'], 'confidence': classified['confidence'],
+                         'ai_relevance': classified['ai_relevance']}  # 传入AI相关性
                     )
                     classified['importance'] = importance
                     classified['importance_breakdown'] = importance_breakdown
@@ -1214,6 +1294,7 @@ START from id=1, classify ALL {len(items)} items:"""
                         self.cache[content_hash] = {
                             'content_type': classified['content_type'],
                             'confidence': classified['confidence'],
+                            'ai_relevance': classified['ai_relevance'],  # 缓存AI相关性
                             'tech_categories': classified['tech_categories'],
                             'is_verified': classified.get('is_verified', True),
                             'llm_reasoning': classified.get('llm_reasoning', ''),
@@ -1239,6 +1320,7 @@ START from id=1, classify ALL {len(items)} items:"""
                         classified = item.copy()
                         classified['content_type'] = retry_result.get('content_type', 'market')
                         classified['confidence'] = retry_result.get('confidence', 0.7)
+                        classified['ai_relevance'] = retry_result.get('ai_relevance', 0.7)  # AI相关性评分
                         classified['tech_categories'] = retry_result.get('tech_fields', ['General AI'])
                         classified['is_verified'] = retry_result.get('is_verified', True)
                         classified['llm_reasoning'] = retry_result.get('reasoning', '')
@@ -1249,7 +1331,8 @@ START from id=1, classify ALL {len(items)} items:"""
                         # 计算多维度重要性分数
                         importance, importance_breakdown = self.importance_evaluator.calculate_importance(
                             item,
-                            {'content_type': classified['content_type'], 'confidence': classified['confidence']}
+                            {'content_type': classified['content_type'], 'confidence': classified['confidence'],
+                             'ai_relevance': classified['ai_relevance']}  # 传入AI相关性
                         )
                         classified['importance'] = importance
                         classified['importance_breakdown'] = importance_breakdown
@@ -1262,6 +1345,7 @@ START from id=1, classify ALL {len(items)} items:"""
                             self.cache[content_hash] = {
                                 'content_type': classified['content_type'],
                                 'confidence': classified['confidence'],
+                                'ai_relevance': classified['ai_relevance'],  # 缓存AI相关性
                                 'tech_categories': classified['tech_categories'],
                                 'is_verified': classified.get('is_verified', True),
                                 'llm_reasoning': classified.get('llm_reasoning', ''),
@@ -1546,6 +1630,7 @@ START from id=1, classify ALL {len(items)} items:"""
                     results[idx] = {
                         'content_type': content_type,
                         'confidence': float(obj.get('confidence', 0.7)),
+                        'ai_relevance': float(obj.get('ai_relevance', 0.7)),  # AI相关性评分
                         'tech_fields': obj.get('tech_fields', obj.get('fields', ['General AI'])),
                         'is_verified': obj.get('is_verified', True),
                         'reasoning': obj.get('reasoning', obj.get('reason', ''))

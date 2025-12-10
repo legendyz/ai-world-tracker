@@ -29,6 +29,67 @@ class ContentClassifier:
         # 初始化重要性评估器
         self.importance_evaluator = ImportanceEvaluator()
         
+        # ============ AI相关性评估关键词 ============
+        # 核心AI关键词（高权重）
+        self.ai_core_keywords = {
+            # 英文 - 核心概念
+            'artificial intelligence': 5, 'machine learning': 5, 'deep learning': 5,
+            'neural network': 4, 'large language model': 5, 'llm': 4,
+            'natural language processing': 4, 'nlp': 3, 'computer vision': 4,
+            'generative ai': 5, 'gen ai': 4, 'genai': 4,
+            'transformer': 3, 'diffusion model': 4, 'foundation model': 4,
+            'multimodal': 3, 'reinforcement learning': 4, 'rlhf': 4,
+            # 中文 - 核心概念
+            '人工智能': 5, '机器学习': 5, '深度学习': 5, '神经网络': 4,
+            '大语言模型': 5, '大模型': 4, '自然语言处理': 4, '计算机视觉': 4,
+            '生成式ai': 5, '生成式人工智能': 5, '多模态': 3,
+        }
+        
+        # AI产品/公司关键词（中权重）
+        self.ai_product_keywords = {
+            # 模型名称
+            'gpt': 3, 'gpt-4': 4, 'gpt-5': 4, 'chatgpt': 4, 'o1': 3, 'o3': 3,
+            'claude': 4, 'gemini': 4, 'llama': 3, 'mistral': 3,
+            'copilot': 3, 'cursor': 3, 'sora': 4, 'midjourney': 3,
+            'stable diffusion': 3, 'dall-e': 3, 'whisper': 3,
+            # 公司
+            'openai': 4, 'anthropic': 4, 'deepmind': 4, 'google ai': 3,
+            'nvidia ai': 3, 'meta ai': 3, 'microsoft ai': 3,
+            # 中文产品
+            '文心一言': 4, '通义千问': 4, '豆包': 3, 'kimi': 3,
+            '智谱': 3, 'chatglm': 3, 'qwen': 3, 'deepseek': 3,
+            '星火': 3, '讯飞': 3, '百川': 3,
+        }
+        
+        # AI相关但较弱的关键词（低权重）
+        self.ai_weak_keywords = {
+            'ai': 2, 'ml': 2, 'model': 1, 'algorithm': 2, 'neural': 2,
+            'training': 1, 'inference': 2, 'fine-tune': 2, 'fine tuning': 2,
+            'embedding': 2, 'vector': 1, 'prompt': 2, 'rag': 2,
+            'agent': 2, 'autonomous': 2, 'intelligent': 1, 'smart': 1,
+            'bot': 1, 'chatbot': 2, 'assistant': 1,
+            '智能': 1, '模型': 1, '算法': 2, '训练': 1, '推理': 2,
+        }
+        
+        # 非AI领域关键词（用于降低相关性分数）
+        self.non_ai_keywords = {
+            # 体育
+            'football', 'basketball', 'soccer', 'nba', 'nfl', 'sports', 'olympics',
+            '足球', '篮球', '体育', '奥运',
+            # 娱乐
+            'celebrity', 'movie star', 'actor', 'actress', 'entertainment', 'gossip',
+            '明星', '娱乐', '八卦', '电影明星',
+            # 政治（非AI政策）
+            'election', 'vote', 'president', 'senator', 'congress',
+            '选举', '投票', '总统',
+            # 金融（非AI投资）
+            'stock price', 'forex', 'cryptocurrency price', 'bitcoin price',
+            '股价', '外汇', '币价',
+            # 其他
+            'weather', 'recipe', 'diet', 'fashion',
+            '天气', '食谱', '减肥', '时尚',
+        }
+        
         # 否定词和不确定性词汇（扩展版）
         self.negative_words = {
             # 强否定
@@ -52,28 +113,33 @@ class ContentClassifier:
             '官方', '官网', '新闻稿', '公告'
         }
         
-        # 研究类关键词（带权重）- 2025年更新版
+        # 研究类关键词（带权重）- 2025年更新版（严格版）
+        # 注意：研究类必须包含强研究指标才能被分类为研究
         self.research_keywords = {
-            # 高权重（3分）- 强研究指标
-            'arxiv': 3, 'conference': 3, 'journal': 3, 'paper': 3, 'publication': 3,
-            'peer-reviewed': 3, 'proceedings': 3, 'academic': 3, 'neurips': 3, 'icml': 3,
-            'iclr': 3, 'cvpr': 3, 'acl': 3, 'emnlp': 3, 'aaai': 3,
-            '论文': 3, '学术': 3, '期刊': 3, '会议': 3,
+            # 高权重（4分）- 强研究指标（必须出现其中之一才能归类为研究）
+            'arxiv': 4, 'paper': 4, 'publication': 4, 'peer-reviewed': 4,
+            'neurips': 4, 'icml': 4, 'iclr': 4, 'cvpr': 4, 'acl': 4, 'emnlp': 4, 'aaai': 4,
+            'sigir': 4, 'kdd': 4, 'naacl': 4, 'coling': 4,
+            '论文': 4, '学术': 4,
             
-            # 中权重（2分）- 研究相关 + 2024-2025新研究方向
-            'research': 2, 'study': 2, 'experiment': 2, 'methodology': 2,
-            'findings': 2, 'analysis': 2, 'survey': 2, 'benchmark': 2,
-            'state-of-the-art': 2, 'sota': 2, 'baseline': 2, 'ablation': 2,
-            'reasoning': 2, 'chain-of-thought': 2, 'cot': 2, 'in-context learning': 2,
-            'multimodal': 2, 'moe': 2, 'mixture of experts': 2, 'sparse': 2,
-            'distillation': 2, 'quantization': 2, 'pruning': 2, 'efficient': 2,
-            'scaling law': 2, 'emergent': 2, 'alignment': 2, 'rlhf': 2, 'dpo': 2,
-            '研究': 2, '实验': 2, '分析': 2, '基准': 2, '消融': 2,
+            # 中权重（2分）- 研究辅助词（仅在有强指标时才有意义）
+            'conference': 2, 'journal': 2, 'proceedings': 2, 'academic': 2,
+            'methodology': 2, 'ablation': 2, 'baseline': 2,
+            'state-of-the-art': 2, 'sota': 2,
+            '期刊': 2, '会议': 2, '消融': 2,
             
-            # 低权重（1分）- 技术术语
-            'algorithm': 1, 'model': 1, 'neural network': 1, 'deep learning': 1, 
-            'machine learning': 1, 'architecture': 1, 'attention': 1, 'transformer': 1,
-            '算法': 1, '模型': 1, '神经网络': 1, '学习': 1
+            # 低权重（1分）- 论文特征词
+            'we propose': 1, 'we present': 1, 'our method': 1, 'our approach': 1,
+            'experiments show': 1, 'results demonstrate': 1,
+            '本文提出': 1, '实验表明': 1
+        }
+        
+        # 研究类强指标（必须包含其中之一才能归类为研究）
+        self.research_strong_indicators = {
+            'arxiv', 'paper', 'publication', 'peer-reviewed',
+            'neurips', 'icml', 'iclr', 'cvpr', 'acl', 'emnlp', 'aaai',
+            'sigir', 'kdd', 'naacl', 'coling',
+            '论文', '学术'
         }
         
         # 开发者类关键词（带权重）
@@ -119,7 +185,9 @@ class ContentClassifier:
             'official': 1, 'commercial': 1, 'enterprise': 1, 'product': 1,
             'platform': 1, 'service': 1, 'solution': 1, 'beta': 1, 'preview': 1,
             'pro': 1, 'plus': 1, 'premium': 1, 'subscription': 1,
-            '官方': 1, '商业': 1, '企业': 1, '产品': 1, '平台': 1, '服务': 1, '公测': 1, '订阅': 1
+            'model': 1, 'api': 1, 'app': 1, 'tool': 1, 'assistant': 1,
+            '官方': 1, '商业': 1, '企业': 1, '产品': 1, '平台': 1, '服务': 1, '公测': 1, '订阅': 1,
+            '模型': 1, '助手': 1, '工具': 1, '应用': 1
         }
         
         # 市场类关键词（带权重）- 2025年更新版
@@ -143,7 +211,10 @@ class ContentClassifier:
             # 低权重（1分）- 商业术语
             'funding': 1, 'partnership': 1, 'collaboration': 1, 'deal': 1,
             'contract': 1, 'profit': 1, 'loss': 1, 'growth': 1,
-            '合作': 1, '伙伴': 1, '交易': 1, '合同': 1, '营收': 1, '增长': 1
+            'strategy': 1, 'compete': 1, 'competition': 1, 'rival': 1,
+            'ceo': 1, 'executive': 1, 'hire': 1, 'hiring': 1,
+            '合作': 1, '伙伴': 1, '交易': 1, '合同': 1, '营收': 1, '增长': 1,
+            '战略': 1, '竞争': 1, '对手': 1, '招聘': 1
         }
         
         # 领袖言论关键词（带权重）
@@ -273,6 +344,14 @@ class ContentClassifier:
             '机器之心': {'research': 0.35, 'product': 0.30, 'developer': 0.15, 'market': 0.10, 'leader': 0.10},
             '量子位': {'product': 0.35, 'research': 0.30, 'market': 0.15, 'developer': 0.10, 'leader': 0.10},
             'it之家': {'product': 0.50, 'market': 0.25, 'developer': 0.10, 'research': 0.05, 'leader': 0.10},
+            
+            # RSS通用源 - 偏向产品和市场
+            'rss': {'product': 0.35, 'market': 0.30, 'developer': 0.15, 'research': 0.10, 'leader': 0.10},
+            'feed': {'product': 0.35, 'market': 0.30, 'developer': 0.15, 'research': 0.10, 'leader': 0.10},
+            'news': {'product': 0.30, 'market': 0.35, 'leader': 0.15, 'developer': 0.10, 'research': 0.10},
+            
+            # 默认先验（用于未匹配的来源）
+            '_default': {'product': 0.30, 'market': 0.25, 'developer': 0.20, 'research': 0.15, 'leader': 0.10},
         }
         
         # 编译正则表达式（提高性能）
@@ -295,10 +374,9 @@ class ContentClassifier:
         Returns:
             (主分类, 置信度分数 0-1, 次要标签列表)
         """
-        # 如果采集时已经指定了类型，直接使用（高置信度）
-        category = item.get('category')
-        if category in ['research', 'developer', 'product', 'market', 'leader', 'community']:
-            return str(category), 1.0, []
+        # 注意：已移除对采集器 category 字段的直接采纳
+        # 所有数据统一通过关键词评分和来源先验规则进行分类
+        # 这确保了分类结果的一致性和可解释性
 
         # ============ 分离标题和内容 ============
         title = item.get('title', '').lower()
@@ -320,14 +398,23 @@ class ContentClassifier:
             secondary = self._get_secondary_labels(full_text, exclude='research')
             return 'research', 0.95, secondary
         
-        # 产品类严格规则：必须同时包含公司名称和产品发布关键词
+        # 产品类规则：公司名称或知名产品名称
         company_indicators = ['google', 'microsoft', 'openai', 'anthropic', 'meta', 'apple', 'amazon', 
-                             'baidu', 'alibaba', 'tencent', 'bytedance', 'huawei', 'xiaomi',
-                             '百度', '阿里', '腾讯', '字节', '华为', '小米',
+                             'baidu', 'alibaba', 'tencent', 'bytedance', 'huawei', 'xiaomi', 'nvidia',
+                             'xai', 'x.ai', 'elon musk', 'sam altman', 'sundar pichai',
+                             '百度', '阿里', '腾讯', '字节', '华为', '小米', '英伟达',
                              'deepseek', 'mistral', 'cohere', 'stability', 'midjourney', 'runway',
                              '智谱', '月之暗面', '零一万物', '百川', '科大讯飞']
         
+        # 知名产品名称（直接触发产品类加成）
+        product_names = ['chatgpt', 'gpt-4', 'gpt-5', 'gpt4', 'gpt5', 'o1', 'o3',
+                        'claude', 'gemini', 'copilot', 'cursor', 'sora', 'midjourney',
+                        'llama', 'mistral', 'qwen', 'deepseek', 'kimi', 'doubao',
+                        'grok', 'perplexity', 'poe', 'character.ai', 'pi',
+                        '文心', '通义', '豆包', '星火', 'spark']
+        
         has_company = any(company in full_text or company in source for company in company_indicators)
+        has_product_name = any(product in full_text for product in product_names)
         
         # ============ 新增：标题/内容分离加权评分 ============
         all_keywords = {
@@ -355,11 +442,64 @@ class ContentClassifier:
         # ============ 新增：来源先验概率加成 ============
         scores = self._apply_source_prior(scores, source)
         
-        # 产品类加成规则（保持原有逻辑）
-        if has_company and scores['product'] > 0:
+        # 产品类加成规则（优化版：公司名或产品名都能触发加成）
+        if (has_company or has_product_name) and scores['product'] > 0:
             scores['product'] *= 2.5
         elif scores['product'] > 0:
-            scores['product'] *= 1.3
+            scores['product'] *= 1.5  # 提高基础加成
+        
+        # ============ 研究类严格限制 ============
+        # 必须包含强研究指标才能归类为研究
+        has_research_indicator = any(ind in full_text for ind in self.research_strong_indicators)
+        
+        if not has_research_indicator:
+            # 没有强研究指标，大幅降低研究类分数
+            scores['research'] *= 0.3
+        
+        # 如果同时包含产品名或公司名，进一步降低研究类分数（可能是产品新闻）
+        if (has_company or has_product_name) and not has_research_indicator:
+            scores['research'] *= 0.5
+        
+        # ============ 领袖类分类规则（优化版） ============
+        # 言论动词：表示某人发表了观点
+        leader_verbs = {'said', 'says', 'stated', 'believes', 'warns', 'predicts', 
+                       'tweeted', 'posted', 'commented', 'announced', 'argues',
+                       'thinks', 'expects', 'suggests', 'claims', 'reveals',
+                       'discusses', 'explains', 'shares', 'tells', 'told',
+                       '表示', '认为', '说', '称', '警告', '预测', '发文', '透露',
+                       '指出', '强调', '提到', '分享', '解释', '讨论'}
+        
+        # 领袖角色：职位 + 知名人物名字
+        leader_roles = {'ceo', 'cto', 'coo', 'cfo', 'founder', 'co-founder', 'cofounder',
+                       'chief', 'president', 'director', 'vp', 'vice president',
+                       'head of', 'executive', 'chairman', 'chairwoman',
+                       # 知名AI领袖（英文）
+                       'sam altman', 'elon musk', 'jensen huang', 'sundar pichai',
+                       'satya nadella', 'mark zuckerberg', 'demis hassabis',
+                       'dario amodei', 'ilya sutskever', 'andrej karpathy',
+                       'yann lecun', 'geoffrey hinton', 'fei-fei li',
+                       'mustafa suleyman', 'eric schmidt',
+                       # 知名AI领袖（中文）
+                       '黄仁勋', '马斯克', '扎克伯格', '奥特曼', '纳德拉',
+                       '李飞飞', '吴恩达', '李开复', '周鸿祎', '雷军',
+                       '创始人', '首席', '总裁', '董事长', '董事', '总经理'}
+        
+        has_leader_verb = any(v in full_text for v in leader_verbs)
+        has_leader_role = any(r in full_text for r in leader_roles)
+        
+        # 双条件判断：言论动词 + 领袖角色
+        if has_leader_verb and has_leader_role:
+            # 满足双条件：大幅提升 leader 分数，确保能竞争过 market/product
+            scores['leader'] = max(scores['leader'] * 3.0, 15.0)  # 至少15分
+            # 同时适度降低竞争分类的分数
+            scores['market'] *= 0.7
+            scores['product'] *= 0.8
+        elif scores['leader'] > 0:
+            # 只满足单条件或无条件：大幅降低 leader 分数
+            if has_leader_verb or has_leader_role:
+                scores['leader'] *= 0.4  # 单条件：降低但保留一定分数
+            else:
+                scores['leader'] *= 0.1  # 无条件：几乎清零
         
         # 否定词影响（改进版：根据否定强度调整）
         if negative_score > 0:
@@ -376,6 +516,27 @@ class ContentClassifier:
         
         # 获取主分类和次要标签
         max_category = max(scores.items(), key=lambda x: x[1])
+        
+        # 如果所有分数都为 0，根据来源先验选择默认分类
+        if max_category[1] == 0:
+            # 检查是否有产品名或公司名
+            if has_company or has_product_name:
+                return 'product', 0.3, []
+            # 否则按来源先验选择最可能的分类
+            # 获取来源先验
+            default_prior = self.source_priors.get('_default', {})
+            for source_key, priors in self.source_priors.items():
+                if source_key.startswith('_'):
+                    continue
+                if source_key in source:
+                    default_prior = priors
+                    break
+            if default_prior:
+                default_cat = max(default_prior.items(), key=lambda x: x[1])[0]
+                return default_cat, 0.2, []
+            # 最后默认返回产品类（新闻类内容最可能是产品新闻）
+            return 'product', 0.15, []
+        
         confidence = self._calculate_confidence(scores, max_category[0])
         secondary_labels = self._get_secondary_labels_from_scores(scores, max_category[0])
         
@@ -414,9 +575,15 @@ class ContentClassifier:
         # 查找匹配的来源
         matched_prior = None
         for source_key, priors in self.source_priors.items():
+            if source_key.startswith('_'):  # 跳过特殊键如 _default
+                continue
             if source_key in source:
                 matched_prior = priors
                 break
+        
+        # 如果没有匹配到任何来源，使用默认先验
+        if not matched_prior:
+            matched_prior = self.source_priors.get('_default')
         
         if matched_prior:
             # 应用先验概率加成（先验概率 * 权重系数）
@@ -425,6 +592,12 @@ class ContentClassifier:
                     # 高先验概率的分类获得更多加成
                     boost = 1 + (prior * 0.5)  # 最高加成 50%
                     scores[cat] *= boost
+            
+            # 特殊处理：非研究类来源惩罚研究分数
+            research_prior = matched_prior.get('research', 0.15)
+            if research_prior < 0.2 and 'research' in scores:
+                # 该来源的研究先验概率很低，额外惩罚
+                scores['research'] *= 0.7
         
         return scores
     
@@ -482,11 +655,16 @@ class ContentClassifier:
             添加了分类信息的内容项，包含:
             - content_type: 内容类型
             - confidence: 分类置信度
+            - ai_relevance: AI相关性评分 (0-1)
             - importance: 多维度重要性分数
             - importance_breakdown: 重要性分数明细
             - importance_level: 重要性等级
         """
         classified = item.copy()
+        
+        # 计算AI相关性评分（在分类之前）
+        ai_relevance = self.calculate_ai_relevance(item)
+        classified['ai_relevance'] = round(ai_relevance, 3)
         
         content_type, confidence, secondary_labels = self.classify_content_type(item)
         classified['content_type'] = content_type
@@ -544,9 +722,14 @@ class ContentClassifier:
         avg_importance = sum(item.get('importance', 0) for item in classified_items) / len(classified_items) if classified_items else 0
         high_importance = sum(1 for item in classified_items if item.get('importance', 0) >= 0.70)
         
+        # AI相关性统计
+        avg_ai_relevance = sum(item.get('ai_relevance', 0) for item in classified_items) / len(classified_items) if classified_items else 0
+        low_relevance = sum(1 for item in classified_items if item.get('ai_relevance', 1) < 0.5)
+        
         log.dual_success("规则分类完成！")
         log.dual_data(f"研究: {stats['research']} | 开发者: {stats['developer']} | 产品: {stats['product']} | 市场: {stats['market']} | 领袖: {stats['leader']}")
         log.dual_data(f"平均置信度: {avg_confidence:.2%} | 低置信度(<60%): {low_confidence} 条")
+        log.dual_data(f"平均AI相关性: {avg_ai_relevance:.2%} | 低相关(<50%): {low_relevance} 条")
         log.dual_data(f"平均重要性: {avg_importance:.2%} | 高重要性(≥70%): {high_importance} 条")
         
         return classified_items
@@ -777,6 +960,105 @@ class ContentClassifier:
                 stats[content_type] += 1
         
         return stats
+    
+    def calculate_ai_relevance(self, item: Dict) -> float:
+        """
+        计算内容的AI相关性评分
+        
+        评分逻辑：
+        1. 核心AI关键词匹配（高权重）
+        2. AI产品/公司关键词匹配（中权重）
+        3. 弱AI相关词匹配（低权重）
+        4. 非AI领域关键词惩罚
+        5. 来源加成（AI专业来源）
+        
+        Args:
+            item: 内容项
+            
+        Returns:
+            AI相关性评分 (0-1)
+        """
+        title = item.get('title', '').lower()
+        summary = f"{item.get('summary', '')} {item.get('description', '')}".lower()
+        source = item.get('source', '').lower()
+        url = item.get('url', '').lower()
+        
+        # 合并文本（标题权重更高）
+        full_text = f"{title} {title} {summary}"  # 标题出现两次，增加权重
+        
+        # ============ 正向评分 ============
+        positive_score = 0.0
+        max_possible_score = 0.0
+        
+        # 1. 核心AI关键词（最高权重）
+        for keyword, weight in self.ai_core_keywords.items():
+            max_possible_score += weight
+            if keyword in full_text:
+                positive_score += weight
+                # 标题中出现额外加分
+                if keyword in title:
+                    positive_score += weight * 0.5
+        
+        # 2. AI产品/公司关键词（中权重）
+        for keyword, weight in self.ai_product_keywords.items():
+            max_possible_score += weight * 0.5  # 产品词权重减半计入总分
+            if keyword in full_text:
+                positive_score += weight
+                if keyword in title:
+                    positive_score += weight * 0.3
+        
+        # 3. 弱AI相关词（低权重）
+        for keyword, weight in self.ai_weak_keywords.items():
+            max_possible_score += weight * 0.3  # 弱相关词权重更低
+            if keyword in full_text:
+                positive_score += weight
+        
+        # ============ 来源加成 ============
+        ai_sources = ['arxiv', 'huggingface', 'openai', 'anthropic', 'deepmind',
+                      'github', 'machine learning', 'ai news', 'ai blog',
+                      '机器之心', '量子位', 'jiqizhixin', 'qbitai']
+        
+        source_bonus = 0.0
+        for ai_source in ai_sources:
+            if ai_source in source or ai_source in url:
+                source_bonus = 0.15  # 来源加成15%
+                break
+        
+        # ============ 负向评分（非AI内容惩罚）============
+        negative_score = 0.0
+        for keyword in self.non_ai_keywords:
+            if keyword in full_text:
+                negative_score += 2.0
+                # 标题中出现惩罚更重
+                if keyword in title:
+                    negative_score += 3.0
+        
+        # ============ 计算最终相关性 ============
+        # 基础相关性 = 正向分数 / 标准化因子
+        # 使用 sigmoid 函数平滑化
+        if positive_score == 0:
+            base_relevance = 0.0
+        else:
+            # 正向分数归一化（期望值约为15-20分为高相关）
+            normalized_positive = positive_score / 20.0
+            base_relevance = min(1.0, normalized_positive)
+        
+        # 应用来源加成
+        base_relevance = min(1.0, base_relevance + source_bonus)
+        
+        # 应用负向惩罚
+        if negative_score > 0:
+            # 负向分数越高，惩罚越大
+            penalty = min(0.5, negative_score / 20.0)
+            base_relevance = max(0.0, base_relevance - penalty)
+        
+        # 特殊规则：某些来源直接高相关
+        if 'arxiv.org' in url or 'arxiv' in source:
+            base_relevance = max(base_relevance, 0.9)
+        if 'huggingface' in source or 'huggingface.co' in url:
+            base_relevance = max(base_relevance, 0.85)
+        
+        return round(base_relevance, 3)
     
     def get_filtered_items(self, items: List[Dict], 
                           content_type: Optional[str] = None,

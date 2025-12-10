@@ -1,6 +1,19 @@
 """
 AI世界追踪器 - 数据采集模块
 专注于收集最新AI研究、产品、开发者社区和行业信息
+
+支持两种模式:
+- 同步模式 (ThreadPoolExecutor): 兼容旧代码
+- 异步模式 (asyncio + aiohttp): 高性能采集
+
+使用方式:
+    # 自动选择最优模式
+    collector = DataCollector()
+    data = collector.collect_all()
+    
+    # 强制使用异步模式
+    collector = DataCollector(async_mode=True)
+    data = collector.collect_all()
 """
 
 import requests
@@ -10,14 +23,16 @@ import json
 import os
 import yaml
 from datetime import datetime, timedelta
-from dateutil import parser
-from typing import List, Dict, Optional, Callable, Tuple
+from dateutil import parser as date_parser
+from typing import List, Dict, Optional, Callable, Tuple, Any
+from dataclasses import dataclass
 import time
 import random
 import difflib
+import hashlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from urllib.parse import urljoin
-from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 from config import config
 from logger import get_log_helper
 
@@ -27,6 +42,14 @@ try:
 except ImportError:
     def t(key, **kwargs): return key
     def get_language(): return 'zh'
+
+# 尝试导入异步库
+try:
+    import asyncio
+    import aiohttp
+    ASYNC_AVAILABLE = True
+except ImportError:
+    ASYNC_AVAILABLE = False
 
 # 模块日志器
 log = get_log_helper('data_collector')
@@ -47,69 +70,188 @@ def _get_cache_dir():
 
 DATA_CACHE_DIR = _get_cache_dir()
 
+# ============== 异步采集器配置 ==============
+
+@dataclass
+class AsyncCollectorConfig:
+    """异步采集器配置"""
+    # 并发控制
+    max_concurrent_requests: int = 20      # 最大并发请求数
+    max_concurrent_per_host: int = 3       # 每个主机最大并发数
+    
+    # 超时设置（秒）
+    request_timeout: int = 15              # 单个请求超时
+    total_timeout: int = 120               # 总采集超时
+    
+    # 重试设置
+    max_retries: int = 2                   # 最大重试次数
+    retry_delay: float = 1.0               # 重试延迟（秒）
+    
+    # 速率限制
+    rate_limit_delay: float = 0.2          # 请求间隔（秒）
+    
+    # 数据目录
+    cache_dir: str = 'data/cache'
+
+def _load_async_config() -> AsyncCollectorConfig:
+    """从 config.yaml 加载异步采集配置"""
+    cfg = AsyncCollectorConfig()
+    try:
+        if os.path.exists('config.yaml'):
+            with open('config.yaml', 'r', encoding='utf-8') as f:
+                yaml_cfg = yaml.safe_load(f)
+                async_cfg = yaml_cfg.get('async_collector', {})
+                
+                cfg.max_concurrent_requests = async_cfg.get('max_concurrent_requests', cfg.max_concurrent_requests)
+                cfg.max_concurrent_per_host = async_cfg.get('max_concurrent_per_host', cfg.max_concurrent_per_host)
+                cfg.request_timeout = async_cfg.get('request_timeout', cfg.request_timeout)
+                cfg.total_timeout = async_cfg.get('total_timeout', cfg.total_timeout)
+                cfg.max_retries = async_cfg.get('max_retries', cfg.max_retries)
+                cfg.cache_dir = yaml_cfg.get('data', {}).get('cache_dir', cfg.cache_dir)
+    except Exception:
+        pass
+    
+    os.makedirs(cfg.cache_dir, exist_ok=True)
+    return cfg
+
+def _check_async_mode() -> bool:
+    """检查是否应该使用异步模式"""
+    if not ASYNC_AVAILABLE:
+        return False
+    
+    # 从配置读取
+    try:
+        if os.path.exists('config.yaml'):
+            with open('config.yaml', 'r', encoding='utf-8') as f:
+                cfg = yaml.safe_load(f)
+                return cfg.get('collector', {}).get('async_mode', True)
+    except Exception:
+        pass
+    
+    return True  # 默认使用异步模式
+
+# ============== AI相关常量定义 ==============
+
+# AI领袖列表
+AI_LEADERS = {
+    "Sam Altman": "OpenAI CEO",
+    "Elon Musk": "xAI Founder",
+    "Jensen Huang": "NVIDIA CEO",
+    "Demis Hassabis": "Google DeepMind CEO",
+    "Yann LeCun": "Meta Chief AI Scientist",
+    "Geoffrey Hinton": "AI Pioneer",
+    "Andrew Ng": "AI Fund Managing General Partner",
+    "Kai-Fu Lee": "01.AI CEO",
+    "Robin Li": "Baidu CEO"
+}
+
+# AI相关关键词
+AI_KEYWORDS = [
+    'ai', 'artificial intelligence', 'machine learning', 'deep learning',
+    'neural network', 'llm', 'gpt', 'transformer', 'chatgpt', 'claude',
+    'gemini', 'llama', 'anthropic', 'openai',
+    '人工智能', '机器学习', '深度学习', '神经网络', '大模型'
+]
+
+# HN搜索关键词
+HN_SEARCH_TERMS = [
+    'ai', 'llm', 'gpt', 'chatgpt', 'openai', 'anthropic', 'claude',
+    'gemini', 'llama', 'transformer', 'machine learning', 'deep learning',
+    'neural', 'diffusion', 'stable diffusion', 'midjourney', 'copilot',
+    'langchain', 'rag', 'vector', 'embedding', 'fine-tune', 'rlhf'
+]
+
+# RSS源配置 - 统一配置
+RSS_FEEDS = {
+    'research': [
+        'http://export.arxiv.org/rss/cs.AI',
+        'http://export.arxiv.org/rss/cs.CL',
+        'http://export.arxiv.org/rss/cs.CV',
+        'http://export.arxiv.org/rss/cs.LG',
+    ],
+    'news': [
+        'https://www.theverge.com/rss/ai-artificial-intelligence/index.xml',
+        'https://techcrunch.com/category/artificial-intelligence/feed/',
+        'https://www.wired.com/feed/tag/ai/latest/rss',
+        'https://spectrum.ieee.org/rss/topic/artificial-intelligence',
+        'https://www.technologyreview.com/feed/',
+        'https://artificialintelligence-news.com/feed/',
+        'https://syncedreview.com/feed/',
+        'https://www.36kr.com/feed',
+        'https://www.ithome.com/rss/',
+        'https://www.jiqizhixin.com/rss',
+        'https://www.qbitai.com/feed',
+        'https://www.infoq.cn/feed/topic/18',
+    ],
+    'developer': [
+        'https://github.blog/feed/',
+        'https://huggingface.co/blog/feed.xml',
+        'https://openai.com/blog/rss.xml',
+        'https://blog.google/technology/ai/rss/',
+    ],
+    'product_news': [
+        'https://openai.com/blog/rss.xml',
+        'https://blog.google/technology/ai/rss/',
+        'https://blogs.microsoft.com/ai/feed/',
+    ],
+    'community': [
+        'https://www.producthunt.com/feed?category=artificial-intelligence',
+    ],
+    'leader_blogs': [
+        {'url': 'http://blog.samaltman.com/posts.atom', 'author': 'Sam Altman', 'title': 'OpenAI CEO'},
+        {'url': 'https://karpathy.github.io/feed.xml', 'author': 'Andrej Karpathy', 'title': 'AI Researcher'},
+        {'url': 'https://lexfridman.com/feed/podcast/', 'author': 'Lex Fridman', 'title': 'Podcast Host', 'type': 'podcast'},
+    ]
+}
 
 class AIDataCollector:
-    """AI数据采集器 - 收集真实最新的AI信息"""
+    """AI数据采集器 - 收集真实最新的AI信息
     
-    def __init__(self):
+    支持两种模式:
+    - 同步模式: 使用ThreadPoolExecutor并行采集
+    - 异步模式: 使用asyncio+aiohttp高性能采集（推荐）
+    
+    Args:
+        async_mode: 是否使用异步模式，None表示自动检测
+    """
+    
+    def __init__(self, async_mode: Optional[bool] = None):
+        # 确定采集模式
+        if async_mode is None:
+            self._use_async = _check_async_mode()
+        else:
+            self._use_async = async_mode and ASYNC_AVAILABLE
+        
+        # 异步采集器（当前版本未使用独立的异步采集器类）
+        self._async_collector = None
+        
+        # 异步配置
+        if self._use_async:
+            self.async_config = _load_async_config()
+            log.config("📡 Collector mode: Async (aiohttp)")
+        else:
+            self.async_config = None
+            log.config("📡 Collector mode: Sync (ThreadPool)")
+        
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
         
-        # RSS源配置 - 真实可用的AI新闻源
-        self.rss_feeds = {
-            'research': [
-                'http://export.arxiv.org/rss/cs.AI',  # ArXiv AI
-                'http://export.arxiv.org/rss/cs.CL',  # 计算语言学  
-                'http://export.arxiv.org/rss/cs.CV',  # 计算机视觉
-                'http://export.arxiv.org/rss/cs.LG',  # 机器学习
-            ],
-            'news': [
-                # 国际AI新闻源
-                'https://www.theverge.com/rss/ai-artificial-intelligence/index.xml',  # The Verge AI
-                'https://techcrunch.com/category/artificial-intelligence/feed/',  # TechCrunch AI
-                'https://www.wired.com/feed/tag/ai/latest/rss',  # Wired AI
-                'https://spectrum.ieee.org/rss/topic/artificial-intelligence',  # IEEE Spectrum AI
-                'https://www.technologyreview.com/feed/',  # MIT Technology Review
-                'https://artificialintelligence-news.com/feed/',  # AI News
-                'https://syncedreview.com/feed/',  # Synced Review (AI专业)
-                # 中国AI新闻源
-                'https://www.36kr.com/feed',  # 36氪 (科技创业)
-                'https://www.ithome.com/rss/',  # IT之家
-                'https://www.jiqizhixin.com/rss',  # 机器之心
-                'https://www.qbitai.com/feed',  # 量子位
-                'https://www.infoq.cn/feed/topic/18',  # InfoQ AI
-            ],
-            'developer': [
-                'https://github.blog/feed/',  # GitHub Blog
-                'https://huggingface.co/blog/feed.xml',  # Hugging Face
-                'https://openai.com/blog/rss.xml',  # OpenAI Blog
-                'https://blog.google/technology/ai/rss/',  # Google AI Blog
-            ],
-            'product_news': [  # 新增专门的产品发布新闻源
-                # 公司官方博客
-                'https://openai.com/blog/rss.xml',  # OpenAI官方博客
-                'https://blog.google/technology/ai/rss/',  # Google AI博客
-                'https://blogs.microsoft.com/ai/feed/',  # Microsoft AI博客
-                # Meta和Anthropic因RSS不稳定，主要依赖备用数据或新闻聚合
-                
-                # 中国公司
-                # 腾讯云RSS存在解析错误，已移除
-            ],
-            'community': [  # 新增社区热点源
-                'https://www.producthunt.com/feed?category=artificial-intelligence', # Product Hunt AI
-                'https://hnrss.org/newest?q=AI+LLM', # Hacker News AI (简化查询以提高命中率)
-            ],
-            'leader_blogs': [  # 新增领袖个人渠道
-                {'url': 'http://blog.samaltman.com/posts.atom', 'author': 'Sam Altman', 'title': 'OpenAI CEO'},
-                {'url': 'https://karpathy.github.io/feed.xml', 'author': 'Andrej Karpathy', 'title': 'AI Researcher'},
-                {'url': 'https://lexfridman.com/feed/podcast/', 'author': 'Lex Fridman', 'title': 'Podcast Host', 'type': 'podcast'},
-            ]
-        }
+        # 使用统一的RSS源配置
+        self.rss_feeds = RSS_FEEDS
         
         # 采集历史缓存
         self.history_cache_file = os.path.join(DATA_CACHE_DIR, 'collection_history_cache.json')
         self.history_cache = self._load_history_cache()
+        
+        # 统计信息（用于异步模式）
+        self.stats = {
+            'requests_made': 0,
+            'requests_failed': 0,
+            'items_collected': 0,
+            'start_time': None,
+            'end_time': None
+        }
     
     def _load_history_cache(self) -> Dict:
         """加载采集历史缓存"""
@@ -173,13 +315,80 @@ class AIDataCollector:
         if title:
             self.history_cache['titles'].add(title)
     
+    def _filter_by_history(self, all_data: Dict[str, List[Dict]], 
+                           filter_enabled: bool = True) -> Tuple[Dict[str, List[Dict]], Dict[str, int], Dict[str, int]]:
+        """
+        统一的历史缓存过滤方法
+        
+        Args:
+            all_data: 按类别分组的数据字典
+            filter_enabled: 是否启用过滤（False则只统计不过滤）
+            
+        Returns:
+            Tuple[filtered_data, new_stats, cached_stats]
+            - filtered_data: 过滤后的数据（或原数据，取决于filter_enabled）
+            - new_stats: 每个类别的新内容数量
+            - cached_stats: 每个类别的缓存命中数量
+        """
+        new_stats = {}  # 记录每个类别的新内容数量
+        cached_stats = {}  # 记录每个类别的缓存命中数量
+        new_items_for_cache = []  # 记录新采集的项目
+        
+        if filter_enabled:
+            # 过滤模式：移除历史中已有的项目
+            filtered_data = {}
+            for cat in all_data:
+                new_items = []
+                cached_count = 0
+                for item in all_data[cat]:
+                    if self._is_in_history(item):
+                        cached_count += 1
+                    else:
+                        new_items.append(item)
+                        new_items_for_cache.append(item)
+                filtered_data[cat] = new_items
+                new_stats[cat] = len(new_items)
+                cached_stats[cat] = cached_count
+        else:
+            # 统计模式：只统计，不过滤
+            filtered_data = all_data
+            for cat in all_data:
+                new_count = 0
+                cached_count = 0
+                for item in all_data[cat]:
+                    if self._is_in_history(item):
+                        cached_count += 1
+                    else:
+                        new_count += 1
+                        new_items_for_cache.append(item)
+                new_stats[cat] = new_count
+                cached_stats[cat] = cached_count
+        
+        # 将新采集的项目添加到历史缓存
+        for item in new_items_for_cache:
+            self._add_to_history(item)
+        
+        # 保存更新后的缓存
+        if new_items_for_cache:
+            self._save_history_cache()
+        
+        return filtered_data, new_stats, cached_stats
+    
     def clear_history_cache(self):
         """清除采集历史缓存"""
         import os
         self.history_cache = {'urls': set(), 'titles': set(), 'last_updated': ''}
         if os.path.exists(self.history_cache_file):
             os.remove(self.history_cache_file)
+        # 如果有异步采集器，也清除其缓存
+        if self._async_collector:
+            self._async_collector.clear_history_cache()
         log.success(t('dc_cache_cleared'))
+    
+    @property
+    def is_async_mode(self) -> bool:
+        """检查是否使用异步模式"""
+        return self._use_async and self._async_collector is not None
     
     def collect_research_papers(self, max_results: int = 10) -> List[Dict]:
         """
@@ -212,14 +421,12 @@ class AIDataCollector:
                     
                 paper = {
                     'title': result.title,
-                    'summary': result.summary[:300] + "..." if len(result.summary) > 300 else result.summary,
+                    'summary': self._clean_html(result.summary),
                     'authors': [str(author) for author in result.authors],
                     'url': result.entry_id,
                     'published': result.published.strftime('%Y-%m-%d'),
                     'categories': [str(cat) for cat in result.categories],
-                    'source': 'arXiv',
-                    'category': 'research',
-                    'importance': self._calculate_importance(result.title, result.summary)
+                    'source': 'arXiv'
                 }
                 papers.append(paper)
                 
@@ -293,8 +500,7 @@ class AIDataCollector:
             except Exception as e:
                 log.warning(t('dc_product_failed', company=company, error=str(e)))
         
-        # 按重要性排序并限制数量
-        products.sort(key=lambda x: x.get('importance', 0), reverse=True)
+        # 按发布时间排序并限制数量
         products = products[:max_results]
         
         log.dual_success(t('dc_got_products', count=len(products)))
@@ -360,16 +566,18 @@ class AIDataCollector:
                     # 简单的关键词过滤，确保是言论相关的
                     text = (entry.title + " " + entry.get('summary', '')).lower()
                     if any(k in text for k in ['said', 'says', 'stated', 'warns', 'believes', 'predicts', 'interview', 'speech', 'tweet', 'post']):
+                        # 清理 summary 中的 HTML 标签
+                        raw_summary = entry.get('summary', entry.title)
+                        clean_summary = self._clean_html(raw_summary, max_length=300)
+                        
                         quote = {
                             'title': f"{leader_name}: {entry.title}",
-                            'summary': entry.get('summary', entry.title)[:300],
+                            'summary': clean_summary,
                             'url': entry.link,
                             'published': entry.get('published', datetime.now().strftime('%Y-%m-%d')),
                             'source': f"News about {leader_name}",
-                            'category': 'leader',
                             'author': leader_name,
-                            'author_title': title,
-                            'importance': 0.95
+                            'author_title': title
                         }
                         quotes.append(quote)
                         count += 1
@@ -407,14 +615,12 @@ class AIDataCollector:
 
                     quote = {
                         'title': f"[{source['author']}] {entry.title}",
-                        'summary': entry.get('summary', entry.get('description', ''))[:300],
+                        'summary': self._clean_html(entry.get('summary', entry.get('description', ''))),
                         'url': entry.link,
                         'published': entry.get('published', datetime.now().strftime('%Y-%m-%d')),
                         'source': 'Personal Blog/Podcast',
-                        'category': 'leader',
                         'author': source['author'],
-                        'author_title': source['title'],
-                        'importance': 1.0 # 个人博客内容权重最高
+                        'author_title': source['title']
                     }
                     quotes.append(quote)
             except Exception as e:
@@ -507,14 +713,7 @@ class AIDataCollector:
         try:
             hn_items = self._fetch_hacker_news_api(max_items=10)
             for item in hn_items:
-                # 根据 score 调整重要性
-                score = item.get('score', 0)
-                if score > 100:
-                    item['importance'] = 0.85
-                elif score > 50:
-                    item['importance'] = 0.75
-                else:
-                    item['importance'] = 0.65
+                # 保留 score 信息供评估器使用
                 trends.append(item)
         except Exception as e:
             log.dual_warning(t('dc_hn_api_failed', error=str(e)))
@@ -542,8 +741,6 @@ class AIDataCollector:
                 
                 for item in feed_items:
                     item['source'] = source_name
-                    # Boost importance for these high-signal sources
-                    item['importance'] = item.get('importance', 0.6) + 0.1
                     trends.append(item)
                     time.sleep(0.2)
                     
@@ -563,6 +760,38 @@ class AIDataCollector:
     def collect_all(self, parallel: bool = True, max_workers: int = 6) -> Dict[str, List[Dict]]:
         """
         采集所有类型的数据
+        
+        Args:
+            parallel: 是否启用并行采集（同步模式参数）
+            max_workers: 并行采集的最大线程数（同步模式参数）
+        
+        Returns:
+            分类的数据字典
+        """
+        # 如果使用异步模式，委托给异步采集
+        if self._use_async and ASYNC_AVAILABLE:
+            return self._collect_all_async_wrapper()
+        
+        # 同步模式 - 原有实现
+        return self._collect_all_sync(parallel, max_workers)
+    
+    def _collect_all_async_wrapper(self) -> Dict[str, List[Dict]]:
+        """异步采集的同步包装器"""
+        try:
+            # 在新的事件循环中运行异步采集
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(self._collect_all_async())
+            finally:
+                loop.close()
+        except Exception as e:
+            log.error(f"Async collection failed: {e}, falling back to sync mode")
+            return self._collect_all_sync(True, 6)
+    
+    def _collect_all_sync(self, parallel: bool = True, max_workers: int = 6) -> Dict[str, List[Dict]]:
+        """
+        同步采集所有类型的数据（原有实现）
         
         Args:
             parallel: 是否启用并行采集（默认启用）
@@ -636,40 +865,22 @@ class AIDataCollector:
             for category, func, count in collect_tasks:
                 all_data[category] = func(count)
         
-        # 使用独立的采集历史缓存统计新内容（但不过滤，所有内容都传递给分类模块）
-        new_stats = {}  # 记录每个类别的新内容数量
-        cached_stats = {}  # 记录每个类别的缓存命中数量
-        new_items_for_cache = []  # 记录新采集的项目，稍后添加到缓存
+        # 统一去重处理
+        all_data = self._apply_deduplication(all_data)
         
-        for cat in all_data:
-            new_count = 0
-            cached_count = 0
-            for item in all_data[cat]:
-                if self._is_in_history(item):
-                    cached_count += 1
-                else:
-                    new_count += 1
-                    new_items_for_cache.append(item)
-            new_stats[cat] = new_count
-            cached_stats[cat] = cached_count
+        # 统一历史缓存过滤（启用过滤，移除已采集过的内容）
+        # filter_enabled=True: 实际过滤掉历史中已有的项目，减少后续处理量
+        all_data, new_stats, cached_stats = self._filter_by_history(all_data, filter_enabled=True)
         
-        # 将新采集的项目添加到历史缓存
-        for item in new_items_for_cache:
-            self._add_to_history(item)
-        
-        # 保存更新后的缓存
-        if new_items_for_cache:
-            self._save_history_cache()
-        
-        # 统计信息
+        # 统计信息（过滤后的数据）
         total_items = sum(len(items) for items in all_data.values())
-        total_new = sum(new_stats.values())
+        total_new = total_items  # 过滤后全部是新内容
         total_cached = sum(cached_stats.values())
-        log.dual_done(t('dc_collection_done_v2', total=total_items, new=total_new, cached=total_cached))
+        log.dual_done(t('dc_collection_done_v2', total=total_items + total_cached, new=total_new, cached=total_cached))
         for category, items in all_data.items():
             new_count = new_stats.get(category, 0)
             cached_count = cached_stats.get(category, 0)
-            log.dual_data(t('dc_category_stats_v2', category=category, count=len(items), new=new_count, cached=cached_count))
+            log.dual_data(t('dc_category_stats_v2', category=category, count=new_count + cached_count, new=new_count, cached=cached_count))
         
         return all_data
     
@@ -709,9 +920,7 @@ class AIDataCollector:
                         'stars': repo['stargazers_count'],
                         'language': repo['language'],
                         'updated': repo['updated_at'][:10],
-                        'source': 'GitHub',
-                        'category': 'developer',
-                        'importance': min(repo['stargazers_count'] / 1000, 1.0)
+                        'source': 'GitHub'
                     }
                     projects.append(project)
             
@@ -750,9 +959,7 @@ class AIDataCollector:
                         'url': f"https://huggingface.co/{model['id']}",
                         'downloads': model.get('downloads', 0),
                         'updated': model.get('lastModified', '')[:10],
-                        'source': 'Hugging Face',
-                        'category': 'developer',
-                        'importance': min(model.get('downloads', 0) / 10000, 1.0)
+                        'source': 'Hugging Face'
                     }
                     updates.append(update)
         
@@ -787,7 +994,6 @@ class AIDataCollector:
             updates = self._parse_rss_feed(rss_url, category='product')
             for item in updates:
                 item['company'] = 'OpenAI'
-                item['importance'] = 0.95 # OpenAI新闻通常很重要
         except Exception:
             pass
             
@@ -802,20 +1008,16 @@ class AIDataCollector:
                 'url': 'https://openai.com/index/hello-gpt-4o/',
                 'company': 'OpenAI',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'OpenAI',
-                'category': 'product',
-                'importance': 0.95
-            },
+                'source': 'OpenAI'
+},
             {
                 'title': 'OpenAI API 定价更新公告',
                 'summary': 'OpenAI更新API定价策略，降低GPT-4使用成本，同时推出更经济的GPT-4 Turbo选项，为开发者提供更灵活的选择。',
                 'url': 'https://openai.com/api/pricing/',
                 'company': 'OpenAI',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'OpenAI',
-                'category': 'product',
-                'importance': 0.88
-            }
+                'source': 'OpenAI'
+}
         ]
     
     def _collect_google_ai_updates(self) -> List[Dict]:
@@ -826,7 +1028,6 @@ class AIDataCollector:
             updates = self._parse_rss_feed(rss_url, category='product')
             for item in updates:
                 item['company'] = 'Google'
-                item['importance'] = 0.92
         except Exception:
             pass
             
@@ -840,20 +1041,16 @@ class AIDataCollector:
                 'url': 'https://gemini.google.com/',
                 'company': 'Google',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Google AI',
-                'category': 'product',
-                'importance': 0.92
-            },
+                'source': 'Google AI'
+},
             {
                 'title': 'Google AI Studio 产品发布',
                 'summary': 'Google AI Studio为开发者提供快速原型设计和测试生成式AI想法的平台，支持Gemini模型的快速集成和部署。',
                 'url': 'https://aistudio.google.com/',
                 'company': 'Google',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Google AI',
-                'category': 'product',
-                'importance': 0.85
-            }
+                'source': 'Google AI'
+}
         ]
     
     def _collect_microsoft_ai_updates(self) -> List[Dict]:
@@ -864,7 +1061,6 @@ class AIDataCollector:
             updates = self._parse_rss_feed(rss_url, category='product')
             for item in updates:
                 item['company'] = 'Microsoft'
-                item['importance'] = 0.90
         except Exception:
             pass
             
@@ -878,20 +1074,16 @@ class AIDataCollector:
                 'url': 'https://copilot.microsoft.com/',
                 'company': 'Microsoft',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Microsoft',
-                'category': 'product',
-                'importance': 0.90
-            },
+                'source': 'Microsoft'
+},
             {
                 'title': 'Azure AI Services 产品介绍',
                 'summary': 'Azure AI Services提供完整的AI和机器学习服务套件，包括认知服务、机器学习平台和OpenAI服务，为企业AI转型提供支持。',
                 'url': 'https://azure.microsoft.com/en-us/products/ai-services',
                 'company': 'Microsoft',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Microsoft Azure',
-                'category': 'product',
-                'importance': 0.88
-            }
+                'source': 'Microsoft Azure'
+}
         ]
     
     def _collect_meta_ai_updates(self) -> List[Dict]:
@@ -902,7 +1094,6 @@ class AIDataCollector:
             updates = self._parse_rss_feed(rss_url, category='product')
             for item in updates:
                 item['company'] = 'Meta'
-                item['importance'] = 0.90
         except Exception:
             pass
             
@@ -916,20 +1107,16 @@ class AIDataCollector:
                 'url': 'https://llama.meta.com/',
                 'company': 'Meta',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Meta AI',
-                'category': 'product',
-                'importance': 0.90
-            },
+                'source': 'Meta AI'
+},
             {
                 'title': 'Meta AI Assistant 产品介绍',
                 'summary': 'Meta AI是智能助手产品，集成到Facebook、Instagram、WhatsApp等平台，为用户提供AI驱动的对话、创作和搜索体验。',
                 'url': 'https://www.meta.ai/',
                 'company': 'Meta',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Meta AI',
-                'category': 'product',
-                'importance': 0.85
-            }
+                'source': 'Meta AI'
+}
         ]
     
     def _collect_anthropic_updates(self) -> List[Dict]:
@@ -940,7 +1127,6 @@ class AIDataCollector:
             updates = self._parse_rss_feed(rss_url, category='product')
             for item in updates:
                 item['company'] = 'Anthropic'
-                item['importance'] = 0.88
         except Exception:
             pass
             
@@ -954,20 +1140,16 @@ class AIDataCollector:
                 'url': 'https://www.anthropic.com/claude',
                 'company': 'Anthropic',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Anthropic',
-                'category': 'product',
-                'importance': 0.88
-            },
+                'source': 'Anthropic'
+},
             {
                 'title': 'Anthropic Claude API 文档',
                 'summary': 'Anthropic提供Claude API服务，为开发者提供高质量的对话AI能力，支持多种使用场景，包括内容创作、分析和编程辅助等。',
                 'url': 'https://docs.anthropic.com/',
                 'company': 'Anthropic',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Anthropic',
-                'category': 'product',
-                'importance': 0.82
-            }
+                'source': 'Anthropic'
+}
         ]
     
     def _collect_chinese_ai_updates(self) -> List[Dict]:
@@ -991,7 +1173,6 @@ class AIDataCollector:
                 for item in feed_updates:
                     if any(c in item['title'] for c in ['百度', '阿里', '腾讯', '华为', '字节', '文心一言', '通义千问', '混元', '盘古', 'Kimi', '智谱', 'DeepSeek']):
                         item['company'] = 'China Tech'
-                        item['importance'] = 0.9
                         updates.append(item)
             except Exception:
                 continue
@@ -1007,40 +1188,32 @@ class AIDataCollector:
                 'url': 'https://yiyan.baidu.com/',
                 'company': 'Baidu',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Baidu AI',
-                'category': 'product',
-                'importance': 0.92
-            },
+                'source': 'Baidu AI'
+},
             {
                 'title': '阿里通义千问 2.5 发布',
                 'summary': '阿里云发布通义千问2.5，模型性能全面升级，在中文语境下表现优异，开源多款尺寸模型供开发者使用。',
                 'url': 'https://tongyi.aliyun.com/',
                 'company': 'Alibaba',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Aliyun',
-                'category': 'product',
-                'importance': 0.90
-            },
+                'source': 'Aliyun'
+},
              {
                 'title': '腾讯混元大模型升级',
                 'summary': '腾讯混元大模型迎来重要升级，扩展了上下文窗口，增强了代码生成和数学推理能力，已接入腾讯全系产品。',
                 'url': 'https://hunyuan.tencent.com/',
                 'company': 'Tencent',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Tencent Cloud',
-                'category': 'product',
-                'importance': 0.88
-            },
+                'source': 'Tencent Cloud'
+},
             {
                 'title': 'DeepSeek V2 开源发布',
                 'summary': '深度求索(DeepSeek)发布DeepSeek-V2，这是一款强大的开源MoE大语言模型，在多项基准测试中表现优异，且推理成本极低。',
                 'url': 'https://www.deepseek.com/',
                 'company': 'DeepSeek',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'DeepSeek',
-                'category': 'product',
-                'importance': 0.95
-            }
+                'source': 'DeepSeek'
+}
         ]
     
     def _fetch_hacker_news_api(self, max_items: int = 15, search_terms: List[str] = None) -> List[Dict]:
@@ -1117,9 +1290,7 @@ class AIDataCollector:
                 text_content = story.get('text', '')
                 if text_content:
                     # 清理 HTML 标签
-                    from bs4 import BeautifulSoup
-                    soup = BeautifulSoup(text_content, 'html.parser')
-                    summary = soup.get_text()[:300]
+                    summary = self._clean_html(text_content)
                 else:
                     # 如果没有 text，生成基于元数据的摘要
                     score = story.get('score', 0)
@@ -1138,8 +1309,6 @@ class AIDataCollector:
                     'url': story.get('url') or f"https://news.ycombinator.com/item?id={story.get('id')}",
                     'published': pub_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'source': 'Hacker News',
-                    'category': 'community',
-                    'importance': 0.7,
                     # HN 特有的元数据
                     'hn_id': story.get('id'),
                     'score': story.get('score', 0),
@@ -1173,15 +1342,17 @@ class AIDataCollector:
                 if date_val and not self._is_recent(date_val):
                     continue
 
+                # 清理 summary 中的 HTML 标签
+                raw_summary = entry.get('summary', entry.get('description', ''))
+                clean_summary = self._clean_html(raw_summary, max_length=300)
+
                 item = {
                     'title': entry.get('title', ''),
-                    'summary': entry.get('summary', entry.get('description', ''))[:300] + "...",
+                    'summary': clean_summary,
                     'url': entry.get('link', ''),
                     'published': entry.get('published', ''),
-                    'source': feed.feed.get('title', feed_url),
-                    'category': category,
-                    'importance': 0.6
-                }
+                    'source': feed.feed.get('title', feed_url)
+}
                 
                 if self._is_valid_item(item):
                     items.append(item)
@@ -1191,31 +1362,271 @@ class AIDataCollector:
         
         return items
     
-    def _deduplicate_items(self, items: List[Dict], threshold: float = 0.6) -> List[Dict]:
+    # ============== 语义去重相关方法 ==============
+    
+    # 英文停用词（用于关键词提取）
+    _STOPWORDS = frozenset({
+        'the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but',
+        'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
+        'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might',
+        'that', 'this', 'these', 'those', 'with', 'from', 'by', 'as', 'into',
+        'through', 'during', 'before', 'after', 'above', 'below', 'between',
+        'says', 'said', 'predicts', 'predicted', 'tells', 'told', 'according',
+        'thanks', 'about', 'over', 'under', 'again', 'further', 'then', 'once',
+        'here', 'there', 'when', 'where', 'why', 'how', 'all', 'each', 'every',
+        'both', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'not',
+        'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just', 'also',
+        'now', 'new', 'first', 'last', 'long', 'great', 'little', 'own', 'make',
+        'can', 'like', 'back', 'even', 'well', 'way', 'our', 'out', 'its', 'it',
+        'up', 'go', 'going', 'get', 'getting', 'come', 'coming', 'become', 'becoming'
+    })
+    
+    def _normalize_title(self, title: str) -> str:
         """
-        对内容列表进行去重
-        基于标题相似度
+        归一化标题：去除来源后缀、标点、多余词汇
+        
+        Args:
+            title: 原始标题
+            
+        Returns:
+            归一化后的标题
+        """
+        import re
+        if not title:
+            return ''
+        
+        # 去除来源后缀 (- Source Name, | Source, — Source)
+        # 匹配模式: " - Fox Business", " | Reuters", " — The Guardian"
+        title = re.sub(r'\s*[-|—]\s*[A-Z][a-zA-Z\s&.\']+$', '', title)
+        
+        # 小写
+        title = title.lower()
+        
+        # 移除标点符号（保留字母、数字、空格）
+        title = re.sub(r'[^\w\s]', ' ', title)
+        
+        # 移除多余空格
+        title = ' '.join(title.split())
+        
+        return title
+    
+    def _extract_keywords(self, title: str) -> set:
+        """
+        提取标题关键词（去除停用词）
+        
+        Args:
+            title: 原始标题
+            
+        Returns:
+            关键词集合
+        """
+        normalized = self._normalize_title(title)
+        words = normalized.split()
+        # 过滤停用词和过短的词（<3字符）
+        return {w for w in words if len(w) >= 3 and w not in self._STOPWORDS}
+    
+    def _semantic_similarity(self, title1: str, title2: str) -> tuple:
+        """
+        计算两个标题的语义相似度
+        
+        采用双重策略:
+        1. 关键词Jaccard相似度（语义层面）
+        2. 归一化字符串相似度（字面层面）
+        
+        Args:
+            title1: 第一个标题
+            title2: 第二个标题
+            
+        Returns:
+            (jaccard_sim, string_sim, common_keywords)
+        """
+        # 提取关键词
+        kw1 = self._extract_keywords(title1)
+        kw2 = self._extract_keywords(title2)
+        
+        # Jaccard相似度
+        intersection = len(kw1 & kw2)
+        union = len(kw1 | kw2)
+        jaccard_sim = intersection / union if union > 0 else 0
+        
+        # 归一化字符串相似度
+        norm1 = self._normalize_title(title1)
+        norm2 = self._normalize_title(title2)
+        string_sim = difflib.SequenceMatcher(None, norm1, norm2).ratio()
+        
+        return (jaccard_sim, string_sim, kw1 & kw2)
+    
+    def _is_semantic_duplicate(self, title1: str, title2: str, 
+                                jaccard_threshold: float = 0.35,
+                                string_threshold: float = 0.50,
+                                min_common_keywords: int = 3) -> bool:
+        """
+        判断两个标题是否为语义重复
+        
+        判定规则（满足任一条件即为重复）:
+        1. 关键词Jaccard >= 0.35 且 共同关键词 >= 3
+        2. 归一化字符串相似度 >= 0.50
+        3. 关键词Jaccard >= 0.50（即使共同词少于3个）
+        
+        Args:
+            title1: 第一个标题
+            title2: 第二个标题
+            jaccard_threshold: Jaccard相似度阈值
+            string_threshold: 字符串相似度阈值
+            min_common_keywords: 最小共同关键词数
+            
+        Returns:
+            是否为重复内容
+        """
+        jaccard_sim, string_sim, common_kw = self._semantic_similarity(title1, title2)
+        
+        # 规则1: Jaccard >= 0.35 且 共同关键词 >= 3
+        if jaccard_sim >= jaccard_threshold and len(common_kw) >= min_common_keywords:
+            return True
+        
+        # 规则2: 归一化字符串相似度 >= 0.50
+        if string_sim >= string_threshold:
+            return True
+        
+        # 规则3: 高Jaccard（>= 0.50）即使共同词少
+        if jaccard_sim >= 0.50:
+            return True
+        
+        return False
+    
+    def _generate_item_fingerprint(self, item: Dict) -> str:
+        """
+        生成内容指纹用于快速去重
+        
+        基于 URL + 标题前50字符 生成 MD5 哈希
+        
+        Args:
+            item: 数据项字典
+            
+        Returns:
+            MD5 哈希字符串
+        """
+        url = item.get('url', '')
+        title = item.get('title', '')[:50]  # 取标题前50字符
+        key = f"{url}|{title}".lower()
+        return hashlib.md5(key.encode('utf-8')).hexdigest()
+    
+    def _deduplicate_by_fingerprint(self, items: List[Dict]) -> List[Dict]:
+        """
+        基于指纹的快速去重 (O(n) 复杂度)
+        
+        Args:
+            items: 数据项列表
+            
+        Returns:
+            去重后的列表
         """
         if not items:
             return []
-            
-        unique_items = []
-        # 按重要性排序，保留重要的
-        sorted_items = sorted(items, key=lambda x: x.get('importance', 0), reverse=True)
         
-        for item in sorted_items:
+        seen_fingerprints = set()
+        unique_items = []
+        
+        for item in items:
+            fp = self._generate_item_fingerprint(item)
+            if fp not in seen_fingerprints:
+                seen_fingerprints.add(fp)
+                unique_items.append(item)
+        
+        return unique_items
+    
+    def _deduplicate_items(self, items: List[Dict], threshold: float = 0.6) -> List[Dict]:
+        """
+        对内容列表进行去重（三阶段策略）
+        
+        阶段1: 基于指纹快速去重 (O(n)) - 完全相同的URL+标题
+        阶段2: 基于语义相似度去重 - 处理同一事件不同来源的报道
+        阶段3: 基于传统字符串相似度去重 - 兜底
+        
+        Args:
+            items: 数据项列表
+            threshold: 传统字符串相似度阈值（兜底用）
+            
+        Returns:
+            去重后的列表
+        """
+        if not items:
+            return []
+        
+        # 阶段1: 指纹快速去重
+        items = self._deduplicate_by_fingerprint(items)
+        
+        # 阶段2+3: 语义相似度精细去重
+        unique_items = []
+        removed_as_duplicate = []  # 记录被去重的标题（调试用）
+        
+        for item in items:
             is_duplicate = False
+            item_title = item.get('title', '')
+            
             for existing in unique_items:
-                # 计算标题相似度
-                seq = difflib.SequenceMatcher(None, item['title'].lower(), existing['title'].lower())
-                if seq.ratio() > threshold:
+                existing_title = existing.get('title', '')
+                
+                # 使用语义去重判断
+                if self._is_semantic_duplicate(item_title, existing_title):
                     is_duplicate = True
+                    removed_as_duplicate.append((item_title[:50], existing_title[:50]))
                     break
             
             if not is_duplicate:
                 unique_items.append(item)
+        
+        # 记录语义去重结果（仅在DEBUG模式下输出）
+        if removed_as_duplicate and len(removed_as_duplicate) > 0:
+            log.file(f"语义去重移除 {len(removed_as_duplicate)} 条相似内容")
+            for new_t, old_t in removed_as_duplicate[:3]:  # 只显示前3条
+                log.file(f"  - '{new_t}...' 与 '{old_t}...' 相似")
                 
         return unique_items
+    
+    def _apply_deduplication(self, all_data: Dict[str, List[Dict]]) -> Dict[str, List[Dict]]:
+        """
+        统一去重入口 - 对所有类别的数据应用去重处理
+        
+        处理流程:
+        1. 对每个类别内部进行去重
+        2. 跨类别去重（同一URL可能出现在多个类别中）
+        
+        Args:
+            all_data: 按类别分组的数据字典
+            
+        Returns:
+            去重后的数据字典
+        """
+        # 统计去重前数量
+        before_count = sum(len(items) for items in all_data.values())
+        
+        # 阶段1: 类别内去重
+        for cat in all_data:
+            all_data[cat] = self._deduplicate_items(all_data[cat])
+        
+        # 阶段2: 跨类别去重（基于URL）
+        seen_urls = set()
+        for cat in all_data:
+            unique_items = []
+            for item in all_data[cat]:
+                url = item.get('url', '')
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    unique_items.append(item)
+                elif not url:
+                    # 没有URL的项目保留
+                    unique_items.append(item)
+            all_data[cat] = unique_items
+        
+        # 统计去重后数量
+        after_count = sum(len(items) for items in all_data.values())
+        removed_count = before_count - after_count
+        
+        if removed_count > 0:
+            log.dual_info(f"🔄 去重完成: {before_count} → {after_count} (移除 {removed_count} 条重复)", emoji="")
+        
+        return all_data
 
     def _is_ai_related(self, item: Dict) -> bool:
         """检查内容是否与AI相关"""
@@ -1247,6 +1658,40 @@ class AIDataCollector:
                 item.get('url') and 
                 len(item.get('title', '')) > 10)
     
+    def _clean_html(self, text: str, max_length: int = 300) -> str:
+        """
+        清理文本中的 HTML 标签
+        
+        Args:
+            text: 原始文本（可能包含 HTML）
+            max_length: 最大长度
+            
+        Returns:
+            清理后的纯文本
+        """
+        if not text:
+            return ''
+        
+        try:
+            # 使用 BeautifulSoup 清理 HTML 标签
+            # 注意：使用 features 参数并将 text 包装确保 BS4 不会误判为文件名
+            from warnings import filterwarnings
+            filterwarnings('ignore', category=MarkupResemblesLocatorWarning)
+            soup = BeautifulSoup(text, features='html.parser')
+            clean_text = soup.get_text(separator=' ', strip=True)
+            
+            # 清理多余空白
+            clean_text = ' '.join(clean_text.split())
+            
+            # 截断到最大长度
+            if len(clean_text) > max_length:
+                clean_text = clean_text[:max_length] + '...'
+            
+            return clean_text
+        except Exception:
+            # 如果清理失败，返回原始文本的截断版本
+            return text[:max_length] + '...' if len(text) > max_length else text
+    
     def _is_recent(self, date_val) -> bool:
         """检查日期是否在最近30天内"""
         try:
@@ -1269,7 +1714,7 @@ class AIDataCollector:
             if isinstance(date_val, str):
                 # 尝试解析字符串日期
                 try:
-                    dt = parser.parse(date_val)
+                    dt = date_parser.parse(date_val)
                     # 比较时间戳以避免时区问题
                     return dt.timestamp() >= cutoff_date.timestamp()
                 except (ValueError, TypeError, AttributeError):
@@ -1286,22 +1731,6 @@ class AIDataCollector:
             return True # 无法解析时默认保留
         except Exception:
             return True
-
-    def _calculate_importance(self, title: str, summary: str) -> float:
-        """计算内容重要性"""
-        text = f"{title} {summary}".lower()
-        
-        high_value_keywords = [
-            'breakthrough', 'new', 'launch', 'release', 'breakthrough',
-            '突破', '发布', '新', '最新'
-        ]
-        
-        score = 0.5  # 基础分数
-        for keyword in high_value_keywords:
-            if keyword in text:
-                score += 0.1
-        
-        return min(score, 1.0)
     
     def _get_backup_leaders_data(self) -> List[Dict]:
         """备用领袖言论数据"""
@@ -1312,55 +1741,45 @@ class AIDataCollector:
                 'url': 'https://openai.com/blog',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Interview',
-                'category': 'leader',
                 'author': 'Sam Altman',
-                'author_title': 'OpenAI CEO',
-                'importance': 0.98
-            },
+                'author_title': 'OpenAI CEO'
+},
             {
                 'title': 'Elon Musk: AI安全是未来的首要任务',
                 'summary': 'Elon Musk再次强调AI安全的重要性，并表示xAI的目标是理解宇宙的本质，构建最大限度追求真理的AI。',
                 'url': 'https://x.ai',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'X (Twitter)',
-                'category': 'leader',
                 'author': 'Elon Musk',
-                'author_title': 'xAI Founder',
-                'importance': 0.95
-            },
+                'author_title': 'xAI Founder'
+},
             {
                 'title': 'Jensen Huang: 生成式AI是计算领域的转折点',
                 'summary': 'NVIDIA CEO黄仁勋表示，生成式AI正在重塑每一个行业，计算方式正在发生根本性的转变。',
                 'url': 'https://nvidianews.nvidia.com/',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Keynote',
-                'category': 'leader',
                 'author': 'Jensen Huang',
-                'author_title': 'NVIDIA CEO',
-                'importance': 0.92
-            },
+                'author_title': 'NVIDIA CEO'
+},
             {
                 'title': 'Yann LeCun: 现在的LLM还不是真正的智能',
                 'summary': 'Meta首席AI科学家Yann LeCun认为，目前的大语言模型缺乏对物理世界的理解，距离真正的通用人工智能还有很长的路要走。',
                 'url': 'https://ai.meta.com/blog/',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Interview',
-                'category': 'leader',
                 'author': 'Yann LeCun',
-                'author_title': 'Meta Chief AI Scientist',
-                'importance': 0.90
-            },
+                'author_title': 'Meta Chief AI Scientist'
+},
             {
                 'title': '李开复: AI 2.0时代已经到来',
                 'summary': '零一万物CEO李开复表示，AI 2.0时代将带来比移动互联网大十倍的机会，中国在应用层有巨大优势。',
                 'url': 'https://www.01.ai/',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'source': 'Speech',
-                'category': 'leader',
                 'author': 'Kai-Fu Lee',
-                'author_title': '01.AI CEO',
-                'importance': 0.88
-            }
+                'author_title': '01.AI CEO'
+}
         ]
 
     def _get_backup_research_data(self) -> List[Dict]:
@@ -1373,10 +1792,8 @@ class AIDataCollector:
                 'url': 'https://arxiv.org/abs/1706.03762',
                 'published': datetime.now().strftime('%Y-%m-%d'),
                 'categories': ['cs.CL', 'cs.AI'],
-                'source': 'arXiv',
-                'category': 'research',
-                'importance': 0.95
-            }
+                'source': 'arXiv'
+}
         ]
     
     def _get_backup_github_data(self) -> List[Dict]:
@@ -1389,10 +1806,8 @@ class AIDataCollector:
                 'stars': 132000,
                 'language': 'Python',
                 'updated': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'GitHub',
-                'category': 'developer',
-                'importance': 0.98
-            }
+                'source': 'GitHub'
+}
         ]
     
     def _get_backup_hf_data(self) -> List[Dict]:
@@ -1404,10 +1819,8 @@ class AIDataCollector:
                 'url': 'https://huggingface.co/microsoft/DialoGPT-medium',
                 'downloads': 1500000,
                 'updated': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'Hugging Face',
-                'category': 'developer',
-                'importance': 0.85
-            }
+                'source': 'Hugging Face'
+}
         ]
     
     def _get_backup_blog_data(self) -> List[Dict]:
@@ -1418,12 +1831,505 @@ class AIDataCollector:
                 'summary': 'GitHub Copilot推出新功能，支持更多编程语言和更智能的代码建议，提升开发效率。',
                 'url': 'https://github.blog',
                 'published': datetime.now().strftime('%Y-%m-%d'),
-                'source': 'GitHub Blog',
-                'category': 'developer',
-                'importance': 0.80
-            }
+                'source': 'GitHub Blog'
+}
         ]
-
+    
+    # ============== 异步采集方法 ==============
+    
+    async def _fetch_url_async(self, session: aiohttp.ClientSession, url: str,
+                                semaphore: asyncio.Semaphore) -> Optional[str]:
+        """异步获取URL内容（带重试）"""
+        async with semaphore:
+            for attempt in range(self.async_config.max_retries + 1):
+                try:
+                    self.stats['requests_made'] += 1
+                    await asyncio.sleep(self.async_config.rate_limit_delay)
+                    
+                    timeout = aiohttp.ClientTimeout(total=self.async_config.request_timeout)
+                    async with session.get(url, headers=self.headers, timeout=timeout) as response:
+                        if response.status == 200:
+                            return await response.text()
+                        elif response.status == 429:
+                            wait_time = self.async_config.retry_delay * (2 ** attempt)
+                            await asyncio.sleep(wait_time)
+                        else:
+                            return None
+                except (asyncio.TimeoutError, aiohttp.ClientError):
+                    if attempt < self.async_config.max_retries:
+                        await asyncio.sleep(self.async_config.retry_delay * (attempt + 1))
+                except Exception:
+                    pass
+            
+            self.stats['requests_failed'] += 1
+            return None
+    
+    async def _fetch_json_async(self, session: aiohttp.ClientSession, url: str,
+                                 semaphore: asyncio.Semaphore, params: Optional[Dict] = None) -> Optional[Any]:
+        """异步获取JSON内容"""
+        async with semaphore:
+            for attempt in range(self.async_config.max_retries + 1):
+                try:
+                    self.stats['requests_made'] += 1
+                    await asyncio.sleep(self.async_config.rate_limit_delay)
+                    
+                    timeout = aiohttp.ClientTimeout(total=self.async_config.request_timeout)
+                    async with session.get(url, headers=self.headers, timeout=timeout, params=params) as response:
+                        if response.status == 200:
+                            return await response.json()
+                        elif response.status == 429:
+                            wait_time = self.async_config.retry_delay * (2 ** attempt)
+                            await asyncio.sleep(wait_time)
+                except (asyncio.TimeoutError, aiohttp.ClientError):
+                    if attempt < self.async_config.max_retries:
+                        await asyncio.sleep(self.async_config.retry_delay * (attempt + 1))
+                except Exception:
+                    pass
+            
+            self.stats['requests_failed'] += 1
+            return None
+    
+    async def _parse_rss_feed_async(self, session: aiohttp.ClientSession,
+                                     feed_url: str, category: str,
+                                     semaphore: asyncio.Semaphore,
+                                     enable_url_filter: bool = True) -> List[Dict]:
+        """异步解析RSS源（支持URL预过滤）
+        
+        Args:
+            enable_url_filter: 是否启用URL预过滤（默认True）
+        """
+        items = []
+        try:
+            content = await self._fetch_url_async(session, feed_url, semaphore)
+            if not content:
+                return items
+            
+            loop = asyncio.get_event_loop()
+            feed = await loop.run_in_executor(None, feedparser.parse, content)
+            
+            # 先提取所有URL并进行预过滤
+            entries_to_process = []
+            if enable_url_filter:
+                for entry in feed.entries[:10]:
+                    url = entry.get('link', '')
+                    if url and url not in self.history_cache['urls']:
+                        entries_to_process.append(entry)
+            else:
+                entries_to_process = feed.entries[:10]
+            
+            # 只处理新URL的内容
+            for entry in entries_to_process:
+                date_val = entry.get('published_parsed') or entry.get('published')
+                if date_val and not self._is_recent(date_val):
+                    continue
+                
+                # 清理 summary 中的 HTML 标签
+                raw_summary = entry.get('summary', entry.get('description', ''))
+                clean_summary = self._clean_html(raw_summary, max_length=300)
+                
+                item = {
+                    'title': entry.get('title', ''),
+                    'summary': clean_summary,
+                    'url': entry.get('link', ''),
+                    'published': entry.get('published', ''),
+                    'source': feed.feed.get('title', feed_url)[:50],
+                    '_source_type': category  # 内部分组用，不用于分类
+}
+                
+                if self._is_valid_item(item):
+                    items.append(item)
+        except Exception:
+            pass
+        
+        return items
+    
+    async def _collect_research_papers_async(self, max_results: int = 10) -> List[Dict]:
+        """异步采集研究论文 (arxiv库不支持异步，使用executor)"""
+        loop = asyncio.get_event_loop()
+        papers = await loop.run_in_executor(None, self.collect_research_papers, max_results)
+        # 添加 _source_type 用于内部分组
+        for paper in papers:
+            paper['_source_type'] = 'research'
+        return papers
+    
+    async def _collect_github_trending_async(self, session: aiohttp.ClientSession, 
+                                            semaphore: asyncio.Semaphore,
+                                            enable_url_filter: bool = True) -> List[Dict]:
+        """异步采集GitHub热门项目（支持URL预过滤）"""
+        projects = []
+        try:
+            last_month = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+            url = "https://api.github.com/search/repositories"
+            query = f'(machine-learning OR artificial-intelligence OR deep-learning OR llm) created:>{last_month}'
+            
+            params = {
+                'q': query,
+                'sort': 'stars',
+                'order': 'desc',
+                'per_page': 15
+            }
+            
+            data = await self._fetch_json_async(session, url, semaphore, params)
+            if data:
+                # 先过滤掉已缓存的URL
+                repos_to_process = []
+                for repo in data.get('items', [])[:15]:
+                    repo_url = repo.get('html_url', '')
+                    if enable_url_filter:
+                        if repo_url and repo_url not in self.history_cache['urls']:
+                            repos_to_process.append(repo)
+                    else:
+                        repos_to_process.append(repo)
+                
+                # 只处理新repo
+                for repo in repos_to_process:
+                    if not self._is_recent(repo.get('updated_at', '')):
+                        continue
+                    
+                    project = {
+                        'title': repo['full_name'],
+                        'summary': repo.get('description') or 'No description',
+                        'url': repo['html_url'],
+                        'stars': repo.get('stargazers_count', 0),
+                        'language': repo.get('language', 'Unknown'),
+                        'updated': repo['updated_at'][:10],
+                        'published': repo['updated_at'][:10],
+                        'source': 'GitHub',
+                        '_source_type': 'developer'  # 内部分组用
+                    }
+                    projects.append(project)
+        except Exception as e:
+            log.warning(f"GitHub trending async failed: {e}")
+        
+        return projects
+    
+    async def _collect_huggingface_async(self, session: aiohttp.ClientSession,
+                                        semaphore: asyncio.Semaphore,
+                                        enable_url_filter: bool = True) -> List[Dict]:
+        """异步采集Hugging Face更新（支持URL预过滤）"""
+        updates = []
+        try:
+            url = "https://huggingface.co/api/models"
+            params = {'limit': 10, 'sort': 'lastModified', 'direction': -1}
+            
+            data = await self._fetch_json_async(session, url, semaphore, params)
+            if data:
+                # 先过滤掉已缓存的URL
+                models_to_process = []
+                for model in data[:10]:
+                    model_url = f"https://huggingface.co/{model['id']}"
+                    if enable_url_filter:
+                        if model_url and model_url not in self.history_cache['urls']:
+                            models_to_process.append(model)
+                    else:
+                        models_to_process.append(model)
+                
+                # 只处理新模型
+                for model in models_to_process:
+                    if not self._is_recent(model.get('lastModified', '')):
+                        continue
+                    
+                    update = {
+                        'title': f"HF Model: {model['id']}",
+                        'summary': f"Latest AI model: {model['id']}, downloads: {model.get('downloads', 0)}",
+                        'url': f"https://huggingface.co/{model['id']}",
+                        'downloads': model.get('downloads', 0),
+                        'updated': model.get('lastModified', '')[:10],
+                        'published': model.get('lastModified', '')[:10],
+                        'source': 'Hugging Face',
+                        '_source_type': 'developer'  # 内部分组用
+                    }
+                    updates.append(update)
+        except Exception as e:
+            log.warning(f"Hugging Face async failed: {e}")
+        
+        return updates
+    
+    async def _collect_hacker_news_async(self, session: aiohttp.ClientSession,
+                                        semaphore: asyncio.Semaphore,
+                                        max_items: int = 10,
+                                        enable_url_filter: bool = True) -> List[Dict]:
+        """异步采集Hacker News（支持URL预过滤）"""
+        items = []
+        try:
+            # 获取top stories
+            top_url = "https://hacker-news.firebaseio.com/v0/topstories.json"
+            story_ids = await self._fetch_json_async(session, top_url, semaphore, None)
+            
+            if not story_ids:
+                return items
+            
+            # 并发获取story详情
+            ai_keywords = ['ai', 'llm', 'gpt', 'machine learning', 'deep learning', 
+                          'neural', 'openai', 'anthropic', 'chatgpt']
+            
+            # 为每个story ID构建URL，用于预过滤
+            story_tasks = []
+            for story_id in story_ids[:50]:  # 检查前50个
+                story_url = f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
+                # 注意：HN的URL实际是story本身的url字段，这里我们仍需要获取详情来判断
+                # 但可以先检查story ID是否已处理过（通过构造标准URL）
+                story_tasks.append(self._fetch_json_async(session, story_url, semaphore, None))
+            
+            stories = await asyncio.gather(*story_tasks, return_exceptions=True)
+            
+            for story in stories:
+                if isinstance(story, dict) and story.get('title'):
+                    title_lower = story['title'].lower()
+                    if any(kw in title_lower for kw in ai_keywords):
+                        # 构建URL用于过滤检查
+                        story_url = story.get('url', f"https://news.ycombinator.com/item?id={story['id']}")
+                        
+                        # URL预过滤：跳过已缓存的URL
+                        if enable_url_filter and story_url in self.history_cache['urls']:
+                            continue
+                        
+                        # 检查时间
+                        if story.get('time'):
+                            published = datetime.fromtimestamp(story['time'])
+                            if not self._is_recent(published):
+                                continue
+                            published_str = published.strftime('%Y-%m-%d')
+                        else:
+                            published_str = datetime.now().strftime('%Y-%m-%d')
+                        
+                        item = {
+                            'title': story['title'],
+                            'summary': self._clean_html(story.get('text', story['title'])),
+                            'url': story_url,
+                            'published': published_str,
+                            'source': 'Hacker News',
+                            'score': story.get('score', 0),
+                            '_source_type': 'community'  # 内部分组用
+                        }
+                        items.append(item)
+                        
+                        if len(items) >= max_items:
+                            break
+        except Exception as e:
+            log.warning(f"Hacker News async failed: {e}")
+        
+        return items
+    
+    async def _collect_product_releases_async(self, session: aiohttp.ClientSession,
+                                             semaphore: asyncio.Semaphore,
+                                             max_results: int = 10) -> List[Dict]:
+        """异步采集产品发布（通过RSS源）"""
+        products = []
+        
+        # 使用产品相关的RSS源
+        product_feeds = RSS_FEEDS.get('product_news', [])
+        
+        tasks = []
+        for feed_url in product_feeds:
+            tasks.append(self._parse_rss_feed_async(session, feed_url, 'product', semaphore))
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for result in results:
+            if isinstance(result, list):
+                for item in result:
+                    if self._is_product_related(item):
+                        products.append(item)
+        
+        # 按发布时间排序
+        products.sort(key=lambda x: x.get('published', ''), reverse=True)
+        return products[:max_results]
+    
+    async def _collect_leaders_quotes_async(self, session: aiohttp.ClientSession,
+                                           semaphore: asyncio.Semaphore,
+                                           max_results: int = 15) -> List[Dict]:
+        """异步采集AI领袖言论"""
+        quotes = []
+        
+        leaders = {
+            "Sam Altman": "OpenAI CEO",
+            "Elon Musk": "xAI Founder",
+            "Jensen Huang": "NVIDIA CEO",
+            "Demis Hassabis": "Google DeepMind CEO",
+            "Yann LeCun": "Meta Chief AI Scientist",
+            "Geoffrey Hinton": "AI Pioneer",
+            "Andrew Ng": "AI Fund Managing General Partner",
+            "Kai-Fu Lee": "01.AI CEO",
+            "Robin Li": "Baidu CEO"
+        }
+        
+        # 使用Google News RSS搜索每个领袖
+        tasks = []
+        for leader_name in leaders.keys():
+            query_name = leader_name.replace(' ', '+')
+            feed_url = f"https://news.google.com/rss/search?q={query_name}+AI+when:30d&hl=en-US&gl=US&ceid=US:en"
+            tasks.append(self._parse_rss_feed_async(session, feed_url, 'leader', semaphore))
+        
+        # 同时采集个人博客
+        for source in self.rss_feeds.get('leader_blogs', []):
+            tasks.append(self._parse_rss_feed_async(session, source['url'], 'leader', semaphore))
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 处理结果
+        for i, result in enumerate(results):
+            if isinstance(result, list):
+                for item in result:
+                    # 如果是新闻搜索结果，添加领袖信息
+                    if i < len(leaders):
+                        leader_name = list(leaders.keys())[i]
+                        item['author'] = leader_name
+                        item['author_title'] = leaders[leader_name]
+                    
+                    quotes.append(item)
+        
+        # 如果数量不足，添加备用数据
+        if len(quotes) < 5:
+            backup_data = self._get_backup_leaders_data()
+            for item in backup_data:
+                item['_source_type'] = 'leader'  # 为备用数据添加分组标记
+            quotes.extend(backup_data)
+        
+        # 去重
+        quotes = self._deduplicate_items(quotes)
+        return quotes[:max_results]
+    
+    async def _collect_community_async(self, session: aiohttp.ClientSession,
+                                      semaphore: asyncio.Semaphore,
+                                      max_results: int = 15) -> List[Dict]:
+        """异步采集社区热点"""
+        trends = []
+        
+        # Hacker News (使用API)
+        hn_items = await self._collect_hacker_news_async(session, semaphore, max_items=10)
+        trends.extend(hn_items)
+        
+        # 其他社区RSS源
+        community_feeds = [f for f in self.rss_feeds.get('community', []) if 'hnrss' not in f]
+        
+        tasks = []
+        for feed_url in community_feeds:
+            tasks.append(self._parse_rss_feed_async(session, feed_url, 'community', semaphore))
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for result in results:
+            if isinstance(result, list):
+                for item in result:
+                    trends.append(item)
+        
+        # 去重并排序
+        trends = self._deduplicate_items(trends)
+        trends.sort(key=lambda x: x.get('published', ''), reverse=True)
+        
+        return trends[:max_results]
+    
+    async def _collect_all_async(self) -> Dict[str, List[Dict]]:
+        """
+        异步采集所有类型的数据（带URL预过滤优化）
+        
+        Returns:
+            分类的数据字典
+        """
+        self.stats['start_time'] = time.time()
+        log.dual_start(t('dc_start_collection'))
+        log.dual_separator("=", 50)
+        log.dual_info("🚀 异步采集模式 + URL预过滤优化 (Async Mode with URL Pre-filtering)", emoji="")
+        
+        all_data = {
+            'research': [],
+            'developer': [],
+            'product': [],
+            'news': [],
+            'leader': [],
+            'community': []
+        }
+        
+        # 从配置读取采集数量
+        product_count = config.get('collector.product_count', 15)
+        community_count = config.get('collector.community_count', 10)
+        leader_count = config.get('collector.leader_count', 15)
+        research_count = config.get('collector.research_count', 15)
+        developer_count = config.get('collector.developer_count', 20)
+        news_count = config.get('collector.news_count', 25)
+        
+        # 创建信号量控制并发
+        semaphore = asyncio.Semaphore(self.async_config.max_concurrent_requests)
+        
+        # 创建共享的aiohttp会话
+        connector = aiohttp.TCPConnector(
+            limit=self.async_config.max_concurrent_requests,
+            limit_per_host=self.async_config.max_concurrent_per_host
+        )
+        timeout = aiohttp.ClientTimeout(total=self.async_config.total_timeout)
+        
+        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+            # 并发采集所有数据源
+            log.dual_info("📡 启动并发采集任务...", emoji="")
+            
+            # 创建所有采集任务
+            tasks = []
+            
+            # 1. 新闻RSS源
+            news_feeds = RSS_FEEDS['news'] + RSS_FEEDS.get('product_news', [])
+            for feed_url in news_feeds:
+                tasks.append(self._parse_rss_feed_async(session, feed_url, 'news', semaphore))
+            
+            # 2. 开发者内容 (GitHub + Hugging Face + 博客RSS)
+            tasks.append(self._collect_github_trending_async(session, semaphore))
+            tasks.append(self._collect_huggingface_async(session, semaphore))
+            for feed_url in RSS_FEEDS['developer']:
+                tasks.append(self._parse_rss_feed_async(session, feed_url, 'developer', semaphore))
+            
+            # 3. 产品发布
+            tasks.append(self._collect_product_releases_async(session, semaphore, product_count))
+            
+            # 4. AI领袖言论
+            tasks.append(self._collect_leaders_quotes_async(session, semaphore, leader_count))
+            
+            # 5. 社区热点
+            tasks.append(self._collect_community_async(session, semaphore, community_count))
+            
+            # 6. 研究论文 (在executor中运行)
+            tasks.append(self._collect_research_papers_async(research_count))
+            
+            # 并发执行所有任务
+            log.dual_info(f"⚡ 并发执行 {len(tasks)} 个采集任务", emoji="")
+            all_results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 分类收集结果
+            for result in all_results:
+                if isinstance(result, list):
+                    for item in result:
+                        # 使用 _source_type 进行内部分组（不是分类标签）
+                        source_type = item.pop('_source_type', 'news')  # 移除并获取，默认为 news
+                        if source_type in all_data:
+                            all_data[source_type].append(item)
+                elif isinstance(result, Exception):
+                    log.warning(f"Task failed: {result}")
+        
+        # 统一去重处理
+        all_data = self._apply_deduplication(all_data)
+        
+        # 统一历史缓存过滤（启用过滤，移除已采集过的内容）
+        # filter_enabled=True: 实际过滤掉历史中已有的项目，减少后续处理量
+        all_data, new_stats, cached_stats = self._filter_by_history(all_data, filter_enabled=True)
+        
+        # 更新统计信息（过滤后的数据）
+        self.stats['end_time'] = time.time()
+        total_new = sum(len(items) for items in all_data.values())
+        total_cached = sum(cached_stats.values())
+        self.stats['items_collected'] = total_new
+        
+        # 打印统计
+        elapsed = self.stats['end_time'] - self.stats['start_time']
+        
+        log.dual_separator("=", 50)
+        log.dual_done(f"采集完成: {total_new + total_cached} items ({total_new} new, {total_cached} cached)")
+        log.dual_info(f"⏱️ 耗时: {elapsed:.1f}s | 请求: {self.stats['requests_made']} | 失败: {self.stats['requests_failed']}", emoji="")
+        
+        for category, items in all_data.items():
+            new_count = new_stats.get(category, 0)
+            cached_count = cached_stats.get(category, 0)
+            log.dual_data(f"  {category}: {new_count + cached_count} ({new_count} new, {cached_count} cached)")
+        
+        return all_data
 
 # 用于向后兼容
 DataCollector = AIDataCollector

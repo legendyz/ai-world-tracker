@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0-beta] - 2025-12-10 (feature/data-collection-v2 Branch)
+
+### Added
+- **High-Performance Async Data Collection**
+  - True async architecture with `asyncio` + `aiohttp` (78% faster than sync mode)
+  - 20+ concurrent requests with smart rate limiting
+  - Per-host connection limits (max 3 per host) to avoid rate limiting
+  - Configurable timeouts: request (15s), total (120s)
+  - Automatic retry mechanism (2 retries with 1s delay)
+
+- **URL Pre-filtering Optimization**
+  - Check URL cache BEFORE making HTTP requests (not after)
+  - Skip already-cached content to reduce network overhead
+  - Filter at RSS/API list level, not after content parsing
+  - Estimated 14%+ additional time savings when cache is populated
+
+- **Async Collector Configuration**
+  - New `async_collector` section in `config.yaml`
+  - Configurable: max_concurrent_requests, max_concurrent_per_host
+  - Configurable: request_timeout, total_timeout, max_retries
+  - Configurable: retry_delay, rate_limit_delay
+
+- **Technical Documentation**
+  - `docs/ASYNC_OPTIMIZATION.md`: Performance analysis and architecture
+  - `docs/DATA_COLLECTOR_ARCHITECTURE.md`: Dual-mode design documentation
+  - `docs/URL_PREFILTER_OPTIMIZATION.md`: URL pre-filtering details
+  - `docs/IMPORTANCE_EVALUATOR_ANALYSIS.md`: 5-dimension scoring analysis
+
+### Changed
+- **Data Collector Architecture**
+  - Async mode is now the default (configurable via `config.yaml`)
+  - Sync mode available as fallback for environments without async support
+  - Automatic mode selection based on `asyncio`/`aiohttp` availability
+
+- **Performance Metrics**
+  | Metric | Sync Mode | Async Mode | Improvement |
+  |--------|-----------|------------|-------------|
+  | Collection Time | ~147s | ~32s | **78% faster** |
+  | Requests Made | 21 | 96 | **357% increase** |
+  | Request Rate | 0.14 req/s | 3.0 req/s | **21x faster** |
+
+### Fixed
+- All async methods now properly use semaphore for rate limiting
+- Parameter order consistency in `_fetch_json_async()`
+- Proper exception handling with `return_exceptions=True`
+
+---
+
 ## [2.0.3] - 2025-12-08 (Main Branch)
 
 ### Added
