@@ -23,10 +23,16 @@ from typing import Dict, Tuple, Optional
 from datetime import datetime
 from dateutil import parser as date_parser
 import math
+import json
+import os
+from collections import defaultdict
 from logger import get_log_helper
 
 # 模块日志器
 log = get_log_helper('importance_evaluator')
+
+# 动态学习配置文件
+LEARNING_CONFIG_FILE = 'data/cache/importance_learning.json'
 
 
 class ImportanceEvaluator:
@@ -46,7 +52,7 @@ class ImportanceEvaluator:
     """
     
     def __init__(self):
-        # 维度权重配置
+        # 维度权重配置 (支持动态调整)
         self.weights = {
             'source_authority': 0.25,
             'recency': 0.25,
@@ -54,6 +60,13 @@ class ImportanceEvaluator:
             'relevance': 0.20,
             'engagement': 0.10
         }
+        
+        # 动态学习数据
+        self.source_performance = defaultdict(lambda: {'scores': [], 'count': 0, 'avg': 0.5})
+        self.user_feedback_count = 0
+        
+        # 加载历史学习数据
+        self._load_learning_data()
         
         # 来源权威度评分
         self.source_authority_scores = {
@@ -198,9 +211,19 @@ class ImportanceEvaluator:
             'other': 0.75,      # 其他内容
         }
         
-        # 时效性衰减参数
+        # 时效性衰减参数（支持按内容类型调整）
         self.recency_decay_rate = 0.12  # 衰减率，值越大衰减越快
         self.recency_min_score = 0.08   # 最低时效分数
+        
+        # 不同内容类型的时效性衰减率
+        self.type_decay_rates = {
+            'product': 0.15,   # 产品发布衰减快（时效性更重要）
+            'news': 0.14,      # 新闻衰减快
+            'market': 0.10,    # 市场分析衰减慢一些
+            'research': 0.08,  # 研究论文衰减最慢（持久价值）
+            'tutorial': 0.06,  # 教程更持久
+            'leader': 0.10,    # 领袖言论
+        }
         
         # 社交热度统一配置
         self.engagement_config = {
@@ -229,12 +252,15 @@ class ImportanceEvaluator:
         
         breakdown = {}
         
+        # 获取内容类型（用于自适应评分）
+        content_type = classification_result.get('content_type', 'news')
+        
         # 1. 来源权威度 (0-1)
         source_score = self._calculate_source_authority(item)
         breakdown['source_authority'] = round(source_score, 3)
         
-        # 2. 时效性 (0-1)
-        recency_score = self._calculate_recency(item)
+        # 2. 时效性 (0-1) - 根据内容类型自适应衰减
+        recency_score = self._calculate_recency(item, content_type)
         breakdown['recency'] = round(recency_score, 3)
         
         # 3. 分类置信度 (0-1) - 对低价值内容设置上限
@@ -251,7 +277,6 @@ class ImportanceEvaluator:
         breakdown['confidence'] = round(confidence, 3)
         
         # 4. 内容相关度 (0-1)
-        content_type = classification_result.get('content_type', 'news')
         relevance_score = self._calculate_relevance(item, content_type)
         breakdown['relevance'] = round(relevance_score, 3)
         
@@ -297,7 +322,7 @@ class ImportanceEvaluator:
     
     def _calculate_source_authority(self, item: Dict) -> float:
         """
-        计算来源权威度
+        计算来源权威度 - 结合静态评分和动态学习
         
         Args:
             item: 数据项
@@ -312,31 +337,43 @@ class ImportanceEvaluator:
         # 合并检查文本
         check_text = f"{source} {url} {author}"
         
-        # 查找匹配的来源
-        best_score = 0.40  # 默认值
+        # 静态评分：查找匹配的来源
+        static_score = 0.40  # 默认值
+        matched_source = None
         
         for known_source, score in self.source_authority_scores.items():
             if known_source.lower() in check_text:
-                best_score = max(best_score, score)
+                if score > static_score:
+                    static_score = score
+                    matched_source = known_source
         
-        return best_score
+        # 动态评分：从历史表现学习
+        dynamic_score = None
+        if matched_source and matched_source in self.source_performance:
+            perf = self.source_performance[matched_source]
+            if perf['count'] >= 5:  # 至少5个样本才启用动态评分
+                dynamic_score = perf['avg']
+        
+        # 结合静态和动态评分
+        if dynamic_score is not None:
+            # 动态评分权重随样本数增加：20% -> 40%
+            sample_count = self.source_performance[matched_source]['count']
+            dynamic_weight = min(0.20 + sample_count * 0.02, 0.40)
+            final_score = static_score * (1 - dynamic_weight) + dynamic_score * dynamic_weight
+            return round(final_score, 3)
+        
+        return static_score
     
-    def _calculate_recency(self, item: Dict) -> float:
+    def _calculate_recency(self, item: Dict, content_type: str = 'news') -> float:
         """
-        计算时效性分数 - 平滑指数衰减曲线
+        计算时效性分数 - 自适应指数衰减曲线
         
         使用指数衰减公式: score = max_score * e^(-decay_rate * days) + min_score
-        
-        衰减曲线参考值:
-        - 今天: 1.0
-        - 1天前: ~0.89
-        - 3天前: ~0.70
-        - 7天前: ~0.44
-        - 14天前: ~0.22
-        - 30天前: ~0.10
+        衰减率根据内容类型自适应调整
         
         Args:
             item: 数据项
+            content_type: 内容类型（影响衰减率）
             
         Returns:
             时效性分数 0-1
@@ -376,11 +413,11 @@ class ImportanceEvaluator:
             if days_ago <= 0:
                 return 1.0
             
-            # 平滑指数衰减
-            # score = (1 - min_score) * e^(-decay_rate * days) + min_score
-            decay_rate = self.recency_decay_rate
+            # 根据内容类型选择衰减率
+            decay_rate = self.type_decay_rates.get(content_type, self.recency_decay_rate)
             min_score = self.recency_min_score
             
+            # 指数衰减
             score = (1.0 - min_score) * math.exp(-decay_rate * days_ago) + min_score
             
             return round(max(min(score, 1.0), min_score), 3)
@@ -581,3 +618,85 @@ class ImportanceEvaluator:
             return 'low', '🟢'
         else:
             return 'minimal', '⚪'
+    
+    def update_source_performance(self, source: str, final_importance: float):
+        """
+        更新来源的历史表现（用于动态学习）
+        
+        Args:
+            source: 来源名称
+            final_importance: 最终重要性评分
+        """
+        if not source:
+            return
+        
+        source_key = source.lower()
+        perf = self.source_performance[source_key]
+        
+        # 滚动窗口：只保留最近50个评分
+        perf['scores'].append(final_importance)
+        if len(perf['scores']) > 50:
+            perf['scores'] = perf['scores'][-50:]
+        
+        # 更新统计
+        perf['count'] = len(perf['scores'])
+        perf['avg'] = sum(perf['scores']) / perf['count']
+        
+        # 定期保存（每10次更新保存一次）
+        self.user_feedback_count += 1
+        if self.user_feedback_count % 10 == 0:
+            self._save_learning_data()
+    
+    def _load_learning_data(self):
+        """
+        加载历史学习数据
+        """
+        try:
+            if os.path.exists(LEARNING_CONFIG_FILE):
+                with open(LEARNING_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    
+                # 恢复来源表现数据
+                if 'source_performance' in data:
+                    for source, perf in data['source_performance'].items():
+                        self.source_performance[source] = perf
+                
+                log.info(f"📚 Loaded learning data: {len(self.source_performance)} sources")
+        except Exception as e:
+            log.warning(f"Failed to load learning data: {e}")
+    
+    def _save_learning_data(self):
+        """
+        保存学习数据到文件
+        """
+        try:
+            # 确保目录存在
+            os.makedirs(os.path.dirname(LEARNING_CONFIG_FILE), exist_ok=True)
+            
+            data = {
+                'source_performance': dict(self.source_performance),
+                'last_updated': datetime.now().isoformat()
+            }
+            
+            with open(LEARNING_CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            
+            log.info(f"💾 Saved learning data: {len(self.source_performance)} sources")
+        except Exception as e:
+            log.warning(f"Failed to save learning data: {e}")
+    
+    def get_learning_stats(self) -> Dict:
+        """
+        获取学习统计信息
+        
+        Returns:
+            统计信息字典
+        """
+        learned_sources = sum(1 for perf in self.source_performance.values() if perf['count'] >= 5)
+        
+        return {
+            'total_sources_tracked': len(self.source_performance),
+            'learned_sources': learned_sources,
+            'total_samples': sum(perf['count'] for perf in self.source_performance.values()),
+            'learning_enabled': learned_sources > 0
+        }

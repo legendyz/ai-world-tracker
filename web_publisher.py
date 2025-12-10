@@ -93,8 +93,8 @@ class WebPublisher:
         timestamp = trends.get('analysis_time', datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S %Z'))
         
         # 1. 准备数据
-        # 过滤低AI相关性内容（ai_relevance <= 0.3 的内容不显示在Web页面）
-        ai_relevance_threshold = 0.3
+        # 过滤低AI相关性内容（ai_relevance <= 0.2 的内容不显示在Web页面）
+        ai_relevance_threshold = 0.2
         filtered_data = []
         filtered_count = 0
         for item in data:
@@ -106,7 +106,7 @@ class WebPublisher:
                 log.debug(f"Filtered out (ai_relevance={ai_relevance:.2f}): {item.get('title', 'N/A')[:50]}")
         
         if filtered_count > 0:
-            log.info(f"Filtered {filtered_count} items with ai_relevance < {ai_relevance_threshold}", emoji="🔍")
+            log.info(f"Filtered {filtered_count} items with ai_relevance <= {ai_relevance_threshold}", emoji="🔍")
         
         # 按重要性降序，时间降序（最新的在前）
         sorted_data = sorted(

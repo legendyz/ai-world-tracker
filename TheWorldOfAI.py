@@ -177,18 +177,25 @@ class AIWorldTracker:
     
     def cleanup(self):
         """清理资源，释放内存/显存"""
-        # 卸载LLM模型（如果已加载）
+        log.dual_info("🧹 Starting resource cleanup...")
+        
+        # 1. 清理LLM分类器（卸载模型、保存缓存、关闭HTTP会话）
         if self.llm_classifier is not None:
             try:
+                log.dual_info("  ↳ Cleaning up LLM classifier...")
                 self.llm_classifier.unload_model()
+                self.llm_classifier.cleanup()
             except Exception as e:
-                log.warning(t('cleanup_error', error=str(e)))
+                log.warning(f"Failed to cleanup LLM classifier: {e}")
         
-        # 保存采集历史缓存
+        # 2. 保存采集历史缓存
         try:
+            log.dual_info("  ↳ Saving collection history cache...")
             self.collector._save_history_cache()
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning(f"Failed to save history cache: {e}")
+        
+        log.dual_success("✅ Resource cleanup completed")
     
     def _try_restore_llm_classifier(self, clear_cache: bool = False):
         """尝试恢复上次的LLM分类器
@@ -599,47 +606,91 @@ class AIWorldTracker:
             log.warning(t('history_load_failed', error=str(e)))
     
     def run_full_pipeline(self):
-        """运行完整数据处理流程"""
+        """运行完整数据处理流程
+        
+        处理流程：
+        1. 加载历史数据（已分类的）
+        2. 采集新数据（采集器有URL/标题缓存，避免重复采集）
+        3. 合并历史数据和新采集数据（去重）
+        4. 将合并后的全部数据送到分类器（分类器有自己的缓存，避免重复分类）
+        5. 输出完整数据集
+        """
         import time
         start_time = time.time()
         timing_stats = {}  # 收集耗时统计
         
         log.dual_start(t('start_pipeline'))
         
-        # 步骤1: 数据采集
+        # 保存历史数据用于后续合并
+        history_data = self.data.copy() if self.data else []
+        history_urls = {item.get('url') for item in history_data if item.get('url')}
+        history_titles = {item.get('title') for item in history_data if item.get('title')}
+        
+        # 步骤1: 数据采集（采集器有自己的缓存，避免重复网络请求）
         step_start = time.time()
         log.step(1, 5, t('step_collect'))
         raw_data = self.collector.collect_all()
         
-        # 合并所有数据
-        all_items = []
+        # 合并所有新采集的数据
+        new_items = []
         for category, items in raw_data.items():
-            all_items.extend(items)
+            new_items.extend(items)
         
         timing_stats['data_collection'] = round(time.time() - step_start, 1)
-        log.data(t('collected_items', count=len(all_items)))
+        log.data(t('collected_items', count=len(new_items)))
         
-        # 步骤2: 内容分类（根据当前模式选择分类器）
+        # 步骤2: 合并历史数据和新采集数据（去重）
+        # 先将新数据与历史数据去重合并
+        merged_items = history_data.copy()
+        truly_new_count = 0
+        
+        for item in new_items:
+            item_url = item.get('url', '')
+            item_title = item.get('title', '')
+            # 检查是否与历史数据重复
+            is_duplicate = (item_url and item_url in history_urls) or \
+                          (item_title and item_title in history_titles)
+            if not is_duplicate:
+                merged_items.append(item)
+                truly_new_count += 1
+                # 更新去重集合
+                if item_url:
+                    history_urls.add(item_url)
+                if item_title:
+                    history_titles.add(item_title)
+        
+        log.dual_info(f"📊 Merged: {len(history_data)} history + {truly_new_count} new = {len(merged_items)} items")
+        
+        # 步骤3: 内容分类（分类器有自己的缓存，已分类的直接返回缓存结果）
         step_start = time.time()
         log.step(2, 5, t('step_classify'))
-        self.data = self._classify_data(all_items)
+        
+        if merged_items:
+            # 将合并后的全部数据送到分类器
+            # 分类器会根据内容哈希判断哪些需要重新分类
+            self.data = self._classify_data(merged_items)
+        else:
+            self.data = []
+            log.dual_info("ℹ️ No items to classify")
+        
         timing_stats['classification'] = round(time.time() - step_start, 1)
         log.timing(t('classification_time', time=timing_stats['classification']), timing_stats['classification'])
         
-        # 步骤3: 智能分析
+        # 步骤4: 智能分析
         step_start = time.time()
         log.step(3, 5, t('step_analyze'))
         self.trends = self.analyzer.analyze_trends(self.data)
         timing_stats['analysis'] = round(time.time() - step_start, 1)
         
-        # 步骤4: 数据可视化
+        # 步骤5: 数据可视化
         step_start = time.time()
         log.step(4, 5, t('step_visualize'))
         self.chart_files = self.visualizer.visualize_all(self.trends)
         timing_stats['visualization'] = round(time.time() - step_start, 1)
         
-        # 步骤5: 生成Web页面
+        # 步骤6: 生成Web页面
         step_start = time.time()
+        log.step(5, 5, t('step_web'))
         log.step(5, 5, t('step_web'))
         web_file = self.web_publisher.generate_html_page(self.data, self.trends, self.chart_files)
         timing_stats['web_generation'] = round(time.time() - step_start, 1)
@@ -966,6 +1017,7 @@ class AIWorldTracker:
         Returns:
             (success: bool, error_message: str or None)
         """
+        client = None
         try:
             from openai import AzureOpenAI
             
@@ -1008,6 +1060,13 @@ class AIWorldTracker:
                 return (False, "Endpoint 地址无法解析" if get_language() == 'zh' else "Cannot resolve endpoint address")
             else:
                 return (False, error_msg[:100])  # 截断过长的错误信息
+        finally:
+            # 确保客户端资源被正确释放
+            if client is not None:
+                try:
+                    client.close()
+                except Exception:
+                    pass  # 忽略关闭时的错误
 
     def _classify_data(self, items: list) -> list:
         """根据当前模式分类数据"""
