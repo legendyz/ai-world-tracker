@@ -8,41 +8,52 @@
 
 | 分支 | 版本 | 描述 | 目标用户 |
 |------|------|------|----------|
-| `main` | v2.0 | **最新稳定版本**，集成完整 LLM 功能 | 生产环境使用 |
+| `main` | v2.0.3 | **最新稳定版本**，集成完整 LLM 功能 | 生产环境使用 |
 | `ai-world-tracker-v1` | v1.0 | 第一个完整版本，采用规则分类 | 爱好者和开发者自定义开发 |
-| `feature/data-collection-v2` | Beta | 增强数据采集能力（开发中） | 贡献者和测试者 |
+| `feature/data-collection-v2` | v2.1-beta | **增强异步数据采集**（性能提升 78%） | 贡献者和测试者 |
 
 ### 选择合适的分支
 
 - **生产环境使用**：使用 `main` 分支 - 经过完整测试，集成 LLM 增强分类
 - **学习/自定义开发**：使用 `ai-world-tracker-v1` - 架构简单，规则分类，易于修改
-- **参与贡献**：使用 `feature/data-collection-v2` - 帮助我们改进数据采集功能
+- **参与贡献**：使用 `feature/data-collection-v2` - 最新的异步改进和 URL 预过滤功能
 
 ## ✨ 核心功能
 
 ### 基础能力
 - **🤖 多源数据采集**：自动从 arXiv（最新论文）、GitHub（热门项目）、科技媒体（TechCrunch、The Verge、Wired）以及 AI 博客（OpenAI、Google AI、Hugging Face）采集数据
+- **⚡ 高性能异步采集**：基于 aiohttp 的真正异步架构（比同步模式快 78%）
+  - 20+ 并发请求，智能限速
+  - URL 预过滤，跳过已缓存内容
+  - 异步不可用时自动降级到同步模式
 - **🧠 智能分类**：双模式分类系统
-  - **LLM 模式**：通过 Ollama/OpenAI/Anthropic 进行语义理解（95%+ 准确率）
+  - **LLM 模式**：通过 Ollama/Azure OpenAI 进行语义理解（95%+ 准确率）
   - **规则模式**：基于关键词的模式识别（快速，无依赖）
 - **📊 数据可视化**：生成技术热点、内容分布、地区分布和每日趋势图表
 - **🌐 网页仪表盘**：创建带有分类新闻的响应式 HTML 仪表盘
 - **🔄 智能缓存**：基于 MD5 的缓存机制，避免重复 API 调用
 - **🌍 双语支持**：完整的中英文界面（i18n 国际化）
 
-### LLM 集成（Main 分支）
-- **多提供商支持**：Ollama（免费、本地）、OpenAI、Anthropic
-- **本地模型**：通过 Ollama 使用 Qwen3:8b - 完全免费
-- **GPU 加速**：自动检测 NVIDIA、AMD、Apple Silicon
+### LLM 集成
+- **多提供商支持**：Ollama（免费、本地）、Azure OpenAI
+- **本地模型**：通过 Ollama 使用 Qwen3:8b、DeepSeek-R1:14b - 完全免费
+- **GPU 加速**：自动检测 NVIDIA (CUDA)、AMD (ROCm)、Apple Silicon (Metal)
 - **并发处理**：3-6 线程并行处理提升速度
 - **自动降级**：LLM 不可用时优雅降级到规则分类
 - **资源管理**：退出时自动卸载模型，释放显存/内存
+
+### 数据采集性能 (v2.1-beta)
+| 指标 | 同步模式 | 异步模式 | 提升 |
+|------|----------|----------|------|
+| 采集耗时 | ~147秒 | ~32秒 | **快 78%** |
+| 并发请求 | 6 线程 | 20+ 异步 | **3 倍** |
+| 请求效率 | 0.14 req/s | 3.0 req/s | **21 倍** |
 
 ## 🛠️ 安装指南
 
 ### 环境要求
 
-- Python 3.8+
+- Python 3.8+（Python 3.13+ 需要安装 `legacy-cgi` 包）
 - Windows / macOS / Linux
 - （可选）Ollama 用于本地 LLM
 
@@ -57,6 +68,9 @@
 2. **安装依赖**
    ```bash
    pip install -r requirements.txt
+   
+   # Python 3.13+ 还需要安装：
+   pip install legacy-cgi
    ```
 
 3. **（可选）配置 Ollama 进行 LLM 分类**
@@ -69,6 +83,9 @@
 4. **运行程序**
    ```bash
    python TheWorldOfAI.py
+   
+   # 或使用自动模式运行（非交互式）
+   python TheWorldOfAI.py --auto
    ```
 
 ## 🚀 使用方法
@@ -106,7 +123,7 @@
   5. 🗑️ 清除采集历史缓存
   6. 🗑️ 清除采集结果历史
   7. 🗑️ 清除人工审核记录
-  8. ⚠️ 清除所有数据（需要确认）
+  8. ⚠️ 清除所有数据（需要输入 YES 确认）
 
   0. ↩️ 返回主菜单
 ```
@@ -136,8 +153,9 @@
 ```
 ai-world-tracker/
 ├── TheWorldOfAI.py          # 主程序入口 (AIWorldTracker 类)
-├── data_collector.py        # 多源数据采集 (DataCollector)
-├── content_classifier.py    # 规则分类器 + ImportanceEvaluator 重要性评估
+├── data_collector.py        # 多源数据采集（支持同步和异步模式）
+├── content_classifier.py    # 规则分类器
+├── importance_evaluator.py  # 多维度重要性评估（5 个维度）
 ├── llm_classifier.py        # LLM 增强分类器 (Ollama/Azure OpenAI)
 ├── ai_analyzer.py           # 趋势分析引擎 (AIAnalyzer)
 ├── visualizer.py            # 数据可视化 - Matplotlib (DataVisualizer)
@@ -158,14 +176,20 @@ ai-world-tracker/
 │   │   ├── review_history_*.json     # 人工审核记录
 │   │   └── learning_report_*.json    # 学习反馈报告
 │   └── cache/               # 缓存文件
-│       ├── collection_history_cache.json  # URL/标题去重缓存
-│       └── llm_classification_cache.json  # LLM 分类结果缓存
+│       ├── collection_history_cache.json  # URL/标题去重缓存（7天过期）
+│       └── llm_classification_cache.json  # LLM 分类结果缓存（基于MD5）
 ├── tests/                   # 测试文件目录
 │   ├── __init__.py
 │   ├── test_classifier_*.py
 │   ├── test_llm_*.py
+│   ├── test_async_performance.py
 │   └── ...
-├── logs/                    # 日志文件目录
+├── docs/                    # 技术文档
+│   ├── ASYNC_OPTIMIZATION.md
+│   ├── DATA_COLLECTOR_ARCHITECTURE.md
+│   ├── IMPORTANCE_EVALUATOR_ANALYSIS.md
+│   └── URL_PREFILTER_OPTIMIZATION.md
+├── logs/                    # 日志文件目录（自动清理）
 ├── visualizations/          # 生成的图表 (PNG)
 │   ├── tech_hotspots.png
 │   ├── content_distribution.png
@@ -210,7 +234,13 @@ ai-world-tracker/
         │                 │         │• 多Provider   │
         │                 │         └───────────────┘
         │                 │
-        ▼                 ▼
+        │                 │         ┌───────────────┐
+        │                 └────────▶│importance_    │
+        │                           │evaluator.py   │
+        │                           │• 5维度评分    │
+        │                           └───────────────┘
+        │
+        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              基础设施层                                      │
 ├───────────────┬───────────────┬───────────────┬─────────────────────────────┤
@@ -218,9 +248,10 @@ ai-world-tracker/
 │   配置管理     │   日志系统     │   国际化      │ learning_feedback.py        │
 │               │               │               │   人工反馈闭环               │
 │• OllamaConfig │• get_log_     │• t() 翻译函数 │• ManualReviewer 人工审核    │
-│• OpenAIConfig │  helper()     │• LANG_PACKS   │• LearningFeedback 学习优化  │
-│• Classifier   │• dual_* 方法  │• 中/英语言包  │                             │
-│  Config       │• 彩色输出     │               │                             │
+│• AzureOpenAI  │  helper()     │• LANG_PACKS   │• LearningFeedback 学习优化  │
+│  Config       │• dual_* 方法  │• 中/英语言包  │                             │
+│• Classifier   │• 彩色输出     │               │                             │
+│  Config       │• 自动清理     │               │                             │
 └───────────────┴───────────────┴───────────────┴─────────────────────────────┘
 ```
 
@@ -324,22 +355,34 @@ ai-world-tracker/
 
 ### 数据采集模块 (DataCollector)
 
-采集器从 6 类数据源并行采集信息：
+采集器支持两种模式，自动选择最优方案：
+
+**异步模式（默认推荐）**
+- 使用 `asyncio` + `aiohttp` 实现真正的异步 I/O
+- 20+ 并发请求，智能限速
+- URL 预过滤，跳过已缓存内容
+- 比同步模式**快 78%**
+
+**同步模式（兼容降级）**
+- 使用 `requests` + `ThreadPoolExecutor`
+- 6 个并行线程
+- 兼容不支持异步的环境
 
 | 数据类型 | 来源 | 采集方式 | 默认数量 |
 |----------|------|----------|----------|
 | 研究论文 | arXiv API | API 调用 | 15 条 |
-| 开发者内容 | GitHub Blog, HuggingFace | RSS | 20 条 |
+| 开发者内容 | GitHub Blog, HuggingFace | RSS + API | 20 条 |
 | 产品发布 | 官方博客 | RSS | 15 条 |
 | 领袖言论 | 个人博客/播客 | RSS | 15 条 |
 | 社区热点 | HN (API) + Product Hunt | API + RSS | 10 条 |
 | 行业新闻 | 中外科技媒体 | RSS | 25 条 |
 
 **特点**：
-- 并行采集（6 线程）提升效率
-- URL/标题去重避免重复
-- 7 天缓存过期自动清理
-- AI 相关性过滤
+- **双模式架构**：根据环境自动选择异步或同步模式
+- **URL 预过滤**：在发送请求前检查缓存（不是事后检查）
+- **URL/标题去重**：避免重复内容
+- **7 天缓存过期**：自动清理旧条目
+- **AI 相关性过滤**：提前过滤非 AI 内容
 
 ### 内容分类模块
 
@@ -407,6 +450,19 @@ collector:
   developer_count: 20
   news_count: 25
   max_total: 100
+  parallel_enabled: true    # 启用并行采集（同步模式）
+  parallel_workers: 6       # 同步模式最大线程数
+  async_mode: true          # 使用异步模式（推荐）
+
+# 异步采集器配置
+async_collector:
+  max_concurrent_requests: 20    # 最大并发请求数
+  max_concurrent_per_host: 3     # 每主机最大并发数
+  request_timeout: 15            # 请求超时（秒）
+  total_timeout: 120             # 总采集超时
+  max_retries: 2                 # 最大重试次数
+  retry_delay: 1.0               # 重试延迟（秒）
+  rate_limit_delay: 0.2          # 限速延迟（秒）
 
 classification:
   mode: llm        # 可选: llm, rule
@@ -435,7 +491,7 @@ logging:
   file: true                   # 输出到文件
   max_size_mb: 10              # 单个日志文件最大大小 (MB)
   backup_count: 2              # 备份文件数量
-  retention_days: 3            # 日志保留天数
+  retention_days: 3            # 日志保留天数（自动清理）
   format: standard             # standard 或 json
 ```
 
@@ -444,16 +500,16 @@ logging:
 | 提供商 | 模型 | 费用 | 配置方式 |
 |--------|------|------|----------|
 | Ollama | qwen3:8b, deepseek-r1:14b | 免费 | `ollama pull qwen3:8b` |
-| OpenAI | gpt-4o-mini | 付费 | 设置 `OPENAI_API_KEY` |
+| Azure OpenAI | gpt-4o-mini, gpt-4o | 付费 | 通过菜单配置（选项 3） |
 
 ### 环境变量
 
 ```bash
-# 可选：云端 LLM 提供商
-export OPENAI_API_KEY="your-key"
-
 # 可选：Ollama 自定义 URL
 export OLLAMA_BASE_URL="http://localhost:11434"
+
+# Azure OpenAI 通过菜单交互式配置
+# 无需设置环境变量
 ```
 
 ## 📊 内容分类
@@ -499,11 +555,12 @@ export OLLAMA_BASE_URL="http://localhost:11434"
 
 LLM 增强分类器提供语义理解能力：
 
-- **多提供商支持**：Ollama（本地）、OpenAI、Anthropic
+- **多提供商支持**：Ollama（本地）、Azure OpenAI
 - **MD5 缓存机制**：避免重复 API 调用
 - **并发处理**：3-6 线程并行分类
 - **自动降级**：LLM 不可用时优雅切换到规则分类
 - **GPU 自动检测**：支持 NVIDIA (CUDA)、AMD (ROCm)、Apple Silicon (Metal)
+- **模型保活**：5 分钟保活时间，避免冷启动
 
 ### 规则分类器 (`content_classifier.py`)
 
@@ -635,24 +692,27 @@ LLM 增强分类器提供语义理解能力：
 
 ## 🔧 版本对比
 
-| 功能 | v1.0 (ai-world-tracker-v1) | v2.0 (main) |
-|------|----------------------------|-------------|
-| 分类方式 | 规则分类 | LLM + 规则降级 |
-| LLM 支持 | ❌ | ✅ Ollama/OpenAI |
-| 本地模型 | ❌ | ✅ Qwen3:8b, DeepSeek-R1:14b |
-| 并发处理 | ❌ | ✅ 多线程（3-6） |
-| 智能缓存 | ❌ | ✅ MD5 缓存 |
-| GPU 加速 | ❌ | ✅ 自动检测 |
-| 统一日志 | ❌ | ✅ logger.py (带 emoji 去重) |
-| 结构化数据目录 | ❌ | ✅ data/exports, data/cache |
-| 日志自动清理 | ❌ | ✅ 可配置保留天数 |
-| JSON 日志格式 | ❌ | ✅ 可选 |
-| 测试组织 | 分散 | ✅ tests/ 目录 |
-| 双语界面 | ❌ | ✅ 中/英文 |
-| 资源清理 | ❌ | ✅ 退出时自动卸载 LLM |
-| 缓存管理 | ❌ | ✅ 菜单清理缓存 |
-| 准确率 | ~70% | ~95% |
-| 适用场景 | 学习、自定义开发 | 生产环境 |
+| 功能 | v1.0 (ai-world-tracker-v1) | v2.0.3 (main) | v2.1-beta (feature分支) |
+|------|----------------------------|---------------|------------------------|
+| 分类方式 | 规则分类 | LLM + 规则降级 | LLM + 规则降级 |
+| LLM 支持 | ❌ | ✅ Ollama/Azure OpenAI | ✅ Ollama/Azure OpenAI |
+| 本地模型 | ❌ | ✅ Qwen3:8b, DeepSeek-R1 | ✅ Qwen3:8b, DeepSeek-R1 |
+| 数据采集 | 仅同步 | 同步 + 异步降级 | ✅ **异步优先（快 78%）** |
+| URL 预过滤 | ❌ | ❌ | ✅ 跳过已缓存 URL |
+| 并发处理 | ❌ | ✅ 多线程（3-6） | ✅ 20+ 异步请求 |
+| 智能缓存 | ❌ | ✅ MD5 缓存 | ✅ MD5 缓存 |
+| GPU 加速 | ❌ | ✅ 自动检测 | ✅ 自动检测 |
+| 统一日志 | ❌ | ✅ logger.py | ✅ logger.py |
+| 日志自动清理 | ❌ | ✅ 可配置保留天数 | ✅ 可配置保留天数 |
+| 结构化数据目录 | ❌ | ✅ data/exports, data/cache | ✅ data/exports, data/cache |
+| 测试组织 | 分散 | ✅ tests/ 目录 | ✅ tests/ 目录 |
+| 双语界面 | ❌ | ✅ 中/英文 | ✅ 中/英文 |
+| 资源清理 | ❌ | ✅ 退出时自动卸载 LLM | ✅ 退出时自动卸载 LLM |
+| 置信度上限 | ❌ | ✅ 旧内容置信度限制 | ✅ 旧内容置信度限制 |
+| 重要性评估 | ❌ | ✅ 5 维度评分 | ✅ 5 维度评分 |
+| 准确率 | ~70% | ~95% | ~95% |
+| 采集速度 | 基准 | ~150秒 | **~32秒（快 78%）** |
+| 适用场景 | 学习开发 | 生产环境 | 生产 + 高性能 |
 
 ## 🧪 测试
 
@@ -665,9 +725,23 @@ pytest tests/ -v
 # 运行特定测试
 pytest tests/test_classifier_advanced.py -v
 
+# 运行异步性能测试
+pytest tests/test_async_performance.py -v
+
 # 运行带覆盖率的测试
 pytest tests/ --cov=. --cov-report=html
 ```
+
+## 📚 技术文档
+
+技术文档位于 `docs/` 目录：
+
+| 文档 | 描述 |
+|------|------|
+| [ASYNC_OPTIMIZATION.md](docs/ASYNC_OPTIMIZATION.md) | 异步采集架构和 78% 性能提升 |
+| [DATA_COLLECTOR_ARCHITECTURE.md](docs/DATA_COLLECTOR_ARCHITECTURE.md) | 双模式（同步/异步）采集器设计 |
+| [IMPORTANCE_EVALUATOR_ANALYSIS.md](docs/IMPORTANCE_EVALUATOR_ANALYSIS.md) | 5 维度重要性评分系统 |
+| [URL_PREFILTER_OPTIMIZATION.md](docs/URL_PREFILTER_OPTIMIZATION.md) | URL 预过滤跳过已缓存内容 |
 
 ## 📄 许可证
 

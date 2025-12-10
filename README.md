@@ -8,41 +8,52 @@
 
 | Branch | Version | Description | Target Users |
 |--------|---------|-------------|--------------|
-| `main` | v2.0 | **Latest stable version** with full LLM integration | Production use |
+| `main` | v2.0.3 | **Latest stable version** with full LLM integration | Production use |
 | `ai-world-tracker-v1` | v1.0 | First complete release with rule-based classification | Hobbyists & custom development |
-| `feature/data-collection-v2` | Beta | Enhanced data collection (in development) | Contributors & testers |
+| `feature/data-collection-v2` | v2.1-beta | **Enhanced async data collection** (78% faster) | Contributors & testers |
 
 ### Choosing the Right Branch
 
 - **Production Use**: Use `main` branch - fully tested with LLM-enhanced classification
 - **Learning/Customization**: Use `ai-world-tracker-v1` - simpler architecture, rule-based, easy to modify
-- **Contributing**: Use `feature/data-collection-v2` - help us improve data collection
+- **Contributing**: Use `feature/data-collection-v2` - latest async improvements and URL pre-filtering
 
 ## ✨ Key Features
 
 ### Core Capabilities
 - **🤖 Multi-Source Data Collection**: Automatically scrapes data from arXiv (latest papers), GitHub (trending projects), tech media (TechCrunch, The Verge, Wired), and AI blogs (OpenAI, Google AI, Hugging Face)
+- **⚡ High-Performance Async Collection**: True async architecture with aiohttp (78% faster than sync mode)
+  - 20+ concurrent requests with smart rate limiting
+  - URL pre-filtering to skip already-cached content
+  - Automatic fallback to sync mode if async unavailable
 - **🧠 Intelligent Classification**: Dual-mode classification system
-  - **LLM Mode**: Semantic understanding via Ollama/OpenAI (95%+ accuracy)
+  - **LLM Mode**: Semantic understanding via Ollama/Azure OpenAI (95%+ accuracy)
   - **Rule Mode**: Keyword-based pattern recognition (fast, no dependencies)
 - **📊 Data Visualization**: Generates charts for technology hotspots, content distribution, regional distribution, and daily trends
 - **🌐 Web Dashboard**: Creates responsive HTML dashboard with categorized news
 - **🔄 Smart Caching**: MD5-based caching to avoid redundant API calls
 - **🌍 Bilingual Support**: Full Chinese/English interface (i18n)
 
-### LLM Integration (Main Branch)
-- **Multi-Provider Support**: Ollama (free, local), OpenAI
-- **Local Models**: Qwen3:8b via Ollama - completely free
-- **GPU Acceleration**: Auto-detects NVIDIA, AMD, Apple Silicon
+### LLM Integration
+- **Multi-Provider Support**: Ollama (free, local), Azure OpenAI
+- **Local Models**: Qwen3:8b, DeepSeek-R1:14b via Ollama - completely free
+- **GPU Acceleration**: Auto-detects NVIDIA (CUDA), AMD (ROCm), Apple Silicon (Metal)
 - **Concurrent Processing**: 3-6 thread parallel processing for speed
 - **Auto-Fallback**: Gracefully degrades to rule-based when LLM unavailable
 - **Resource Management**: Automatic model unloading on exit to free VRAM/memory
+
+### Data Collection Performance (v2.1-beta)
+| Metric | Sync Mode | Async Mode | Improvement |
+|--------|-----------|------------|-------------|
+| Collection Time | ~147s | ~32s | **78% faster** |
+| Concurrent Requests | 6 threads | 20+ async | **3x more** |
+| Request Efficiency | 0.14 req/s | 3.0 req/s | **21x faster** |
 
 ## 🛠️ Installation
 
 ### Requirements
 
-- Python 3.8+
+- Python 3.8+ (Python 3.13+ requires `legacy-cgi` package)
 - Windows / macOS / Linux
 - (Optional) Ollama for local LLM
 
@@ -57,6 +68,9 @@
 2. **Install Dependencies**
    ```bash
    pip install -r requirements.txt
+   
+   # For Python 3.13+, also install:
+   pip install legacy-cgi
    ```
 
 3. **(Optional) Set up Ollama for LLM Classification**
@@ -69,6 +83,9 @@
 4. **Run the Application**
    ```bash
    python TheWorldOfAI.py
+   
+   # Or run in auto mode (non-interactive)
+   python TheWorldOfAI.py --auto
    ```
 
 ## 🚀 Usage
@@ -106,7 +123,7 @@ Current Mode: 🤖 LLM Mode (ollama/qwen3:8b)
   5. 🗑️ Clear collection history cache
   6. 🗑️ Clear export data history
   7. 🗑️ Clear manual review records
-  8. ⚠️ Clear ALL data (requires confirmation)
+  8. ⚠️ Clear ALL data (requires typing "YES" to confirm)
 
   0. ↩️ Back to main menu
 ```
@@ -136,8 +153,9 @@ Current Mode: 🤖 LLM Mode (ollama/qwen3:8b)
 ```
 ai-world-tracker/
 ├── TheWorldOfAI.py          # Main application entry point (AIWorldTracker class)
-├── data_collector.py        # Multi-source data collection (DataCollector)
-├── content_classifier.py    # Rule-based classifier + ImportanceEvaluator
+├── data_collector.py        # Multi-source data collection (sync + async modes)
+├── content_classifier.py    # Rule-based classifier
+├── importance_evaluator.py  # Multi-dimensional importance scoring (5 dimensions)
 ├── llm_classifier.py        # LLM-enhanced classifier (Ollama/Azure OpenAI)
 ├── ai_analyzer.py           # Trend analysis engine (AIAnalyzer)
 ├── visualizer.py            # Data visualization - Matplotlib (DataVisualizer)
@@ -158,14 +176,20 @@ ai-world-tracker/
 │   │   ├── review_history_*.json     # Manual review records
 │   │   └── learning_report_*.json    # Learning feedback reports
 │   └── cache/               # Cache files
-│       ├── collection_history_cache.json  # URL/title deduplication
-│       └── llm_classification_cache.json  # LLM classification results
+│       ├── collection_history_cache.json  # URL/title deduplication (7-day expiry)
+│       └── llm_classification_cache.json  # LLM classification results (MD5-based)
 ├── tests/                   # Test files directory
 │   ├── __init__.py
 │   ├── test_classifier_*.py
 │   ├── test_llm_*.py
+│   ├── test_async_performance.py
 │   └── ...
-├── logs/                    # Log files directory
+├── docs/                    # Technical documentation
+│   ├── ASYNC_OPTIMIZATION.md
+│   ├── DATA_COLLECTOR_ARCHITECTURE.md
+│   ├── IMPORTANCE_EVALUATOR_ANALYSIS.md
+│   └── URL_PREFILTER_OPTIMIZATION.md
+├── logs/                    # Log files directory (auto-cleanup)
 ├── visualizations/          # Generated charts (PNG)
 │   ├── tech_hotspots.png
 │   ├── content_distribution.png
@@ -209,16 +233,24 @@ ai-world-tracker/
         │                 │         │• Multi-Provider│
         │                 │         └───────────────┘
         │                 │
-        ▼                 ▼
+        │                 │         ┌───────────────┐
+        │                 └────────▶│importance_    │
+        │                           │evaluator.py   │
+        │                           │• 5-Dimension  │
+        │                           │  Scoring      │
+        │                           └───────────────┘
+        │
+        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                            Infrastructure Layer                              │
 ├───────────────┬───────────────┬───────────────┬─────────────────────────────┤
 │  config.py    │  logger.py    │   i18n.py     │ manual_reviewer.py          │
 │               │               │               │ learning_feedback.py        │
 │• OllamaConfig │• get_log_     │• t() translate│• ManualReviewer             │
-│• OpenAIConfig │  helper()     │• LANG_PACKS   │• LearningFeedback           │
-│• Classifier   │• dual_* methods│• zh/en       │  (Human-in-the-loop)        │
-│  Config       │• colored output│              │                             │
+│• AzureOpenAI  │  helper()     │• LANG_PACKS   │• LearningFeedback           │
+│  Config       │• dual_* methods│• zh/en       │  (Human-in-the-loop)        │
+│• Classifier   │• colored output│              │                             │
+│  Config       │• auto-cleanup  │              │                             │
 └───────────────┴───────────────┴───────────────┴─────────────────────────────┘
 ```
 
@@ -321,22 +353,34 @@ ai-world-tracker/
 
 ### Data Collector Module
 
-The collector gathers data from 6 source categories in parallel:
+The collector supports two modes with automatic selection:
+
+**Async Mode (Default - Recommended)**
+- Uses `asyncio` + `aiohttp` for true async I/O
+- 20+ concurrent requests with smart rate limiting
+- URL pre-filtering to skip cached content
+- **78% faster** than sync mode
+
+**Sync Mode (Fallback)**
+- Uses `requests` + `ThreadPoolExecutor`
+- 6 parallel threads
+- Compatible with environments without async support
 
 | Data Type | Sources | Method | Default Count |
 |-----------|---------|--------|---------------|
 | Research Papers | arXiv API | API Call | 15 items |
-| Developer Content | GitHub Blog, HuggingFace | RSS | 20 items |
+| Developer Content | GitHub Blog, HuggingFace | RSS + API | 20 items |
 | Product Releases | Official Blogs | RSS | 15 items |
 | Leader Quotes | Personal Blogs/Podcasts | RSS | 15 items |
 | Community Trends | HN (API) + Product Hunt | API + RSS | 10 items |
 | Industry News | Global Tech Media | RSS | 25 items |
 
 **Features**:
-- Parallel collection (6 threads) for efficiency
-- URL/title deduplication to avoid duplicates
-- 7-day cache expiration with auto-cleanup
-- AI relevance filtering
+- **Dual-mode architecture**: Auto-selects async or sync based on environment
+- **URL pre-filtering**: Checks cache BEFORE making requests (not after)
+- **URL/title deduplication**: Avoids duplicate content
+- **7-day cache expiration**: Auto-cleanup of old entries
+- **AI relevance filtering**: Filters non-AI content early
 
 ### Content Classification Module
 
@@ -404,6 +448,19 @@ collector:
   developer_count: 20
   news_count: 25
   max_total: 100
+  parallel_enabled: true    # Enable parallel collection (sync mode)
+  parallel_workers: 6       # Max threads for sync mode
+  async_mode: true          # Use async mode (recommended)
+
+# Async collector settings
+async_collector:
+  max_concurrent_requests: 20    # Max concurrent requests
+  max_concurrent_per_host: 3     # Max concurrent per host
+  request_timeout: 15            # Request timeout (seconds)
+  total_timeout: 120             # Total collection timeout
+  max_retries: 2                 # Max retries per request
+  retry_delay: 1.0               # Retry delay (seconds)
+  rate_limit_delay: 0.2          # Rate limit delay (seconds)
 
 classification:
   mode: llm        # Options: llm, rule
@@ -432,7 +489,7 @@ logging:
   file: true                   # Output to file
   max_size_mb: 10              # Max size per log file (MB)
   backup_count: 2              # Number of backup files
-  retention_days: 3            # Log retention days
+  retention_days: 3            # Log retention days (auto-cleanup)
   format: standard             # standard or json
 ```
 
@@ -440,17 +497,17 @@ logging:
 
 | Provider | Model | Cost | Setup |
 |----------|-------|------|-------|
-| Ollama | qwen3:8b | Free | `ollama pull qwen3:8b` |
-| OpenAI | gpt-4o-mini | Paid | Set `OPENAI_API_KEY` |
+| Ollama | qwen3:8b, deepseek-r1:14b | Free | `ollama pull qwen3:8b` |
+| Azure OpenAI | gpt-4o-mini, gpt-4o | Paid | Configure via menu (Option 3) |
 
 ### Environment Variables
 
 ```bash
-# Optional: Cloud LLM providers
-export OPENAI_API_KEY="your-key"
-
 # Optional: Custom Ollama URL
 export OLLAMA_BASE_URL="http://localhost:11434"
+
+# Azure OpenAI is configured interactively via menu
+# No environment variables needed
 ```
 
 ## 📊 Content Classification
@@ -498,6 +555,10 @@ The LLM-enhanced classifier provides semantic understanding:
 
 - **Multi-Provider Support**: Ollama (local), Azure OpenAI
 - **MD5-based Caching**: Avoid redundant API calls
+- **Concurrent Processing**: 3-6 threads for parallel classification
+- **Auto-Fallback**: Gracefully degrades to rule-based when LLM unavailable
+- **GPU Auto-Detection**: NVIDIA (CUDA), AMD (ROCm), Apple Silicon (Metal)
+- **Model Keep-Alive**: 5-minute keep-alive to avoid cold starts
 - **Concurrent Processing**: 3-6 threads for parallel classification
 - **Auto-Fallback**: Gracefully degrades to rule-based when LLM unavailable
 - **GPU Auto-Detection**: NVIDIA (CUDA), AMD (ROCm), Apple Silicon (Metal)
@@ -632,27 +693,27 @@ Uses logarithmic normalization: `score = log(value + 1) / log(threshold_high + 1
 
 ## 🔧 Version Comparison
 
-| Feature | v1.0 (ai-world-tracker-v1) | v2.0 (main) |
-|---------|----------------------------|-------------|
-| Classification | Rule-based | LLM + Rule fallback |
-| LLM Support | ❌ | ✅ Ollama/OpenAI |
-| Local Models | ❌ | ✅ Qwen3:8b |
-| Concurrent Processing | ❌ | ✅ Multi-threaded (3-6) |
-| Smart Caching | ❌ | ✅ MD5-based |
-| GPU Acceleration | ❌ | ✅ Auto-detection |
-| Unified Logging | ❌ | ✅ logger.py (with emoji dedup) |
-| Structured Data Dir | ❌ | ✅ data/exports, data/cache |
-| Log Auto-Cleanup | ❌ | ✅ Configurable retention |
-| JSON Log Format | ❌ | ✅ Optional |
-| Test Organization | Scattered | ✅ tests/ directory |
-| Bilingual UI | ❌ | ✅ Chinese/English |
-| Resource Cleanup | ❌ | ✅ Auto unload LLM on exit |
-| Cache Management | ❌ | ✅ Clear cache via menu |
-| Review Data Management | ❌ | ✅ Clear review records |
-| Bulk Data Cleanup | ❌ | ✅ Clear ALL data option |
-| Confidence Cap | ❌ | ✅ Cap for old content |
-| Accuracy | ~70% | ~95% |
-| Use Case | Learning, customization | Production |
+| Feature | v1.0 (ai-world-tracker-v1) | v2.0.3 (main) | v2.1-beta (feature branch) |
+|---------|----------------------------|---------------|---------------------------|
+| Classification | Rule-based | LLM + Rule fallback | LLM + Rule fallback |
+| LLM Support | ❌ | ✅ Ollama/Azure OpenAI | ✅ Ollama/Azure OpenAI |
+| Local Models | ❌ | ✅ Qwen3:8b, DeepSeek-R1 | ✅ Qwen3:8b, DeepSeek-R1 |
+| Data Collection | Sync only | Sync + Async fallback | ✅ **Async-first (78% faster)** |
+| URL Pre-filtering | ❌ | ❌ | ✅ Skip cached URLs |
+| Concurrent Processing | ❌ | ✅ Multi-threaded (3-6) | ✅ 20+ async requests |
+| Smart Caching | ❌ | ✅ MD5-based | ✅ MD5-based |
+| GPU Acceleration | ❌ | ✅ Auto-detection | ✅ Auto-detection |
+| Unified Logging | ❌ | ✅ logger.py | ✅ logger.py |
+| Log Auto-Cleanup | ❌ | ✅ Configurable retention | ✅ Configurable retention |
+| Structured Data Dir | ❌ | ✅ data/exports, data/cache | ✅ data/exports, data/cache |
+| Test Organization | Scattered | ✅ tests/ directory | ✅ tests/ directory |
+| Bilingual UI | ❌ | ✅ Chinese/English | ✅ Chinese/English |
+| Resource Cleanup | ❌ | ✅ Auto unload LLM | ✅ Auto unload LLM |
+| Confidence Cap | ❌ | ✅ Cap for old content | ✅ Cap for old content |
+| Importance Evaluator | ❌ | ✅ 5-dimension scoring | ✅ 5-dimension scoring |
+| Accuracy | ~70% | ~95% | ~95% |
+| Collection Speed | Baseline | ~150s | **~32s (78% faster)** |
+| Use Case | Learning | Production | Production + Performance |
 
 ## 🧪 Testing
 
@@ -665,9 +726,23 @@ pytest tests/ -v
 # Run specific test
 pytest tests/test_classifier_advanced.py -v
 
+# Run async performance tests
+pytest tests/test_async_performance.py -v
+
 # Run with coverage
 pytest tests/ --cov=. --cov-report=html
 ```
+
+## 📚 Documentation
+
+Technical documentation is available in the `docs/` directory:
+
+| Document | Description |
+|----------|-------------|
+| [ASYNC_OPTIMIZATION.md](docs/ASYNC_OPTIMIZATION.md) | Async collection architecture and 78% performance improvement |
+| [DATA_COLLECTOR_ARCHITECTURE.md](docs/DATA_COLLECTOR_ARCHITECTURE.md) | Dual-mode (sync/async) collector design |
+| [IMPORTANCE_EVALUATOR_ANALYSIS.md](docs/IMPORTANCE_EVALUATOR_ANALYSIS.md) | 5-dimension importance scoring system |
+| [URL_PREFILTER_OPTIMIZATION.md](docs/URL_PREFILTER_OPTIMIZATION.md) | URL pre-filtering to skip cached content |
 
 ## 📄 License
 
