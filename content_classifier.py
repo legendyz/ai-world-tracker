@@ -461,13 +461,24 @@ class ContentClassifier:
             scores['research'] *= 0.5
         
         # ============ 领袖类分类规则（优化版） ============
-        # 言论动词：表示某人发表了观点
+        # 言论动词：表示某人发表了观点（移除容易误触发的弱动词如"分享"）
         leader_verbs = {'said', 'says', 'stated', 'believes', 'warns', 'predicts', 
-                       'tweeted', 'posted', 'commented', 'announced', 'argues',
+                       'tweeted', 'posted', 'commented', 'argues',
                        'thinks', 'expects', 'suggests', 'claims', 'reveals',
-                       'discusses', 'explains', 'shares', 'tells', 'told',
-                       '表示', '认为', '说', '称', '警告', '预测', '发文', '透露',
-                       '指出', '强调', '提到', '分享', '解释', '讨论'}
+                       'discusses', 'explains', 'tells', 'told',
+                       '表示', '认为', '称', '警告', '预测', '发文', '透露',
+                       '指出', '强调'}
+        
+        # 强言论指标：更明确的言论模式（用于提升置信度）
+        strong_leader_indicators = {
+            'interview', 'exclusive', 'in conversation', 'spoke about',
+            '专访', '对话', '接受采访', '表态', '回应', '谈到'
+        }
+        
+        # 活动/会议关键词：如果是活动报道，不应归类为 leader
+        event_keywords = {'conference', 'summit', 'forum', 'event', 'ceremony',
+                         '大会', '峰会', '论坛', '盛典', '活动', '会议', '发布会',
+                         '年会', '年终', '开幕', '闭幕', '颁奖', '典礼'}
         
         # 领袖角色：职位 + 知名人物名字
         leader_roles = {'ceo', 'cto', 'coo', 'cfo', 'founder', 'co-founder', 'cofounder',
@@ -481,14 +492,39 @@ class ContentClassifier:
                        'mustafa suleyman', 'eric schmidt',
                        # 知名AI领袖（中文）
                        '黄仁勋', '马斯克', '扎克伯格', '奥特曼', '纳德拉',
-                       '李飞飞', '吴恩达', '李开复', '周鸿祎', '雷军',
-                       '创始人', '首席', '总裁', '董事长', '董事', '总经理'}
+                       '李飞飞', '吴恩达', '李开复', '周鸿祎', '雷军'}
+        
+        # 通用职位词（不应单独触发 leader 分类，需要配合知名人物）
+        generic_titles = {'创始人', '首席', '总裁', '董事长', '董事', '总经理'}
         
         has_leader_verb = any(v in full_text for v in leader_verbs)
-        has_leader_role = any(r in full_text for r in leader_roles)
+        has_strong_indicator = any(ind in full_text for ind in strong_leader_indicators)
+        has_event_keyword = any(evt in full_text for evt in event_keywords)
+        has_known_leader = any(r in full_text for r in leader_roles if r not in generic_titles)
+        has_generic_title = any(t in full_text for t in generic_titles)
         
-        # 双条件判断：言论动词 + 领袖角色
-        if has_leader_verb and has_leader_role:
+        # 领袖角色判断：知名领袖名字 或 (通用职位词 + 强言论指标)
+        has_leader_role = has_known_leader or (has_generic_title and has_strong_indicator)
+        
+        # ============ 新增：采集器已标记的 author 字段（高优先级信号） ============
+        # 如果采集器已经识别到这是某位AI领袖的相关新闻，应该优先考虑归类为 leader
+        author = item.get('author', '').lower()
+        author_title = item.get('author_title', '').lower()
+        has_author_tag = bool(author) and any(r in author for r in leader_roles)
+        
+        # 双条件判断：言论动词 + 领袖角色（或采集器已标记author）
+        if has_author_tag:
+            # 采集器已明确标记为某位领袖的新闻：强制提升 leader 分数
+            scores['leader'] = max(scores['leader'] * 4.0, 20.0)  # 至少20分
+            # 大幅降低竞争分类的分数
+            scores['market'] *= 0.5
+            scores['product'] *= 0.5
+            scores['research'] *= 0.6
+        elif has_event_keyword and not has_strong_indicator:
+            # 活动/会议报道：即使提到了领袖也应归类为 market，除非有强言论指标
+            scores['leader'] *= 0.2  # 大幅降低 leader 分数
+            scores['market'] *= 1.5  # 提升 market 分数
+        elif has_leader_verb and has_leader_role:
             # 满足双条件：大幅提升 leader 分数，确保能竞争过 market/product
             scores['leader'] = max(scores['leader'] * 3.0, 15.0)  # 至少15分
             # 同时适度降低竞争分类的分数
