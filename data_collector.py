@@ -452,20 +452,25 @@ class AIDataCollector:
         log.dual_start(t('dc_collect_developer'))
         content = []
         
+        # 平均分配配额
+        github_limit = max_results // 3
+        hf_limit = max_results // 3
+        blog_limit = max_results - github_limit - hf_limit
+        
         # 1. GitHub Trending AI项目
         github_projects = self._collect_github_trending()
-        content.extend(github_projects[:max_results//3])
+        content.extend(github_projects[:github_limit])
         
         # 2. Hugging Face最新模型/数据集
         hf_content = self._collect_huggingface_updates()
-        content.extend(hf_content[:max_results//3])
+        content.extend(hf_content[:hf_limit])
         
         # 3. 开发者博客和教程
-        dev_blogs = self._collect_dev_blogs()
-        content.extend(dev_blogs[:max_results//3])
+        dev_blogs = self._collect_dev_blogs(max_results=blog_limit)
+        content.extend(dev_blogs)
         
         log.dual_success(t('dc_got_developer', count=len(content)))
-        return content
+        return content[:max_results]  # 确保不超过总数
     
     def collect_product_releases(self, max_results: int = 10) -> List[Dict]:
         """
@@ -658,22 +663,33 @@ class AIDataCollector:
         """
         log.dual_start(t('dc_collect_news'))
         
-        # 从产品发布新闻源采集
+        # 计算每个源的采集配额（提前限制）
+        product_feeds = self.rss_feeds.get('product_news', [])
+        news_feeds = self.rss_feeds['news']
+        total_feeds = len(product_feeds) + len(news_feeds)
+        items_per_feed = max(2, max_results // max(total_feeds, 1))  # 每源至少2条
+        
+        # 从产品发布新闻源采集（限制每源数量）
         product_news = []
-        for feed_url in self.rss_feeds.get('product_news', []):
+        for feed_url in product_feeds:
+            if len(product_news) >= max_results // 2:  # 产品新闻最多占一半
+                break
             try:
                 feed_news = self._parse_rss_feed(feed_url, category='product')
-                product_news.extend(feed_news)
+                product_news.extend(feed_news[:items_per_feed])
                 time.sleep(0.3)
             except Exception as e:
                 log.warning(t('dc_product_feed_failed', url=feed_url, error=str(e)))
         
-        # 从传统新闻源采集
+        # 从传统新闻源采集（限制每源数量）
         general_news = []
-        for feed_url in self.rss_feeds['news']:
+        remaining = max_results - len(product_news)
+        for feed_url in news_feeds:
+            if len(general_news) >= remaining:
+                break
             try:
                 feed_news = self._parse_rss_feed(feed_url, category='news')
-                general_news.extend(feed_news)
+                general_news.extend(feed_news[:items_per_feed])
                 time.sleep(0.5)
             except Exception as e:
                 log.warning(t('dc_rss_failed', url=feed_url, error=str(e)))
@@ -969,21 +985,28 @@ class AIDataCollector:
         
         return updates
     
-    def _collect_dev_blogs(self) -> List[Dict]:
-        """采集开发者博客内容"""
+    def _collect_dev_blogs(self, max_results: int = 10) -> List[Dict]:
+        """采集开发者博客内容
+        
+        Args:
+            max_results: 最大结果数
+        """
         blogs = []
+        items_per_feed = max(2, max_results // max(len(self.rss_feeds['developer']), 1))
         
         try:
-            # 从GitHub博客RSS获取
+            # 从GitHub博客RSS获取（限制每源数量）
             for feed_url in self.rss_feeds['developer']:
+                if len(blogs) >= max_results:
+                    break
                 feed_content = self._parse_rss_feed(feed_url, category='developer')
-                blogs.extend(feed_content)
+                blogs.extend(feed_content[:items_per_feed])
         
         except Exception as e:
             log.warning(t('dc_dev_blog_failed', error=str(e)))
             blogs = self._get_backup_blog_data()
         
-        return blogs
+        return blogs[:max_results]
     
     def _collect_openai_updates(self) -> List[Dict]:
         """采集OpenAI产品更新"""
@@ -1576,11 +1599,11 @@ class AIDataCollector:
             if not is_duplicate:
                 unique_items.append(item)
         
-        # 记录语义去重结果（仅在DEBUG模式下输出）
+        # 记录语义去重结果（仅写入日志文件，不输出到控制台）
         if removed_as_duplicate and len(removed_as_duplicate) > 0:
-            log.file(f"语义去重移除 {len(removed_as_duplicate)} 条相似内容")
+            log.file_only(f"语义去重移除 {len(removed_as_duplicate)} 条相似内容")
             for new_t, old_t in removed_as_duplicate[:3]:  # 只显示前3条
-                log.file(f"  - '{new_t}...' 与 '{old_t}...' 相似")
+                log.file_only(f"  - '{new_t}...' 与 '{old_t}...' 相似")
                 
         return unique_items
     
@@ -1892,11 +1915,13 @@ class AIDataCollector:
     async def _parse_rss_feed_async(self, session: aiohttp.ClientSession,
                                      feed_url: str, category: str,
                                      semaphore: asyncio.Semaphore,
-                                     enable_url_filter: bool = True) -> List[Dict]:
-        """异步解析RSS源（支持URL预过滤）
+                                     enable_url_filter: bool = True,
+                                     items_per_feed: int = 10) -> List[Dict]:
+        """异步解析RSS源（支持URL预过滤和数量限制）
         
         Args:
             enable_url_filter: 是否启用URL预过滤（默认True）
+            items_per_feed: 每个源最多采集的条数（默认10）
         """
         items = []
         try:
@@ -1907,18 +1932,23 @@ class AIDataCollector:
             loop = asyncio.get_event_loop()
             feed = await loop.run_in_executor(None, feedparser.parse, content)
             
-            # 先提取所有URL并进行预过滤
+            # 先提取所有URL并进行预过滤（限制条数）
+            max_entries = min(items_per_feed, 10)  # 最多10条
             entries_to_process = []
             if enable_url_filter:
-                for entry in feed.entries[:10]:
+                for entry in feed.entries[:max_entries * 2]:  # 多检查一些以应对过滤
+                    if len(entries_to_process) >= max_entries:
+                        break
                     url = entry.get('link', '')
                     if url and url not in self.history_cache['urls']:
                         entries_to_process.append(entry)
             else:
-                entries_to_process = feed.entries[:10]
+                entries_to_process = feed.entries[:max_entries]
             
             # 只处理新URL的内容
             for entry in entries_to_process:
+                if len(items) >= items_per_feed:
+                    break
                 date_val = entry.get('published_parsed') or entry.get('published')
                 if date_val and not self._is_recent(date_val):
                     continue
@@ -1954,8 +1984,9 @@ class AIDataCollector:
     
     async def _collect_github_trending_async(self, session: aiohttp.ClientSession, 
                                             semaphore: asyncio.Semaphore,
-                                            enable_url_filter: bool = True) -> List[Dict]:
-        """异步采集GitHub热门项目（支持URL预过滤）"""
+                                            enable_url_filter: bool = True,
+                                            max_items: int = 10) -> List[Dict]:
+        """异步采集GitHub热门项目（支持URL预过滤和数量限制）"""
         projects = []
         try:
             last_month = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
@@ -1966,14 +1997,14 @@ class AIDataCollector:
                 'q': query,
                 'sort': 'stars',
                 'order': 'desc',
-                'per_page': 15
+                'per_page': min(max_items + 5, 15)  # 多请求几个以应对过滤
             }
             
             data = await self._fetch_json_async(session, url, semaphore, params)
             if data:
                 # 先过滤掉已缓存的URL
                 repos_to_process = []
-                for repo in data.get('items', [])[:15]:
+                for repo in data.get('items', [])[:max_items + 5]:
                     repo_url = repo.get('html_url', '')
                     if enable_url_filter:
                         if repo_url and repo_url not in self.history_cache['urls']:
@@ -1981,8 +2012,10 @@ class AIDataCollector:
                     else:
                         repos_to_process.append(repo)
                 
-                # 只处理新repo
+                # 只处理新repo（限制数量）
                 for repo in repos_to_process:
+                    if len(projects) >= max_items:
+                        break
                     if not self._is_recent(repo.get('updated_at', '')):
                         continue
                     
@@ -2005,18 +2038,19 @@ class AIDataCollector:
     
     async def _collect_huggingface_async(self, session: aiohttp.ClientSession,
                                         semaphore: asyncio.Semaphore,
-                                        enable_url_filter: bool = True) -> List[Dict]:
-        """异步采集Hugging Face更新（支持URL预过滤）"""
+                                        enable_url_filter: bool = True,
+                                        max_items: int = 10) -> List[Dict]:
+        """异步采集Hugging Face更新（支持URL预过滤和数量限制）"""
         updates = []
         try:
             url = "https://huggingface.co/api/models"
-            params = {'limit': 10, 'sort': 'lastModified', 'direction': -1}
+            params = {'limit': min(max_items + 5, 15), 'sort': 'lastModified', 'direction': -1}
             
             data = await self._fetch_json_async(session, url, semaphore, params)
             if data:
                 # 先过滤掉已缓存的URL
                 models_to_process = []
-                for model in data[:10]:
+                for model in data[:max_items + 5]:
                     model_url = f"https://huggingface.co/{model['id']}"
                     if enable_url_filter:
                         if model_url and model_url not in self.history_cache['urls']:
@@ -2024,8 +2058,10 @@ class AIDataCollector:
                     else:
                         models_to_process.append(model)
                 
-                # 只处理新模型
+                # 只处理新模型（限制数量）
                 for model in models_to_process:
+                    if len(updates) >= max_items:
+                        break
                     if not self._is_recent(model.get('lastModified', '')):
                         continue
                     
@@ -2266,16 +2302,26 @@ class AIDataCollector:
             # 创建所有采集任务
             tasks = []
             
-            # 1. 新闻RSS源
+            # 1. 新闻RSS源（限制源数量，优先采集重要源）
             news_feeds = RSS_FEEDS['news'] + RSS_FEEDS.get('product_news', [])
-            for feed_url in news_feeds:
-                tasks.append(self._parse_rss_feed_async(session, feed_url, 'news', semaphore))
+            # 计算每源配额：news_count / 源数量，至少2条
+            items_per_news_feed = max(2, news_count // max(len(news_feeds), 1))
+            # 只采集前几个重要源，避免过多请求
+            max_news_feeds = min(len(news_feeds), max(6, news_count // 3))
+            for feed_url in news_feeds[:max_news_feeds]:
+                tasks.append(self._parse_rss_feed_async(session, feed_url, 'news', semaphore, 
+                                                        items_per_feed=items_per_news_feed))
             
             # 2. 开发者内容 (GitHub + Hugging Face + 博客RSS)
-            tasks.append(self._collect_github_trending_async(session, semaphore))
-            tasks.append(self._collect_huggingface_async(session, semaphore))
+            # 限制：GitHub 5条，HuggingFace 5条，每个RSS源3条
+            dev_github_limit = min(5, developer_count // 3)
+            dev_hf_limit = min(5, developer_count // 3)
+            dev_rss_limit = max(2, (developer_count - dev_github_limit - dev_hf_limit) // max(len(RSS_FEEDS['developer']), 1))
+            tasks.append(self._collect_github_trending_async(session, semaphore, max_items=dev_github_limit))
+            tasks.append(self._collect_huggingface_async(session, semaphore, max_items=dev_hf_limit))
             for feed_url in RSS_FEEDS['developer']:
-                tasks.append(self._parse_rss_feed_async(session, feed_url, 'developer', semaphore))
+                tasks.append(self._parse_rss_feed_async(session, feed_url, 'developer', semaphore,
+                                                        items_per_feed=dev_rss_limit))
             
             # 3. 产品发布
             tasks.append(self._collect_product_releases_async(session, semaphore, product_count))
@@ -2290,17 +2336,28 @@ class AIDataCollector:
             tasks.append(self._collect_research_papers_async(research_count))
             
             # 并发执行所有任务
-            log.dual_info(f"⚡ 并发执行 {len(tasks)} 个采集任务", emoji="")
+            log.dual_info(f"⚡ 并发执行 {len(tasks)} 个采集任务 (配额: news={news_count}, dev={developer_count})", emoji="")
             all_results = await asyncio.gather(*tasks, return_exceptions=True)
             
-            # 分类收集结果
+            # 分类收集结果（带配额限制）
+            category_limits = {
+                'news': news_count,
+                'developer': developer_count,
+                'product': product_count,
+                'leader': leader_count,
+                'community': community_count,
+                'research': research_count
+            }
+            
             for result in all_results:
                 if isinstance(result, list):
                     for item in result:
                         # 使用 _source_type 进行内部分组（不是分类标签）
                         source_type = item.pop('_source_type', 'news')  # 移除并获取，默认为 news
                         if source_type in all_data:
-                            all_data[source_type].append(item)
+                            # 检查是否超出配额
+                            if len(all_data[source_type]) < category_limits.get(source_type, 100):
+                                all_data[source_type].append(item)
                 elif isinstance(result, Exception):
                     log.warning(f"Task failed: {result}")
         

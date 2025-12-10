@@ -465,6 +465,16 @@ class LogHelper:
         for h in console_handlers:
             self._logger.addHandler(h)
     
+    def file_only(self, message: str, level: str = 'INFO') -> None:
+        """仅写入日志文件，不显示在控制台（用于详细调试信息）
+        
+        Args:
+            message: 日志消息
+            level: 日志级别 ('DEBUG', 'INFO', 'WARNING', 'ERROR')
+        """
+        log_level = getattr(logging, level.upper(), logging.INFO)
+        self._log_to_file_only(log_level, message)
+    
     def dual_info(self, message: str, emoji: str = "ℹ️") -> None:
         """双输出：控制台显示 + 日志记录"""
         formatted = self._format_message(message, emoji)
