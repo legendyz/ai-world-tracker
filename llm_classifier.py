@@ -595,8 +595,15 @@ class LLMClassifier:
 2. 没有引语标记的公司/人物新闻 → market
 3. 标题格式如"Sam Altman: ..."或"[人名]: ..."通常是leader
 
+★ AI相关性(ai_relevance)评分规则:
+- 0.9-1.0: 核心AI内容（LLM、深度学习、神经网络、模型训练等）
+- 0.7-0.9: 主要AI内容（AI产品、AI公司新闻、AI应用）
+- 0.5-0.7: 部分AI相关（科技新闻涉及AI、泛AI话题）
+- 0.3-0.5: 弱相关（科技新闻但AI非主题）
+- 0.0-0.3: 非AI内容（与AI无关的科技或其他领域）
+
 输出格式(严格JSON):
-{{"content_type": "类型", "confidence": 0.8, "tech_fields": ["领域"], "reasoning": "原因"}}"""
+{{"content_type": "类型", "confidence": 0.8, "ai_relevance": 0.85, "tech_fields": ["领域"], "reasoning": "原因"}}"""
         
         return prompt
     
@@ -646,11 +653,18 @@ Examples:
 Other rules:
 - Items marked [PAPER] -> research
 
+★★★ AI RELEVANCE SCORING (ai_relevance: 0.0-1.0) ★★★
+- 0.9-1.0: Core AI (LLM, deep learning, neural networks, model training, AI research)
+- 0.7-0.9: Primary AI (AI products, AI company news, AI applications)
+- 0.5-0.7: Partial AI (tech news involving AI, general AI topics)
+- 0.3-0.5: Weak AI (tech news but AI is not the main topic)
+- 0.0-0.3: Non-AI (unrelated to AI, other tech domains)
+
 tech_fields options: LLM, Computer Vision, NLP, Robotics, AI Safety, MLOps, Multimodal, Audio/Speech, Healthcare AI, General AI
 
 Output format - EXACTLY {len(items)} lines starting from id=1:
-{{"id":1,"content_type":"TYPE","confidence":0.8,"tech_fields":["FIELD"]}}
-{{"id":2,"content_type":"TYPE","confidence":0.8,"tech_fields":["FIELD"]}}
+{{"id":1,"content_type":"TYPE","confidence":0.8,"ai_relevance":0.85,"tech_fields":["FIELD"]}}
+{{"id":2,"content_type":"TYPE","confidence":0.8,"ai_relevance":0.85,"tech_fields":["FIELD"]}}
 ...continue until id={len(items)}
 
 START from id=1, classify ALL {len(items)} items:"""
@@ -886,6 +900,7 @@ START from id=1, classify ALL {len(items)} items:"""
                     # 规范化字段
                     result['content_type'] = result['content_type'].lower()
                     result['confidence'] = float(result.get('confidence', 0.8))
+                    result['ai_relevance'] = float(result.get('ai_relevance', 0.7))  # 默认0.7（假设大部分采集内容是AI相关）
                     result['tech_fields'] = result.get('tech_fields', ['General AI'])
                     result['is_verified'] = result.get('is_verified', True)
                     result['reasoning'] = result.get('reasoning', '')
@@ -938,6 +953,7 @@ START from id=1, classify ALL {len(items)} items:"""
                 return {
                     'content_type': category,
                     'confidence': 0.85,
+                    'ai_relevance': 0.7,  # 默认中等相关性
                     'tech_fields': ['General AI'],
                     'is_verified': True,
                     'reasoning': 'Extracted from LLM thinking output'
@@ -955,6 +971,7 @@ START from id=1, classify ALL {len(items)} items:"""
             return {
                 'content_type': best_category,
                 'confidence': min(0.7 + category_scores[best_category] * 0.05, 0.9),
+                'ai_relevance': 0.7,  # 默认中等相关性
                 'tech_fields': ['General AI'],
                 'is_verified': True,
                 'reasoning': f'Inferred from text analysis (score: {category_scores[best_category]})'
@@ -995,7 +1012,8 @@ START from id=1, classify ALL {len(items)} items:"""
             importance, breakdown = self.importance_evaluator.calculate_importance(
                 item,
                 {'content_type': classified.get('content_type', 'news'), 
-                 'confidence': classified.get('confidence', 0.5)}
+                 'confidence': classified.get('confidence', 0.5),
+                 'ai_relevance': classified.get('ai_relevance', 0.7)}  # 包含AI相关性
             )
             classified['importance'] = importance
             classified['importance_breakdown'] = breakdown
@@ -1015,6 +1033,7 @@ START from id=1, classify ALL {len(items)} items:"""
             # 更新分类结果
             classified['content_type'] = result['content_type']
             classified['confidence'] = result['confidence']
+            classified['ai_relevance'] = result.get('ai_relevance', 0.7)  # AI相关性评分
             classified['tech_categories'] = result['tech_fields']
             classified['is_verified'] = result['is_verified']
             classified['llm_reasoning'] = result['reasoning']
@@ -1027,7 +1046,8 @@ START from id=1, classify ALL {len(items)} items:"""
             # 计算多维度重要性分数（使用统一的评估器）
             importance, importance_breakdown = self.importance_evaluator.calculate_importance(
                 item,
-                {'content_type': result['content_type'], 'confidence': result['confidence']}
+                {'content_type': result['content_type'], 'confidence': result['confidence'],
+                 'ai_relevance': classified['ai_relevance']}  # 传入AI相关性
             )
             classified['importance'] = importance
             classified['importance_breakdown'] = importance_breakdown
@@ -1039,6 +1059,7 @@ START from id=1, classify ALL {len(items)} items:"""
                 self.cache[content_hash] = {
                     'content_type': classified['content_type'],
                     'confidence': classified['confidence'],
+                    'ai_relevance': classified['ai_relevance'],  # 缓存AI相关性
                     'tech_categories': classified['tech_categories'],
                     'is_verified': classified['is_verified'],
                     'llm_reasoning': classified['llm_reasoning'],
@@ -1100,7 +1121,8 @@ START from id=1, classify ALL {len(items)} items:"""
                 importance, breakdown = self.importance_evaluator.calculate_importance(
                     item,
                     {'content_type': classified.get('content_type', 'news'), 
-                     'confidence': classified.get('confidence', 0.5)}
+                     'confidence': classified.get('confidence', 0.5),
+                     'ai_relevance': classified.get('ai_relevance', 0.7)}  # 包含AI相关性
                 )
                 classified['importance'] = importance
                 classified['importance_breakdown'] = breakdown
@@ -1191,6 +1213,7 @@ START from id=1, classify ALL {len(items)} items:"""
                     
                     classified['content_type'] = result.get('content_type', 'market')
                     classified['confidence'] = result.get('confidence', 0.7)
+                    classified['ai_relevance'] = result.get('ai_relevance', 0.7)  # AI相关性评分
                     classified['tech_categories'] = result.get('tech_fields', ['General AI'])
                     classified['is_verified'] = result.get('is_verified', True)
                     classified['llm_reasoning'] = result.get('reasoning', '')
@@ -1201,7 +1224,8 @@ START from id=1, classify ALL {len(items)} items:"""
                     # 计算多维度重要性分数
                     importance, importance_breakdown = self.importance_evaluator.calculate_importance(
                         item,
-                        {'content_type': classified['content_type'], 'confidence': classified['confidence']}
+                        {'content_type': classified['content_type'], 'confidence': classified['confidence'],
+                         'ai_relevance': classified['ai_relevance']}  # 传入AI相关性
                     )
                     classified['importance'] = importance
                     classified['importance_breakdown'] = importance_breakdown
@@ -1214,6 +1238,7 @@ START from id=1, classify ALL {len(items)} items:"""
                         self.cache[content_hash] = {
                             'content_type': classified['content_type'],
                             'confidence': classified['confidence'],
+                            'ai_relevance': classified['ai_relevance'],  # 缓存AI相关性
                             'tech_categories': classified['tech_categories'],
                             'is_verified': classified.get('is_verified', True),
                             'llm_reasoning': classified.get('llm_reasoning', ''),
@@ -1239,6 +1264,7 @@ START from id=1, classify ALL {len(items)} items:"""
                         classified = item.copy()
                         classified['content_type'] = retry_result.get('content_type', 'market')
                         classified['confidence'] = retry_result.get('confidence', 0.7)
+                        classified['ai_relevance'] = retry_result.get('ai_relevance', 0.7)  # AI相关性评分
                         classified['tech_categories'] = retry_result.get('tech_fields', ['General AI'])
                         classified['is_verified'] = retry_result.get('is_verified', True)
                         classified['llm_reasoning'] = retry_result.get('reasoning', '')
@@ -1249,7 +1275,8 @@ START from id=1, classify ALL {len(items)} items:"""
                         # 计算多维度重要性分数
                         importance, importance_breakdown = self.importance_evaluator.calculate_importance(
                             item,
-                            {'content_type': classified['content_type'], 'confidence': classified['confidence']}
+                            {'content_type': classified['content_type'], 'confidence': classified['confidence'],
+                             'ai_relevance': classified['ai_relevance']}  # 传入AI相关性
                         )
                         classified['importance'] = importance
                         classified['importance_breakdown'] = importance_breakdown
@@ -1262,6 +1289,7 @@ START from id=1, classify ALL {len(items)} items:"""
                             self.cache[content_hash] = {
                                 'content_type': classified['content_type'],
                                 'confidence': classified['confidence'],
+                                'ai_relevance': classified['ai_relevance'],  # 缓存AI相关性
                                 'tech_categories': classified['tech_categories'],
                                 'is_verified': classified.get('is_verified', True),
                                 'llm_reasoning': classified.get('llm_reasoning', ''),
@@ -1546,6 +1574,7 @@ START from id=1, classify ALL {len(items)} items:"""
                     results[idx] = {
                         'content_type': content_type,
                         'confidence': float(obj.get('confidence', 0.7)),
+                        'ai_relevance': float(obj.get('ai_relevance', 0.7)),  # AI相关性评分
                         'tech_fields': obj.get('tech_fields', obj.get('fields', ['General AI'])),
                         'is_verified': obj.get('is_verified', True),
                         'reasoning': obj.get('reasoning', obj.get('reason', ''))

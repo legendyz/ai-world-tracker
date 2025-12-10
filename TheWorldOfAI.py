@@ -323,7 +323,6 @@ class AIWorldTracker:
         log.dual_separator()
         log.dual_warning(t('clear_all_data_confirm'))
         print(t('clear_all_data_list'))
-        log.file(t('clear_all_data_list'))  # 日志记录
         print()
         log.dual_warning(t('clear_all_data_warning'))
         log.dual_separator()
@@ -352,6 +351,7 @@ class AIWorldTracker:
         # 2. 清除采集历史缓存
         self.collector.clear_history_cache()
         deleted_total += 1
+        log.dual_info(t('collection_cache_cleared'), emoji="✓")
         
         # 3. 清除采集结果历史
         json_pattern = os.path.join(DATA_EXPORTS_DIR, 'ai_tracker_data_*.json')
@@ -365,7 +365,7 @@ class AIWorldTracker:
                 log.dual_error(f"Failed to delete {f}: {e}")
         
         if export_files:
-            log.dual_info(f"Cleared {len(export_files)} export files", emoji="🗑️")
+            log.dual_info(f"Export history cleared ({len(export_files)} files)", emoji="✓")
         
         # 4. 清除人工审核记录
         review_pattern = os.path.join(DATA_EXPORTS_DIR, 'review_history_*.json')
@@ -379,7 +379,7 @@ class AIWorldTracker:
                 log.dual_error(f"Failed to delete {f}: {e}")
         
         if review_files:
-            log.dual_info(f"Cleared {len(review_files)} review files", emoji="🗑️")
+            log.dual_info(f"Review history cleared ({len(review_files)} files)", emoji="✓")
         
         # 清空内存中的数据
         self.data = []

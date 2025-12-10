@@ -9,6 +9,13 @@
 4. 内容相关度 (relevance) - 20%
 5. 社交热度 (engagement) - 10%
 
+AI相关性调整:
+- ai_relevance 作为乘数调整最终得分
+- 高相关(>0.8): 轻微加成 (1.0-1.05)
+- 中等相关(0.5-0.8): 轻微惩罚 (0.85-1.0)
+- 低相关(0.3-0.5): 中等惩罚 (0.6-0.85)
+- 极低相关(<0.3): 大幅惩罚 (0.3-0.6)
+
 该模块独立于分类器，可被规则分类器和LLM分类器共同使用。
 """
 
@@ -32,6 +39,10 @@ class ImportanceEvaluator:
     3. 分类置信度 (confidence) - 20% (对低价值内容设上限)
     4. 内容相关度 (relevance) - 20%
     5. 社交热度 (engagement) - 10%
+    
+    AI相关性调整 (ai_relevance):
+    - 作为乘数因子调整最终得分
+    - 低AI相关性内容会被降权
     """
     
     def __init__(self):
@@ -208,7 +219,7 @@ class ImportanceEvaluator:
         
         Args:
             item: 原始数据项
-            classification_result: 分类结果，包含 content_type, confidence 等
+            classification_result: 分类结果，包含 content_type, confidence, ai_relevance 等
             
         Returns:
             (importance_score, score_breakdown)
@@ -248,6 +259,11 @@ class ImportanceEvaluator:
         engagement_score = self._calculate_engagement(item)
         breakdown['engagement'] = round(engagement_score, 3)
         
+        # 6. AI相关性调整 (新增)
+        # ai_relevance 用于惩罚非AI相关内容
+        ai_relevance = classification_result.get('ai_relevance', 0.7)  # 默认0.7（假设大部分采集内容AI相关）
+        breakdown['ai_relevance'] = round(ai_relevance, 3)
+        
         # 加权求和
         total_score = (
             source_score * self.weights['source_authority'] +
@@ -256,6 +272,23 @@ class ImportanceEvaluator:
             relevance_score * self.weights['relevance'] +
             engagement_score * self.weights['engagement']
         )
+        
+        # 应用AI相关性调整
+        # 高相关(>0.7): 不调整或略微加成
+        # 中等相关(0.5-0.7): 轻微惩罚
+        # 低相关(<0.5): 较大惩罚
+        # 极低相关(<0.3): 大幅惩罚
+        if ai_relevance >= 0.8:
+            ai_multiplier = 1.0 + (ai_relevance - 0.8) * 0.25  # 0.8-1.0 轻微加成 (1.0-1.05)
+        elif ai_relevance >= 0.5:
+            ai_multiplier = 0.85 + (ai_relevance - 0.5) * 0.5  # 0.5-0.8 轻微惩罚 (0.85-1.0)
+        elif ai_relevance >= 0.3:
+            ai_multiplier = 0.6 + (ai_relevance - 0.3) * 1.25  # 0.3-0.5 中等惩罚 (0.6-0.85)
+        else:
+            ai_multiplier = 0.3 + ai_relevance  # <0.3 大幅惩罚 (0.3-0.6)
+        
+        total_score *= ai_multiplier
+        breakdown['ai_multiplier'] = round(ai_multiplier, 3)
         
         # 确保在 0-1 范围内
         importance = round(min(max(total_score, 0.0), 1.0), 3)

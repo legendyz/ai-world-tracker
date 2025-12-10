@@ -93,9 +93,24 @@ class WebPublisher:
         timestamp = trends.get('analysis_time', datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S %Z'))
         
         # 1. 准备数据
+        # 过滤低AI相关性内容（ai_relevance <= 0.3 的内容不显示在Web页面）
+        ai_relevance_threshold = 0.3
+        filtered_data = []
+        filtered_count = 0
+        for item in data:
+            ai_relevance = item.get('ai_relevance', 0.7)  # 默认0.7（未评估的内容）
+            if ai_relevance > ai_relevance_threshold:
+                filtered_data.append(item)
+            else:
+                filtered_count += 1
+                log.debug(f"Filtered out (ai_relevance={ai_relevance:.2f}): {item.get('title', 'N/A')[:50]}")
+        
+        if filtered_count > 0:
+            log.info(f"Filtered {filtered_count} items with ai_relevance < {ai_relevance_threshold}", emoji="🔍")
+        
         # 按重要性降序，时间降序（最新的在前）
         sorted_data = sorted(
-            data, 
+            filtered_data, 
             key=lambda x: (-x.get('importance', 0), self._parse_date(x.get('published', ''))),
             reverse=True  # reverse=True 让日期降序（最新的在前）
         )
@@ -139,7 +154,7 @@ class WebPublisher:
             </div>
             <div class="nav-meta">
                 <span class="update-time">Updated: {timestamp}</span>
-                <span class="data-count">Items: {len(data)}</span>
+                <span class="data-count">Items: {len(filtered_data)}</span>
             </div>
         </div>
     </nav>

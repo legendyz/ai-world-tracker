@@ -315,6 +315,65 @@ class AIDataCollector:
         if title:
             self.history_cache['titles'].add(title)
     
+    def _filter_by_history(self, all_data: Dict[str, List[Dict]], 
+                           filter_enabled: bool = True) -> Tuple[Dict[str, List[Dict]], Dict[str, int], Dict[str, int]]:
+        """
+        统一的历史缓存过滤方法
+        
+        Args:
+            all_data: 按类别分组的数据字典
+            filter_enabled: 是否启用过滤（False则只统计不过滤）
+            
+        Returns:
+            Tuple[filtered_data, new_stats, cached_stats]
+            - filtered_data: 过滤后的数据（或原数据，取决于filter_enabled）
+            - new_stats: 每个类别的新内容数量
+            - cached_stats: 每个类别的缓存命中数量
+        """
+        new_stats = {}  # 记录每个类别的新内容数量
+        cached_stats = {}  # 记录每个类别的缓存命中数量
+        new_items_for_cache = []  # 记录新采集的项目
+        
+        if filter_enabled:
+            # 过滤模式：移除历史中已有的项目
+            filtered_data = {}
+            for cat in all_data:
+                new_items = []
+                cached_count = 0
+                for item in all_data[cat]:
+                    if self._is_in_history(item):
+                        cached_count += 1
+                    else:
+                        new_items.append(item)
+                        new_items_for_cache.append(item)
+                filtered_data[cat] = new_items
+                new_stats[cat] = len(new_items)
+                cached_stats[cat] = cached_count
+        else:
+            # 统计模式：只统计，不过滤
+            filtered_data = all_data
+            for cat in all_data:
+                new_count = 0
+                cached_count = 0
+                for item in all_data[cat]:
+                    if self._is_in_history(item):
+                        cached_count += 1
+                    else:
+                        new_count += 1
+                        new_items_for_cache.append(item)
+                new_stats[cat] = new_count
+                cached_stats[cat] = cached_count
+        
+        # 将新采集的项目添加到历史缓存
+        for item in new_items_for_cache:
+            self._add_to_history(item)
+        
+        # 保存更新后的缓存
+        if new_items_for_cache:
+            self._save_history_cache()
+        
+        return filtered_data, new_stats, cached_stats
+    
     def clear_history_cache(self):
         """清除采集历史缓存"""
         import os
@@ -806,40 +865,22 @@ class AIDataCollector:
             for category, func, count in collect_tasks:
                 all_data[category] = func(count)
         
-        # 使用独立的采集历史缓存统计新内容（但不过滤，所有内容都传递给分类模块）
-        new_stats = {}  # 记录每个类别的新内容数量
-        cached_stats = {}  # 记录每个类别的缓存命中数量
-        new_items_for_cache = []  # 记录新采集的项目，稍后添加到缓存
+        # 统一去重处理
+        all_data = self._apply_deduplication(all_data)
         
-        for cat in all_data:
-            new_count = 0
-            cached_count = 0
-            for item in all_data[cat]:
-                if self._is_in_history(item):
-                    cached_count += 1
-                else:
-                    new_count += 1
-                    new_items_for_cache.append(item)
-            new_stats[cat] = new_count
-            cached_stats[cat] = cached_count
+        # 统一历史缓存过滤（启用过滤，移除已采集过的内容）
+        # filter_enabled=True: 实际过滤掉历史中已有的项目，减少后续处理量
+        all_data, new_stats, cached_stats = self._filter_by_history(all_data, filter_enabled=True)
         
-        # 将新采集的项目添加到历史缓存
-        for item in new_items_for_cache:
-            self._add_to_history(item)
-        
-        # 保存更新后的缓存
-        if new_items_for_cache:
-            self._save_history_cache()
-        
-        # 统计信息
+        # 统计信息（过滤后的数据）
         total_items = sum(len(items) for items in all_data.values())
-        total_new = sum(new_stats.values())
+        total_new = total_items  # 过滤后全部是新内容
         total_cached = sum(cached_stats.values())
-        log.dual_done(t('dc_collection_done_v2', total=total_items, new=total_new, cached=total_cached))
+        log.dual_done(t('dc_collection_done_v2', total=total_items + total_cached, new=total_new, cached=total_cached))
         for category, items in all_data.items():
             new_count = new_stats.get(category, 0)
             cached_count = cached_stats.get(category, 0)
-            log.dual_data(t('dc_category_stats_v2', category=category, count=len(items), new=new_count, cached=cached_count))
+            log.dual_data(t('dc_category_stats_v2', category=category, count=new_count + cached_count, new=new_count, cached=cached_count))
         
         return all_data
     
@@ -1321,21 +1362,78 @@ class AIDataCollector:
         
         return items
     
-    def _deduplicate_items(self, items: List[Dict], threshold: float = 0.6) -> List[Dict]:
+    def _generate_item_fingerprint(self, item: Dict) -> str:
         """
-        对内容列表进行去重
-        基于标题相似度
+        生成内容指纹用于快速去重
+        
+        基于 URL + 标题前50字符 生成 MD5 哈希
+        
+        Args:
+            item: 数据项字典
+            
+        Returns:
+            MD5 哈希字符串
+        """
+        url = item.get('url', '')
+        title = item.get('title', '')[:50]  # 取标题前50字符
+        key = f"{url}|{title}".lower()
+        return hashlib.md5(key.encode('utf-8')).hexdigest()
+    
+    def _deduplicate_by_fingerprint(self, items: List[Dict]) -> List[Dict]:
+        """
+        基于指纹的快速去重 (O(n) 复杂度)
+        
+        Args:
+            items: 数据项列表
+            
+        Returns:
+            去重后的列表
         """
         if not items:
             return []
+        
+        seen_fingerprints = set()
+        unique_items = []
+        
+        for item in items:
+            fp = self._generate_item_fingerprint(item)
+            if fp not in seen_fingerprints:
+                seen_fingerprints.add(fp)
+                unique_items.append(item)
+        
+        return unique_items
+    
+    def _deduplicate_items(self, items: List[Dict], threshold: float = 0.6) -> List[Dict]:
+        """
+        对内容列表进行去重（两阶段策略）
+        
+        阶段1: 基于指纹快速去重 (O(n))
+        阶段2: 基于标题相似度精细去重 (O(n²)，但数据量已大幅减少)
+        
+        Args:
+            items: 数据项列表
+            threshold: 标题相似度阈值
             
+        Returns:
+            去重后的列表
+        """
+        if not items:
+            return []
+        
+        # 阶段1: 指纹快速去重
+        items = self._deduplicate_by_fingerprint(items)
+        
+        # 阶段2: 相似度精细去重（处理标题略有不同但实质相同的内容）
         unique_items = []
         
         for item in items:
             is_duplicate = False
+            item_title = item.get('title', '').lower()
+            
             for existing in unique_items:
+                existing_title = existing.get('title', '').lower()
                 # 计算标题相似度
-                seq = difflib.SequenceMatcher(None, item['title'].lower(), existing['title'].lower())
+                seq = difflib.SequenceMatcher(None, item_title, existing_title)
                 if seq.ratio() > threshold:
                     is_duplicate = True
                     break
@@ -1344,6 +1442,50 @@ class AIDataCollector:
                 unique_items.append(item)
                 
         return unique_items
+    
+    def _apply_deduplication(self, all_data: Dict[str, List[Dict]]) -> Dict[str, List[Dict]]:
+        """
+        统一去重入口 - 对所有类别的数据应用去重处理
+        
+        处理流程:
+        1. 对每个类别内部进行去重
+        2. 跨类别去重（同一URL可能出现在多个类别中）
+        
+        Args:
+            all_data: 按类别分组的数据字典
+            
+        Returns:
+            去重后的数据字典
+        """
+        # 统计去重前数量
+        before_count = sum(len(items) for items in all_data.values())
+        
+        # 阶段1: 类别内去重
+        for cat in all_data:
+            all_data[cat] = self._deduplicate_items(all_data[cat])
+        
+        # 阶段2: 跨类别去重（基于URL）
+        seen_urls = set()
+        for cat in all_data:
+            unique_items = []
+            for item in all_data[cat]:
+                url = item.get('url', '')
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    unique_items.append(item)
+                elif not url:
+                    # 没有URL的项目保留
+                    unique_items.append(item)
+            all_data[cat] = unique_items
+        
+        # 统计去重后数量
+        after_count = sum(len(items) for items in all_data.values())
+        removed_count = before_count - after_count
+        
+        if removed_count > 0:
+            log.dual_info(f"🔄 去重完成: {before_count} → {after_count} (移除 {removed_count} 条重复)", emoji="")
+        
+        return all_data
 
     def _is_ai_related(self, item: Dict) -> bool:
         """检查内容是否与AI相关"""
@@ -2021,51 +2163,30 @@ class AIDataCollector:
                 elif isinstance(result, Exception):
                     log.warning(f"Task failed: {result}")
         
-        # 去重
-        for cat in all_data:
-            all_data[cat] = self._deduplicate_items(all_data[cat])
+        # 统一去重处理
+        all_data = self._apply_deduplication(all_data)
         
-        # 统计新旧内容
-        new_stats = {}
-        cached_stats = {}
-        new_items_for_cache = []
+        # 统一历史缓存过滤（启用过滤，移除已采集过的内容）
+        # filter_enabled=True: 实际过滤掉历史中已有的项目，减少后续处理量
+        all_data, new_stats, cached_stats = self._filter_by_history(all_data, filter_enabled=True)
         
-        for cat in all_data:
-            new_count = 0
-            cached_count = 0
-            for item in all_data[cat]:
-                if self._is_in_history(item):
-                    cached_count += 1
-                else:
-                    new_count += 1
-                    new_items_for_cache.append(item)
-            new_stats[cat] = new_count
-            cached_stats[cat] = cached_count
-        
-        # 更新历史缓存
-        for item in new_items_for_cache:
-            self._add_to_history(item)
-        
-        if new_items_for_cache:
-            self._save_history_cache()
-        
-        # 更新统计信息
+        # 更新统计信息（过滤后的数据）
         self.stats['end_time'] = time.time()
-        self.stats['items_collected'] = sum(len(items) for items in all_data.values())
+        total_new = sum(len(items) for items in all_data.values())
+        total_cached = sum(cached_stats.values())
+        self.stats['items_collected'] = total_new
         
         # 打印统计
-        total_items = self.stats['items_collected']
-        total_new = sum(new_stats.values())
-        total_cached = sum(cached_stats.values())
         elapsed = self.stats['end_time'] - self.stats['start_time']
         
         log.dual_separator("=", 50)
-        log.dual_done(f"采集完成: {total_items} items ({total_new} new, {total_cached} cached)")
+        log.dual_done(f"采集完成: {total_new + total_cached} items ({total_new} new, {total_cached} cached)")
         log.dual_info(f"⏱️ 耗时: {elapsed:.1f}s | 请求: {self.stats['requests_made']} | 失败: {self.stats['requests_failed']}", emoji="")
         
         for category, items in all_data.items():
             new_count = new_stats.get(category, 0)
-            log.dual_data(f"  {category}: {len(items)} ({new_count} new)")
+            cached_count = cached_stats.get(category, 0)
+            log.dual_data(f"  {category}: {new_count + cached_count} ({new_count} new, {cached_count} cached)")
         
         return all_data
 
