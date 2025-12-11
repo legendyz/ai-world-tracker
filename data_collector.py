@@ -190,9 +190,15 @@ RSS_FEEDS = {
         'https://blog.google/technology/ai/rss/',
     ],
     'product_news': [
+        # 美国科技巨头
         'https://openai.com/blog/rss.xml',
         'https://blog.google/technology/ai/rss/',
         'https://blogs.microsoft.com/ai/feed/',
+        'https://ai.meta.com/blog/rss/',
+        'https://www.anthropic.com/news/rss',
+        # 中国科技公司 (via 36kr/机器之心等)
+        'https://www.jiqizhixin.com/rss',
+        'https://www.qbitai.com/feed',
     ],
     'community': [
         'https://www.producthunt.com/feed?category=artificial-intelligence',
@@ -244,14 +250,66 @@ class AIDataCollector:
         self.history_cache_file = os.path.join(DATA_CACHE_DIR, 'collection_history_cache.json')
         self.history_cache = self._load_history_cache()
         
-        # 统计信息（用于异步模式）
+        # 统计信息（用于同步和异步模式）
         self.stats = {
             'requests_made': 0,
             'requests_failed': 0,
             'items_collected': 0,
             'start_time': None,
-            'end_time': None
+            'end_time': None,
+            'failed_sources': []  # 失败的数据源列表: [{'source': 'xxx', 'category': 'xxx', 'error': 'xxx'}]
         }
+    
+    def _reset_stats(self):
+        """重置统计信息"""
+        self.stats = {
+            'requests_made': 0,
+            'requests_failed': 0,
+            'items_collected': 0,
+            'start_time': None,
+            'end_time': None,
+            'failed_sources': []
+        }
+    
+    def _record_failure(self, source: str, category: str, error: str):
+        """记录采集失败的数据源
+        
+        Args:
+            source: 数据源名称或URL
+            category: 数据类别 (research/developer/product/news/leader/community)
+            error: 错误信息
+        """
+        self.stats['requests_failed'] += 1
+        self.stats['failed_sources'].append({
+            'source': source[:80] if len(source) > 80 else source,  # 截断过长URL
+            'category': category,
+            'error': str(error)[:100]  # 截断过长错误信息
+        })
+    
+    def _print_failed_sources_summary(self):
+        """打印失败数据源汇总"""
+        failed = self.stats.get('failed_sources', [])
+        if not failed:
+            return
+        
+        # 按类别分组统计
+        by_category = {}
+        for f in failed:
+            cat = f['category']
+            if cat not in by_category:
+                by_category[cat] = []
+            by_category[cat].append(f)
+        
+        # 双输出模式显示失败汇总
+        log.dual_warning(t('dc_failed_sources_title', count=len(failed)))
+        
+        for cat, failures in by_category.items():
+            log.dual_info(f"  [{cat}] {len(failures)} 失败:", emoji="")
+            for f in failures[:3]:  # 每类别最多显示3个
+                source_short = f['source'][:50] + '...' if len(f['source']) > 50 else f['source']
+                log.dual_info(f"    • {source_short}", emoji="")
+            if len(failures) > 3:
+                log.dual_info(f"    ... 及其他 {len(failures) - 3} 个", emoji="")
     
     def _load_history_cache(self) -> Dict:
         """加载采集历史缓存"""
@@ -474,7 +532,7 @@ class AIDataCollector:
     
     def collect_product_releases(self, max_results: int = 10) -> List[Dict]:
         """
-        采集AI产品发布信息
+        采集AI产品发布信息（通过RSS源 + 公司来源标记）
         
         Args:
             max_results: 最大结果数
@@ -485,27 +543,52 @@ class AIDataCollector:
         log.dual_start(t('dc_collect_products'))
         products = []
         
-        # 收集主要AI公司的产品发布信息
-        company_sources = {
-            'OpenAI': self._collect_openai_updates,
-            'Google': self._collect_google_ai_updates,
-            'Microsoft': self._collect_microsoft_ai_updates,
-            'Meta': self._collect_meta_ai_updates,
-            'Anthropic': self._collect_anthropic_updates,
-            'China_Tech': self._collect_chinese_ai_updates  # 新增中国科技公司
+        # 公司来源映射（用于标记来源公司）
+        company_source_map = {
+            'openai.com': 'OpenAI',
+            'blog.google': 'Google',
+            'blogs.microsoft.com': 'Microsoft',
+            'ai.meta.com': 'Meta',
+            'anthropic.com': 'Anthropic',
+            'jiqizhixin.com': 'China_Tech',
+            'qbitai.com': 'China_Tech',
         }
         
-        for company, collector_func in company_sources.items():
-            try:
-                company_products = collector_func()
-                # 过滤非最近发布的产品
-                company_products = [p for p in company_products if self._is_recent(p.get('published', ''))]
-                products.extend(company_products)
-                time.sleep(1)  # 避免请求过快
-            except Exception as e:
-                log.warning(t('dc_product_failed', company=company, error=str(e)))
+        # 使用统一的RSS源配置（与异步版本一致）
+        product_feeds = RSS_FEEDS.get('product_news', [])
         
-        # 按发布时间排序并限制数量
+        for feed_url in product_feeds:
+            try:
+                items = self._parse_rss_feed(feed_url, 'product')
+                
+                # 识别来源公司
+                company = None
+                for domain, comp_name in company_source_map.items():
+                    if domain in feed_url:
+                        company = comp_name
+                        break
+                
+                for item in items:
+                    if self._is_product_related(item):
+                        # 过滤非最近发布的产品
+                        if self._is_recent(item.get('published', '')):
+                            # 标记来源公司
+                            if company and not item.get('company'):
+                                item['company'] = company
+                            products.append(item)
+                
+                time.sleep(0.5)  # 避免请求过快
+            except Exception as e:
+                self._record_failure(feed_url, 'product', str(e))
+                log.warning(t('dc_product_failed', company=feed_url, error=str(e)))
+        
+        # 按产品优先级排序：有公司标记的排前面，再按时间降序
+        def product_sort_key(item):
+            has_company = 1 if item.get('company') else 0
+            published = item.get('published', '1970-01-01')
+            return (-has_company, published)
+        
+        products.sort(key=product_sort_key, reverse=True)
         products = products[:max_results]
         
         log.dual_success(t('dc_got_products', count=len(products)))
@@ -590,6 +673,7 @@ class AIDataCollector:
                 time.sleep(0.5) # 避免请求过快
                 
             except Exception as e:
+                self._record_failure(f"News about {leader_name}", 'leader', str(e))
                 log.warning(t('dc_leader_failed', name=leader_name, error=str(e)))
         
         # 2. 采集个人博客和播客
@@ -629,6 +713,7 @@ class AIDataCollector:
                     }
                     quotes.append(quote)
             except Exception as e:
+                self._record_failure(source['url'], 'leader', str(e))
                 log.warning(t('dc_blog_failed', author=source['author'], error=str(e)))
 
         # 3. 如果采集数量不足，使用备用数据
@@ -636,18 +721,13 @@ class AIDataCollector:
             log.warning(t('dc_fallback_data'))
             quotes.extend(self._get_backup_leaders_data())
             
-        # 去重
-        unique_quotes = []
-        seen_urls = set()
-        for q in quotes:
-            if q['url'] not in seen_urls:
-                unique_quotes.append(q)
-                seen_urls.add(q['url'])
+        # 去重 - 使用语义相似度去重（与异步版本保持一致）
+        quotes = self._deduplicate_items(quotes)
         
         # 按时间排序
         # 注意：这里简化处理，实际可能需要解析时间字符串
         
-        result = unique_quotes[:max_results]
+        result = quotes[:max_results]
         log.dual_success(t('dc_got_leaders', count=len(result)))
         return result
 
@@ -679,6 +759,7 @@ class AIDataCollector:
                 product_news.extend(feed_news[:items_per_feed])
                 time.sleep(0.3)
             except Exception as e:
+                self._record_failure(feed_url, 'news', str(e))
                 log.warning(t('dc_product_feed_failed', url=feed_url, error=str(e)))
         
         # 从传统新闻源采集（限制每源数量）
@@ -692,6 +773,7 @@ class AIDataCollector:
                 general_news.extend(feed_news[:items_per_feed])
                 time.sleep(0.5)
             except Exception as e:
+                self._record_failure(feed_url, 'news', str(e))
                 log.warning(t('dc_rss_failed', url=feed_url, error=str(e)))
         
         # 合并两类新闻
@@ -732,6 +814,7 @@ class AIDataCollector:
                 # 保留 score 信息供评估器使用
                 trends.append(item)
         except Exception as e:
+            self._record_failure('Hacker News API', 'community', str(e))
             log.dual_warning(t('dc_hn_api_failed', error=str(e)))
         
         # 2. 采集 Product Hunt 等其他 RSS 源
@@ -761,6 +844,7 @@ class AIDataCollector:
                     time.sleep(0.2)
                     
             except Exception as e:
+                self._record_failure(feed_url, 'community', str(e))
                 log.warning(t('dc_community_failed', url=feed_url, error=str(e)))
         
         # Deduplicate
@@ -816,6 +900,10 @@ class AIDataCollector:
         Returns:
             分类的数据字典
         """
+        # 重置统计信息
+        self._reset_stats()
+        self.stats['start_time'] = time.time()
+        
         log.dual_start(t('dc_start_collection'))
         log.dual_separator("=", 50)
         
@@ -892,11 +980,23 @@ class AIDataCollector:
         total_items = sum(len(items) for items in all_data.values())
         total_new = total_items  # 过滤后全部是新内容
         total_cached = sum(cached_stats.values())
+        
+        # 更新统计信息
+        self.stats['end_time'] = time.time()
+        self.stats['items_collected'] = total_new
+        elapsed = self.stats['end_time'] - self.stats['start_time']
+        
+        log.dual_separator("=", 50)
         log.dual_done(t('dc_collection_done_v2', total=total_items + total_cached, new=total_new, cached=total_cached))
+        log.dual_info(f"⏱️ 耗时: {elapsed:.1f}s | 失败: {self.stats['requests_failed']}", emoji="")
+        
         for category, items in all_data.items():
             new_count = new_stats.get(category, 0)
             cached_count = cached_stats.get(category, 0)
             log.dual_data(t('dc_category_stats_v2', category=category, count=new_count + cached_count, new=new_count, cached=cached_count))
+        
+        # 显示失败数据源汇总
+        self._print_failed_sources_summary()
         
         return all_data
     
@@ -941,6 +1041,7 @@ class AIDataCollector:
                     projects.append(project)
             
         except Exception as e:
+            self._record_failure('GitHub API', 'developer', str(e))
             log.warning(t('dc_github_failed', error=str(e)))
             # 使用备用数据
             projects = self._get_backup_github_data()
@@ -980,6 +1081,7 @@ class AIDataCollector:
                     updates.append(update)
         
         except Exception as e:
+            self._record_failure('Hugging Face API', 'developer', str(e))
             log.warning(t('dc_hf_failed', error=str(e)))
             updates = self._get_backup_hf_data()
         
@@ -1003,6 +1105,7 @@ class AIDataCollector:
                 blogs.extend(feed_content[:items_per_feed])
         
         except Exception as e:
+            self._record_failure('Developer Blogs RSS', 'developer', str(e))
             log.warning(t('dc_dev_blog_failed', error=str(e)))
             blogs = self._get_backup_blog_data()
         
@@ -2032,6 +2135,7 @@ class AIDataCollector:
                     }
                     projects.append(project)
         except Exception as e:
+            self._record_failure('GitHub API (async)', 'developer', str(e))
             log.warning(f"GitHub trending async failed: {e}")
         
         return projects
@@ -2077,6 +2181,7 @@ class AIDataCollector:
                     }
                     updates.append(update)
         except Exception as e:
+            self._record_failure('Hugging Face API (async)', 'developer', str(e))
             log.warning(f"Hugging Face async failed: {e}")
         
         return updates
@@ -2143,6 +2248,7 @@ class AIDataCollector:
                         if len(items) >= max_items:
                             break
         except Exception as e:
+            self._record_failure('Hacker News API (async)', 'community', str(e))
             log.warning(f"Hacker News async failed: {e}")
         
         return items
@@ -2150,8 +2256,19 @@ class AIDataCollector:
     async def _collect_product_releases_async(self, session: aiohttp.ClientSession,
                                              semaphore: asyncio.Semaphore,
                                              max_results: int = 10) -> List[Dict]:
-        """异步采集产品发布（通过RSS源）"""
+        """异步采集产品发布（通过RSS源 + 公司专属来源）"""
         products = []
+        
+        # 公司来源映射（用于标记来源公司）
+        company_source_map = {
+            'openai.com': 'OpenAI',
+            'blog.google': 'Google',
+            'blogs.microsoft.com': 'Microsoft',
+            'ai.meta.com': 'Meta',
+            'anthropic.com': 'Anthropic',
+            'jiqizhixin.com': 'China_Tech',
+            'qbitai.com': 'China_Tech',
+        }
         
         # 使用产品相关的RSS源
         product_feeds = RSS_FEEDS.get('product_news', [])
@@ -2162,14 +2279,33 @@ class AIDataCollector:
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        for result in results:
+        # 处理结果，标记公司来源
+        for i, result in enumerate(results):
             if isinstance(result, list):
+                feed_url = product_feeds[i] if i < len(product_feeds) else ''
+                # 识别来源公司
+                company = None
+                for domain, comp_name in company_source_map.items():
+                    if domain in feed_url:
+                        company = comp_name
+                        break
+                
                 for item in result:
                     if self._is_product_related(item):
+                        # 标记来源公司（如果识别到）
+                        if company and not item.get('company'):
+                            item['company'] = company
                         products.append(item)
         
-        # 按发布时间排序
-        products.sort(key=lambda x: x.get('published', ''), reverse=True)
+        # 按产品优先级排序：官方公司来源优先，再按时间排序
+        def product_sort_key(item):
+            # 优先级：有公司标记的排前面
+            has_company = 1 if item.get('company') else 0
+            # 时间排序（降序）
+            published = item.get('published', '1970-01-01')
+            return (-has_company, published)
+        
+        products.sort(key=product_sort_key, reverse=True)
         return products[:max_results]
     
     async def _collect_leaders_quotes_async(self, session: aiohttp.ClientSession,
@@ -2263,6 +2399,8 @@ class AIDataCollector:
         Returns:
             分类的数据字典
         """
+        # 重置统计信息
+        self._reset_stats()
         self.stats['start_time'] = time.time()
         log.dual_start(t('dc_start_collection'))
         log.dual_separator("=", 50)
@@ -2359,6 +2497,7 @@ class AIDataCollector:
                             if len(all_data[source_type]) < category_limits.get(source_type, 100):
                                 all_data[source_type].append(item)
                 elif isinstance(result, Exception):
+                    self._record_failure('Async Task', 'unknown', str(result))
                     log.warning(f"Task failed: {result}")
         
         # 统一去重处理
@@ -2385,6 +2524,9 @@ class AIDataCollector:
             new_count = new_stats.get(category, 0)
             cached_count = cached_stats.get(category, 0)
             log.dual_data(f"  {category}: {new_count + cached_count} ({new_count} new, {cached_count} cached)")
+        
+        # 显示失败数据源汇总
+        self._print_failed_sources_summary()
         
         return all_data
 

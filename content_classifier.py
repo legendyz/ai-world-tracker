@@ -226,8 +226,10 @@ class ContentClassifier:
             
             # 中权重（2分）- 言论相关
             'said': 2, 'stated': 2, 'believes': 2, 'warns': 2, 'predicts': 2,
+            'says': 2, 'told': 2, 'claims': 2, 'according to': 2,
             'opinion': 2, 'commented': 2,
             '表示': 2, '认为': 2, '警告': 2, '预测': 2, '评论': 2, '观点': 2,
+            '称': 2, '指出': 2, '透露': 2,  # 新增中文引语词
             
             # 低权重（1分）- 社交媒体
             'tweeted': 1, 'posted': 1, 'quote': 1,
@@ -301,12 +303,17 @@ class ContentClassifier:
                 r'(获得|完成).{0,10}(融资|投资)',
                 r'估值.{0,5}(亿|万)',
                 r'(收购|并购)',
+                r'团队.{0,10}(扩张|扩大|增加|招聘|裁员)',  # 团队规模变动
+                r'(扩张|扩招|裁员).{0,5}(至|到)?\s*\d+\s*人',  # 人员数量变动
+                r'(公司|企业|集团).{0,10}(裁员|招聘|扩招)',  # 公司人事新闻
             ],
             'leader': [
-                r'(ceo|cto|founder|chief).{0,20}(said|says|stated|believes)',
+                r'(ceo|cto|founder|chief).{0,20}(said|says|stated|believes|warns|predicts|told|claims)',
                 r'in\s+(an\s+)?interview',
-                r'(sam altman|elon musk|jensen huang|sundar pichai).{0,30}(said|says|warns|predicts)',
-                r'(表示|认为|指出|警告|预测).{0,10}(说|称)',
+                r'(sam altman|elon musk|jensen huang|sundar pichai|mark zuckerberg|satya nadella).{0,30}(said|says|warns|predicts|believes|told)',
+                r'.{0,10}(表示|称|认为|指出|警告|预测|透露)',  # 中文引语词直接匹配
+                r'(马斯克|黄仁勋|奥特曼|扎克伯格|李彦宏|马化腾|雷军).{0,10}(表示|称|认为|说)',  # 中文名人+引语词
+                r'^.{2,10}[：:].{5,}$',  # "人名：引语内容" 格式（如 "李彦宏：文心一言..."）
             ]
         }
         
@@ -492,7 +499,8 @@ class ContentClassifier:
                        'mustafa suleyman', 'eric schmidt',
                        # 知名AI领袖（中文）
                        '黄仁勋', '马斯克', '扎克伯格', '奥特曼', '纳德拉',
-                       '李飞飞', '吴恩达', '李开复', '周鸿祎', '雷军'}
+                       '李飞飞', '吴恩达', '李开复', '周鸿祎', '雷军',
+                       '李彦宏', '马化腾', '张一鸣', '任正非', '王兴'}
         
         # 通用职位词（不应单独触发 leader 分类，需要配合知名人物）
         generic_titles = {'创始人', '首席', '总裁', '董事长', '董事', '总经理'}
@@ -502,6 +510,19 @@ class ContentClassifier:
         has_event_keyword = any(evt in full_text for evt in event_keywords)
         has_known_leader = any(r in full_text for r in leader_roles if r not in generic_titles)
         has_generic_title = any(t in full_text for t in generic_titles)
+        
+        # ============ 新增：检测 "人名：引语" 格式 ============
+        # 中文新闻常见格式："李彦宏：文心一言用户已超1亿"
+        # 冒号在这里表示引语，等同于言论动词
+        # 但必须同时存在知名人物名字才能触发
+        import re
+        colon_quote_pattern = re.compile(r'^.{2,10}[：:].{5,}')  # 开头2-10字符后跟冒号
+        has_colon_quote_format = bool(colon_quote_pattern.search(title))
+        
+        # 只有在检测到冒号格式 且 标题中有知名人物名字时，才视为领袖引语
+        if has_colon_quote_format and has_known_leader:
+            has_leader_verb = True
+            has_strong_indicator = True
         
         # 领袖角色判断：知名领袖名字 或 (通用职位词 + 强言论指标)
         has_leader_role = has_known_leader or (has_generic_title and has_strong_indicator)
@@ -735,7 +756,10 @@ class ContentClassifier:
     
     def classify_batch(self, items: List[Dict]) -> List[Dict]:
         """
-        批量分类
+        批量分类（带缓存检测）
+        
+        对于已经分类过的数据（有 classified_by 字段），直接保留原分类结果。
+        这确保历史数据不会被重复分类，同时保持与 LLM 分类结果的一致性。
         
         Args:
             items: 内容项列表
@@ -743,10 +767,28 @@ class ContentClassifier:
         Returns:
             分类后的内容项列表
         """
-        log.dual_rule(f"正在对 {len(items)} 条内容进行规则分类...")
+        total = len(items)
         
+        # 分离已分类和未分类的数据
         classified_items = []
+        unclassified_items = []
+        
         for item in items:
+            # 检查是否已分类（有 classified_by 字段且有 content_type）
+            if item.get('classified_by') and item.get('content_type'):
+                # 已分类，直接保留
+                classified_items.append(item.copy())
+            else:
+                unclassified_items.append(item)
+        
+        cached_count = len(classified_items)
+        need_classify_count = len(unclassified_items)
+        
+        log.dual_rule(f"正在对 {total} 条内容进行规则分类...")
+        log.dual_data(f"已分类(跳过): {cached_count} | 需分类: {need_classify_count}")
+        
+        # 只对未分类的数据进行分类
+        for item in unclassified_items:
             classified_items.append(self.classify_item(item))
         
         # 统计

@@ -396,6 +396,7 @@ LANG_PACKS = {
         'dc_parallel_task_done': '   ✓ {category} 采集完成: {count} 条',
         'dc_parallel_task_failed': '   ✗ {category} 采集失败: {error}',
         'dc_parallel_complete': '⏱️ 并行采集完成，耗时: {time}秒',
+        'dc_failed_sources_title': '⚠️ 采集失败的数据源 ({count} 个):',
         
         # 可视化器
         'vis_fonts_configured': '已配置字体: {fonts}',
@@ -808,6 +809,7 @@ LANG_PACKS = {
         'dc_parallel_task_done': '   ✓ {category} collection done: {count} items',
         'dc_parallel_task_failed': '   ✗ {category} collection failed: {error}',
         'dc_parallel_complete': '⏱️ Parallel collection complete, time: {time}s',
+        'dc_failed_sources_title': '⚠️ Failed data sources ({count}):',
         
         # Visualizer
         'vis_fonts_configured': 'Fonts configured: {fonts}',

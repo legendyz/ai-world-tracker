@@ -46,6 +46,99 @@ except ImportError:
 # 模块日志器
 log = get_log_helper('llm_classifier')
 
+# ============== 降级策略配置 ==============
+
+class FallbackReason(Enum):
+    """降级原因枚举"""
+    TIMEOUT = "timeout"
+    CONNECTION_ERROR = "connection_error"
+    PARSE_ERROR = "parse_error"
+    INVALID_RESPONSE = "invalid_response"
+    API_ERROR = "api_error"
+    RATE_LIMIT = "rate_limit"
+    MODEL_ERROR = "model_error"
+
+
+class FallbackStrategy:
+    """智能降级策略管理器"""
+    
+    def __init__(self):
+        self.error_counts = {}  # 错误计数
+        self.last_error_time = {}  # 最后错误时间
+        self.circuit_breaker_open = False  # 断路器状态
+        self.circuit_breaker_open_time = None
+        self.circuit_breaker_threshold = 5  # 连续失败阈值
+        self.circuit_breaker_timeout = 60  # 断路器打开时间（秒）
+    
+    def should_use_llm(self) -> bool:
+        """判断是否应该使用 LLM（断路器检查）"""
+        if not self.circuit_breaker_open:
+            return True
+        
+        # 检查断路器是否应该关闭
+        if self.circuit_breaker_open_time:
+            elapsed = time.time() - self.circuit_breaker_open_time
+            if elapsed > self.circuit_breaker_timeout:
+                log.dual_info("🔄 Circuit breaker closed, retrying LLM")
+                self.circuit_breaker_open = False
+                self.circuit_breaker_open_time = None
+                self.error_counts.clear()
+                return True
+        
+        return False
+    
+    def record_error(self, reason: FallbackReason):
+        """记录错误并更新断路器状态"""
+        reason_key = reason.value
+        self.error_counts[reason_key] = self.error_counts.get(reason_key, 0) + 1
+        self.last_error_time[reason_key] = time.time()
+        
+        # 检查是否应该打开断路器
+        total_errors = sum(self.error_counts.values())
+        if total_errors >= self.circuit_breaker_threshold and not self.circuit_breaker_open:
+            self.circuit_breaker_open = True
+            self.circuit_breaker_open_time = time.time()
+            log.dual_warning(f"⚠️ Circuit breaker opened after {total_errors} errors")
+    
+    def record_success(self):
+        """记录成功，重置错误计数"""
+        if self.error_counts:
+            self.error_counts.clear()
+            self.last_error_time.clear()
+    
+    def get_fallback_action(self, reason: FallbackReason, item: Dict) -> str:
+        """根据错误类型决定降级策略
+        
+        Returns:
+            'retry': 重试 LLM
+            'quick': 快速降级（简化规则）
+            'full_rule': 完整规则分类
+        """
+        # 超时错误：使用快速降级
+        if reason == FallbackReason.TIMEOUT:
+            return 'quick'
+        
+        # 连接错误：断路器打开，使用完整规则
+        if reason in [FallbackReason.CONNECTION_ERROR, FallbackReason.API_ERROR]:
+            self.record_error(reason)
+            return 'full_rule' if self.circuit_breaker_open else 'retry'
+        
+        # 解析错误：重试一次，失败则降级
+        if reason in [FallbackReason.PARSE_ERROR, FallbackReason.INVALID_RESPONSE]:
+            error_count = self.error_counts.get(reason.value, 0)
+            if error_count < 2:
+                return 'retry'
+            return 'full_rule'
+        
+        # 速率限制：等待后重试
+        if reason == FallbackReason.RATE_LIMIT:
+            time.sleep(2)
+            return 'retry'
+        
+        # 默认：完整规则分类
+        return 'full_rule'
+
+
 # 加载缓存目录配置
 def _get_cache_dir():
     """获取缓存目录路径"""
@@ -220,7 +313,7 @@ class OllamaOptions:
         """根据GPU信息自动配置推理选项"""
         options = cls()
         
-        if gpu_info.ollama_gpu_supported:
+        if gpu_info and gpu_info.ollama_gpu_supported:
             # GPU加速配置 - 优化速度
             options.num_gpu = 999  # 使用所有GPU层
             options.num_ctx = 4096  # GPU可以处理更大上下文（支持批量）
@@ -324,6 +417,9 @@ class LLMClassifier:
         # 独立的重要性评估器 (解耦后的设计)
         self.importance_evaluator = ImportanceEvaluator()
         
+        # 降级策略管理器
+        self.fallback_strategy = FallbackStrategy()
+        
         # 模型预热状态
         self.is_warmed_up = False
         self._keep_alive_timer: Optional[threading.Timer] = None
@@ -338,10 +434,45 @@ class LLMClassifier:
             'fallback_details': []  # 记录每条降级的详细信息
         }
         
+        # HTTP 会话复用（新增）
+        self.session = self._create_http_session()
+        
         # 验证配置
         self._validate_config()
         
         self._print_init_info()
+    
+    def _create_http_session(self) -> requests.Session:
+        """创建配置好的 HTTP 会话（连接池复用）"""
+        session = requests.Session()
+        
+        # 配置请求头
+        session.headers.update({
+            'Content-Type': 'application/json',
+            'User-Agent': 'AI-World-Tracker/1.0'
+        })
+        
+        # 配置连接池和重试策略
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+        
+        retry_strategy = Retry(
+            total=3,  # 最多重试3次
+            backoff_factor=0.5,  # 重试间隔: 0.5s, 1s, 2s
+            status_forcelist=[429, 500, 502, 503, 504],  # 这些状态码触发重试
+            allowed_methods=["POST", "GET"]  # 允许重试的方法
+        )
+        
+        adapter = HTTPAdapter(
+            pool_connections=10,  # 连接池大小
+            pool_maxsize=20,  # 最大连接数
+            max_retries=retry_strategy
+        )
+        
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        
+        return session
     
     def _setup_gpu_acceleration(self):
         """设置GPU加速"""
@@ -360,12 +491,12 @@ class LLMClassifier:
             if self.gpu_info.ollama_gpu_supported:
                 log.dual_success(t('llm_gpu_enabled', gpu_name=self.gpu_info.gpu_name))
                 if self.gpu_info.vram_mb:
-                    log.dual_info(t('llm_vram', vram=self.gpu_info.vram_mb), emoji="💾")
+                    log.dual_info("💾 " + t('llm_vram', vram=self.gpu_info.vram_mb))
             else:
                 gpu_name = self.gpu_info.gpu_name or t('llm_no_gpu_detected')
                 log.dual_warning(t('llm_cpu_mode', gpu_name=gpu_name))
                 if self.ollama_options:
-                    log.dual_info(t('llm_cpu_threads', threads=self.ollama_options.num_thread), emoji="⚙️")
+                    log.dual_info("⚙️ " + t('llm_cpu_threads', threads=self.ollama_options.num_thread))
     
     def get_gpu_info(self) -> Optional[GPUInfo]:
         """获取GPU信息"""
@@ -384,18 +515,16 @@ class LLMClassifier:
             return True
         
         if self.is_warmed_up:
-            log.dual_info(t('llm_model_warmed'), emoji="✅")
+            log.dual_info("✅ " + t('llm_model_warmed'))
             return True
         
         log.dual_ai(t('llm_warming_model', model=self.model))
         start_time = time.time()
         
         try:
-            import requests
-            
             # 发送一个简单的请求来加载模型
             # 使用 keep_alive 参数让模型保持活跃
-            response = requests.post(
+            response = self.session.post(
                 'http://localhost:11434/api/generate',
                 json={
                     'model': self.model,
@@ -414,7 +543,7 @@ class LLMClassifier:
                 elapsed = time.time() - start_time
                 self.is_warmed_up = True
                 log.dual_success(t('llm_warmup_done', time=f'{elapsed:.1f}'))
-                log.dual_info(t('llm_keep_alive', minutes=MODEL_KEEP_ALIVE_SECONDS // 60), emoji="⏰")
+                log.dual_info("⏰ " + t('llm_keep_alive', minutes=MODEL_KEEP_ALIVE_SECONDS // 60))
                 return True
             else:
                 log.dual_error(t('llm_warmup_failed_http', code=response.status_code))
@@ -435,10 +564,8 @@ class LLMClassifier:
             return
         
         try:
-            import requests
-            
             # 发送保活请求
-            response = requests.post(
+            response = self.session.post(
                 'http://localhost:11434/api/generate',
                 json={
                     'model': self.model,
@@ -462,9 +589,7 @@ class LLMClassifier:
             return
         
         try:
-            import requests
-            
-            response = requests.post(
+            response = self.session.post(
                 'http://localhost:11434/api/generate',
                 json={
                     'model': self.model,
@@ -481,6 +606,31 @@ class LLMClassifier:
                 
         except Exception as e:
             log.warning(t('llm_unload_failed', error=str(e)))
+    
+    def cleanup(self):
+        """清理资源（保存缓存、关闭 HTTP 会话）"""
+        # 1. 保存缓存
+        try:
+            self._save_cache()
+            log.info("💾 LLM cache saved")
+        except Exception as e:
+            log.warning(f"Failed to save cache: {e}")
+        
+        # 2. 保存学习数据
+        try:
+            if hasattr(self, 'evaluator'):
+                self.evaluator._save_learning_data()
+                log.info("💾 Learning data saved")
+        except Exception as e:
+            log.warning(f"Failed to save learning data: {e}")
+        
+        # 3. 关闭 HTTP 会话
+        try:
+            if hasattr(self, 'session'):
+                self.session.close()
+                log.info("🔌 HTTP session closed")
+        except Exception as e:
+            log.warning(f"Failed to close session: {e}")
 
     def _get_api_key(self) -> Optional[str]:
         """从环境变量获取API密钥"""
@@ -508,7 +658,7 @@ class LLMClassifier:
     def _check_ollama_service(self) -> bool:
         """检查Ollama服务是否运行"""
         try:
-            response = requests.get('http://localhost:11434/api/tags', timeout=5)
+            response = self.session.get('http://localhost:11434/api/tags', timeout=5)
             return response.status_code == 200
         except (requests.RequestException, ConnectionError, TimeoutError):
             return False
@@ -561,77 +711,82 @@ class LLMClassifier:
         return hashlib.md5(content.encode()).hexdigest()
     
     def _build_classification_prompt(self, item: Dict) -> str:
-        """构建分类提示词（精简版，减少token消耗）"""
-        title = item.get('title', '')[:100]  # 限制标题长度
-        summary = item.get('summary', item.get('description', ''))[:300]  # 减少摘要长度
+        """构建分类提示词（与批量分类规则统一）"""
+        title = item.get('title', '')[:100]
+        summary = item.get('summary', item.get('description', ''))[:300]
         source = item.get('source', '')
         url = item.get('url', '')
         
-        # 检测 URL 中的内容类型提示
+        # 检测 URL 类型提示（与批量分类统一）
         url_hints = []
+        if 'arxiv.org' in url or '/paper/' in url:
+            url_hints.append("[PAPER]")
         if '/podcast/' in url or '/podcasts/' in url:
-            url_hints.append("URL indicates PODCAST content")
-        if '/paper/' in url or 'arxiv.org' in url:
-            url_hints.append("URL indicates RESEARCH content")
+            url_hints.append("[PODCAST]")
         if '/blog/' in url:
-            url_hints.append("URL indicates BLOG/ANALYSIS content")
+            url_hints.append("[BLOG]")
         
-        url_hint_text = f"\nURL提示: {', '.join(url_hints)}" if url_hints else ""
+        url_hint_text = f" {' '.join(url_hints)}" if url_hints else ""
         
-        # 精简版prompt，大幅减少token，但保持分类准确性
-        prompt = f"""分类AI内容。输出JSON格式。
+        prompt = f"""Classify this AI news item. Output ONLY valid JSON.
 
-标题: {title}
-摘要: {summary}
-来源: {source}{url_hint_text}
+Title: {title}{url_hint_text}
+Summary: {summary}
+Source: {source}
 
-类型选项:
-- research: 学术论文、科研报告
-- product: 产品发布、功能更新
-- market: 融资新闻、行业分析、公司动态（无引语的人物新闻）
-- developer: 开源工具、技术框架
-- leader: 知名人士发言（含引语标记）★优先级最高★
-- community: 社区讨论、趋势话题
+IMPORTANT: Use ONLY these exact values for content_type:
+- research: Academic papers, scientific studies, technical reports from arxiv/conferences
+- product: Product launches, new features, version releases, API announcements
+- market: Funding news, investments, company analysis, industry competition (NO quote markers)
+- developer: Tools, frameworks, models, open source projects, technical tutorials
+- leader: Person's statement with quote markers ★★★ HIGHEST PRIORITY ★★★
+- community: Forum discussions, social media trends, community events
 
-★★★ leader判断 - 优先级最高 ★★★
-引语标记词（任一出现即为leader）:
-英文: says, said, warns, predicts, believes, stated, told, claims, according to
-中文: 说、表示、称、认为、指出、透露、预测、警告
+★★★ LEADER CLASSIFICATION - HIGHEST PRIORITY ★★★
+Quote marker words (ANY of these in title = leader):
+  English: says, said, warns, predicts, believes, stated, told, claims, according to
+  Chinese: 说, 表示, 称, 认为, 指出, 透露, 预测, 警告
 
-判断流程:
-1. 标题含上述引语词 → leader（即使涉及公司动态）
-2. 标题格式"人名: ..."或"人名：..." → leader
-3. 无引语标记的人物/公司新闻 → market
+Decision flow:
+1. Title contains ANY quote marker word → "leader" (even if about company news)
+2. Title format "Person Name: ..." or "人名：..." → "leader"
+3. About famous person but NO quote marker → "market"
 
-示例:
-- "Elon Musk says AI will change work" → leader ✓
-- "Sam Altman predicts AGI timeline" → leader ✓
-- "OpenAI CEO warns about AI risks" → leader ✓
-- "OpenAI launches new model" → product ✗
-- "OpenAI faces competition from Google" → market ✗
+Examples:
+- "Elon Musk says AI will change work" → leader ✓ (has "says")
+- "Sam Altman predicts AGI timeline" → leader ✓ (has "predicts")
+- "OpenAI CEO warns about AI risks" → leader ✓ (has "warns")
+- "OpenAI launches new model" → product (no quote marker)
+- "OpenAI faces competition from Google" → market (no quote marker)
 
-★ AI相关性(ai_relevance)评分规则 - 严格评估:
-- 0.9-1.0: 核心AI（LLM、深度学习、神经网络、模型训练、AI算法）
-- 0.7-0.9: 主要AI（AI产品如ChatGPT/Claude、AI公司核心业务、AI应用）
-- 0.5-0.7: 部分AI（科技新闻明确提及AI技术、AI作为主要卖点）
-- 0.2-0.5: 弱相关（智能设备但非AI驱动、自动化但非机器学习）
-- 0.0-0.2: 非AI（与AI完全无关）
+Other rules:
+- Items marked [PAPER] → research
+- Items marked [PODCAST] → community
 
-★ 非AI内容示例（应给低分0.0-0.3）:
-- 汽车新闻（电动车、数字钥匙、智能座舱≠AI）
-- 手机/电脑硬件（芯片、存储、屏幕≠AI，除非是AI芯片）
-- 普通软件更新（非AI功能的App更新）
-- 游戏新闻（除非涉及AI NPC、AI生成内容）
-- 金融/股票（除非是AI公司融资或AI量化）
-- NFC/蓝牙/UWB等通信技术≠AI
+★★★ AI RELEVANCE SCORING (ai_relevance: 0.0-1.0) - BE STRICT ★★★
+- 0.9-1.0: Core AI (LLM, deep learning, neural networks, model training, transformers)
+- 0.7-0.9: Primary AI (ChatGPT, Claude, Midjourney, AI company core business)
+- 0.5-0.7: Partial AI (tech news with explicit AI/ML mention as main topic)
+- 0.2-0.5: Weak AI (smart devices without ML, automation without AI)
+- 0.0-0.2: Non-AI (completely unrelated to AI)
 
-输出格式(严格JSON):
-{{"content_type": "类型", "confidence": 0.8, "ai_relevance": 0.85, "tech_fields": ["领域"], "reasoning": "原因"}}"""
+★★★ NON-AI EXAMPLES (score 0.0-0.3) ★★★
+- Car news: EVs, digital keys, smart cockpit (unless ML-based)
+- Hardware: CPUs, GPUs, storage, displays, phones (unless AI chips)
+- Software: Regular app updates, OS features (unless AI-powered)
+- Gaming: Unless AI NPCs, AI content creation
+- Finance: Unless AI company funding or AI trading
+- Communication tech: NFC, Bluetooth, UWB, 5G = NOT AI
+
+tech_fields options: LLM, Computer Vision, NLP, Robotics, AI Safety, MLOps, Multimodal, Audio/Speech, Healthcare AI, General AI
+
+Output format (strict JSON, no extra text):
+{{"content_type": "TYPE", "confidence": 0.8, "ai_relevance": 0.85, "tech_fields": ["FIELD"], "reasoning": "brief reason"}}"""
         
         return prompt
     
     def _build_batch_prompt(self, items: List[Dict]) -> str:
-        """构建批量分类提示词（优化版，提高解析成功率）"""
+        """构建批量分类提示词（与单条分类规则统一）"""
         items_text = []
         for i, item in enumerate(items, 1):
             title = item.get('title', '')[:80]
@@ -639,16 +794,19 @@ class LLMClassifier:
             source = item.get('source', '')[:20]
             url = item.get('url', '')
             
-            # 检测 URL 类型提示
+            # 检测 URL 类型提示（与单条分类统一）
             url_type = ""
             if 'arxiv.org' in url or '/paper/' in url:
                 url_type = " [PAPER]"
+            elif '/podcast/' in url or '/podcasts/' in url:
+                url_type = " [PODCAST]"
+            elif '/blog/' in url:
+                url_type = " [BLOG]"
             
             items_text.append(f"[{i}] {title}{url_type}\n    Summary: {summary}\n    Source: {source}")
         
         all_items = "\n".join(items_text)
         
-        # 使用更明确的格式指令和分类标准
         prompt = f"""Classify these {len(items)} AI news items. Output ONLY valid JSON, one per line.
 
 Items to classify:
@@ -663,12 +821,13 @@ IMPORTANT: Use ONLY these exact values for content_type:
 - community: Forum discussions, social media trends, community events
 
 ★★★ LEADER CLASSIFICATION - HIGHEST PRIORITY ★★★
-Quote marker words (ANY of these = leader):
-  says, said, warns, predicts, believes, stated, told, claims, according to, 表示, 称, 说
+Quote marker words (ANY of these in title = leader):
+  English: says, said, warns, predicts, believes, stated, told, claims, according to
+  Chinese: 说, 表示, 称, 认为, 指出, 透露, 预测, 警告
 
 Decision flow:
 1. Title contains ANY quote marker word → "leader" (even if about company news)
-2. Title format "Person Name: ..." → "leader"
+2. Title format "Person Name: ..." or "人名：..." → "leader"
 3. About famous person but NO quote marker → "market"
 
 ★ LEADER EXAMPLES (classify as leader) ★
@@ -684,11 +843,11 @@ Decision flow:
 - "Elon Musk's Grok AI launches new feature" → product (no quote marker)
 
 Other rules:
-- Items marked [PAPER] -> research
+- Items marked [PAPER] → research
+- Items marked [PODCAST] → community
+- Items marked [BLOG] → market or developer (based on content)
 
 ★★★ AI RELEVANCE SCORING (ai_relevance: 0.0-1.0) - BE STRICT ★★★
-Score based on ACTUAL AI technology involvement, not just "smart" or "digital" features:
-
 - 0.9-1.0: Core AI (LLM, deep learning, neural networks, model training, transformers, diffusion models)
 - 0.7-0.9: Primary AI (ChatGPT, Claude, Midjourney, AI company core business, ML applications)
 - 0.5-0.7: Partial AI (tech news with explicit AI/ML mention as main topic)
@@ -715,7 +874,7 @@ START from id=1, classify ALL {len(items)} items:"""
         
         return prompt
     
-    def _call_ollama(self, prompt: str, is_batch: bool = False) -> Optional[str]:
+    def _call_ollama(self, prompt: str, is_batch: bool = False) -> Tuple[Optional[str], Optional[FallbackReason]]:
         """调用Ollama API
         
         支持两种模式:
@@ -725,6 +884,9 @@ START from id=1, classify ALL {len(items)} items:"""
         Args:
             prompt: 提示词
             is_batch: 是否为批量分类模式（需要更多输出tokens）
+            
+        Returns:
+            (response_text, error_reason): 响应文本和错误原因（成功时为None）
         """
         try:
             import requests
@@ -740,7 +902,7 @@ START from id=1, classify ALL {len(items)} items:"""
                 # 根据GPU检测结果自适应配置
                 options = self._get_ollama_options(is_batch=is_batch)
                 
-                response = requests.post(
+                response = self.session.post(
                     'http://localhost:11434/api/chat',
                     json={
                         'model': self.model,
@@ -759,7 +921,12 @@ START from id=1, classify ALL {len(items)} items:"""
                 if response.status_code == 200:
                     result = response.json()
                     message = result.get('message', {})
-                    return message.get('content', '')
+                    content = message.get('content', '')
+                    return (content, None) if content else (None, FallbackReason.INVALID_RESPONSE)
+                elif response.status_code == 429:
+                    return (None, FallbackReason.RATE_LIMIT)
+                else:
+                    return (None, FallbackReason.API_ERROR)
             else:
                 # 使用 Generate API（适用于其他模型）
                 options = self._get_ollama_options()
@@ -767,7 +934,7 @@ START from id=1, classify ALL {len(items)} items:"""
                 # Generate API 不支持 system message，将其添加到 prompt 前面
                 full_prompt = f"System: {LLM_SYSTEM_PROMPT}\n\nUser: {prompt}"
                 
-                response = requests.post(
+                response = self.session.post(
                     'http://localhost:11434/api/generate',
                     json={
                         'model': self.model,
@@ -788,16 +955,21 @@ START from id=1, classify ALL {len(items)} items:"""
                     
                     # 如果 response 为空但 thinking 有内容，从 thinking 中提取
                     if not response_text.strip() and thinking_text:
-                        return thinking_text
+                        return (thinking_text, None)
                     
-                    return response_text
+                    return (response_text, None) if response_text else (None, FallbackReason.INVALID_RESPONSE)
+                elif response.status_code == 429:
+                    return (None, FallbackReason.RATE_LIMIT)
+                else:
+                    return (None, FallbackReason.API_ERROR)
             
-            log.error(t('llm_ollama_error', code=response.status_code))
-            return None
-                
+        except requests.exceptions.Timeout:
+            return (None, FallbackReason.TIMEOUT)
+        except requests.exceptions.ConnectionError:
+            return (None, FallbackReason.CONNECTION_ERROR)
         except Exception as e:
             log.error(t('llm_ollama_failed', error=str(e)))
-            return None
+            return (None, FallbackReason.MODEL_ERROR)
     
     def _get_ollama_options(self, is_batch: bool = False) -> Dict:
         """获取Ollama推理选项（根据GPU自适应配置）
@@ -823,12 +995,15 @@ START from id=1, classify ALL {len(items)} items:"""
                 'num_thread': 4
             }
     
-    def _call_openai(self, prompt: str, is_batch: bool = False) -> Optional[str]:
+    def _call_openai(self, prompt: str, is_batch: bool = False) -> Tuple[Optional[str], Optional[FallbackReason]]:
         """调用OpenAI API
         
         Args:
             prompt: 提示词
             is_batch: 是否为批量分类模式（需要更多输出tokens）
+            
+        Returns:
+            (response, error_reason): 响应文本和错误原因
         """
         try:
             from openai import OpenAI
@@ -848,13 +1023,14 @@ START from id=1, classify ALL {len(items)} items:"""
                 max_tokens=max_tokens
             )
             
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            return (content, None) if content else (None, FallbackReason.INVALID_RESPONSE)
             
         except Exception as e:
             log.error(t('llm_openai_failed', error=str(e)))
-            return None
+            return (None, FallbackReason.API_ERROR)
     
-    def _call_azure_openai(self, prompt: str, is_batch: bool = False) -> Optional[str]:
+    def _call_azure_openai(self, prompt: str, is_batch: bool = False) -> Tuple[Optional[str], Optional[FallbackReason]]:
         """调用Azure OpenAI API
         
         Azure OpenAI 使用部署名称而非模型名称，
@@ -863,6 +1039,9 @@ START from id=1, classify ALL {len(items)} items:"""
         Args:
             prompt: 提示词
             is_batch: 是否为批量分类模式（需要更多输出tokens）
+            
+        Returns:
+            (response, error_reason): 响应文本和错误原因
         """
         try:
             from openai import AzureOpenAI
@@ -873,7 +1052,7 @@ START from id=1, classify ALL {len(items)} items:"""
             
             if not endpoint:
                 log.error(t('llm_azure_endpoint_missing'))
-                return None
+                return (None, FallbackReason.API_ERROR)
             
             # 确保 endpoint 以 / 结尾
             if not endpoint.endswith('/'):
@@ -900,7 +1079,8 @@ START from id=1, classify ALL {len(items)} items:"""
                 max_tokens=max_tokens
             )
             
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            return (content, None) if content else (None, FallbackReason.INVALID_RESPONSE)
             
         except Exception as e:
             error_msg = str(e)
@@ -911,14 +1091,17 @@ START from id=1, classify ALL {len(items)} items:"""
                 log.error(f"  2. Endpoint '{self.azure_endpoint}' 是否正确")
                 log.error(f"  3. API Version '{self.azure_api_version}' 是否支持")
             log.error(t('llm_azure_openai_failed', error=error_msg))
-            return None
+            return (None, FallbackReason.API_ERROR)
     
-    def _call_llm(self, prompt: str, is_batch: bool = False) -> Optional[str]:
+    def _call_llm(self, prompt: str, is_batch: bool = False) -> Tuple[Optional[str], Optional[FallbackReason]]:
         """调用LLM（根据提供商选择）
         
         Args:
             prompt: 提示词
             is_batch: 是否为批量分类模式
+            
+        Returns:
+            (response, error_reason): 响应文本和错误原因（成功时为None）
         """
         if self.provider == LLMProvider.OLLAMA:
             return self._call_ollama(prompt, is_batch=is_batch)
@@ -926,7 +1109,7 @@ START from id=1, classify ALL {len(items)} items:"""
             return self._call_openai(prompt, is_batch=is_batch)
         elif self.provider == LLMProvider.AZURE_OPENAI:
             return self._call_azure_openai(prompt, is_batch=is_batch)
-        return None
+        return (None, FallbackReason.MODEL_ERROR)
     
     def _parse_llm_response(self, response: str) -> Optional[Dict]:
         """解析LLM响应
@@ -1078,13 +1261,24 @@ START from id=1, classify ALL {len(items)} items:"""
             
             return classified
         
-        # 调用LLM
-        prompt = self._build_classification_prompt(item)
-        response = self._call_llm(prompt)
-        result = self._parse_llm_response(response)
+        # 检查断路器
+        if not self.fallback_strategy.should_use_llm():
+            self.stats['fallback_calls'] += 1
+            log.dual_warning("⚠️ Circuit breaker open, using rule classifier")
+            classified = self.rule_classifier.classify_item(item)
+            classified['classified_by'] = 'rule:circuit_breaker'
+            return classified
         
-        if result:
-            self.stats['llm_calls'] += 1
+        # 调用LLM（带重试机制）
+        prompt = self._build_classification_prompt(item)
+        response, error_reason = self._call_llm_with_fallback(prompt, item)
+        
+        if response:
+            result = self._parse_llm_response(response)
+            
+            if result:
+                self.stats['llm_calls'] += 1
+                self.fallback_strategy.record_success()  # 记录成功
             
             # 更新分类结果
             classified['content_type'] = result['content_type']
@@ -1123,23 +1317,61 @@ START from id=1, classify ALL {len(items)} items:"""
                     'classified_by': classified['classified_by']
                     # 注意：importance 不缓存，因为时效性分数需要实时计算
                 }
-        else:
-            # LLM失败，降级到规则分类（规则分类器已内置重要性计算）
-            self.stats['fallback_calls'] += 1
-            self.stats['errors'] += 1
-            fallback_reason = 'LLM响应解析失败'
-            self.stats['fallback_details'].append({
-                'title': item.get('title', '')[:50],
-                'source': item.get('source', ''),
-                'reason': fallback_reason,
-                'mode': 'single'
-            })
-            
-            log.warning(t('llm_fallback', title=item.get('title', '')[:30]))
-            classified = self.rule_classifier.classify_item(item)
-            classified['classified_by'] = 'rule:fallback'
+        # LLM失败，根据错误原因执行智能降级
+        self.stats['fallback_calls'] += 1
+        self.stats['errors'] += 1
+        
+        if error_reason:
+            self.fallback_strategy.record_error(error_reason)
+        
+        fallback_reason = error_reason.value if error_reason else 'unknown_error'
+        self.stats['fallback_details'].append({
+            'title': item.get('title', '')[:50],
+            'source': item.get('source', ''),
+            'reason': fallback_reason,
+            'mode': 'single'
+        })
+        
+        log.warning(t('llm_fallback', title=item.get('title', '')[:30]) + f" ({fallback_reason})")
+        classified = self.rule_classifier.classify_item(item)
+        classified['classified_by'] = f'rule:fallback:{fallback_reason}'
         
         return classified
+    
+    def _call_llm_with_fallback(self, prompt: str, item: Dict, max_retries: int = 1) -> Tuple[Optional[str], Optional[FallbackReason]]:
+        """带智能降级的 LLM 调用
+        
+        Args:
+            prompt: 提示词
+            item: 内容项（用于降级策略判断）
+            max_retries: 最大重试次数
+            
+        Returns:
+            (response, error_reason): 响应和错误原因
+        """
+        for attempt in range(max_retries + 1):
+            response, error_reason = self._call_llm(prompt)
+            
+            if response:
+                return (response, None)
+            
+            if error_reason:
+                action = self.fallback_strategy.get_fallback_action(error_reason, item)
+                
+                if action == 'retry' and attempt < max_retries:
+                    log.dual_info(f"🔄 Retrying LLM call (attempt {attempt + 2}/{max_retries + 1})...")
+                    continue
+                elif action == 'quick':
+                    # 快速降级：返回错误，外部使用简化规则
+                    return (None, error_reason)
+                else:
+                    # 完整降级：返回错误，外部使用完整规则分类
+                    return (None, error_reason)
+            
+            # 未知错误，不重试
+            break
+        
+        return (None, error_reason or FallbackReason.MODEL_ERROR)
     
     def classify_batch(self, items: List[Dict], show_progress: bool = True, 
                        use_batch_api: bool = True) -> List[Dict]:
@@ -1252,8 +1484,8 @@ START from id=1, classify ALL {len(items)} items:"""
             
             # 构建批量prompt
             prompt = self._build_batch_prompt(batch_items)
-            response = self._call_llm(prompt, is_batch=True)  # 使用批量模式（更多输出tokens）
-            batch_results = self._parse_batch_response(response, len(batch_items))
+            response, error_reason = self._call_llm(prompt, is_batch=True)  # 使用批量模式（更多输出tokens）
+            batch_results = self._parse_batch_response(response, len(batch_items)) if response else None
             
             # 处理结果
             retry_items = []  # 收集需要重试的条目
@@ -1433,7 +1665,7 @@ START from id=1, classify ALL {len(items)} items:"""
         """
         try:
             prompt = self._build_classification_prompt(item)
-            response = self._call_llm(prompt, is_batch=False)
+            response, error_reason = self._call_llm(prompt, is_batch=False)
             
             if not response:
                 return None
