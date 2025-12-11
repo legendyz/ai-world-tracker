@@ -78,6 +78,9 @@ class AsyncCollectorConfig:
     
     # 数据目录
     cache_dir: str = 'data/cache'
+    
+    # 缓存大小限制
+    max_cache_size: int = 5000              # 历史缓存最大条目数
 
 def _load_async_config() -> AsyncCollectorConfig:
     """从 config.yaml 加载异步采集配置"""
@@ -286,12 +289,28 @@ class AIDataCollector:
         return False
     
     def _add_to_history(self, item: Dict):
-        """将项目添加到历史缓存"""
+        """将项目添加到历史缓存（带大小限制）"""
         url = item.get('url', '')
         title = item.get('title', '')
+        
+        # 检查缓存大小，超出限制时清理旧条目
+        max_size = self.async_config.max_cache_size
+        
         if url:
+            if len(self.history_cache['urls']) >= max_size:
+                # 转换为list移除最旧的20%条目，再转回set
+                urls_list = list(self.history_cache['urls'])
+                remove_count = max_size // 5  # 移除20%
+                self.history_cache['urls'] = set(urls_list[remove_count:])
+                log.file_only(f"缓存清理: URLs {len(urls_list)} → {len(self.history_cache['urls'])}")
             self.history_cache['urls'].add(url)
+        
         if title:
+            if len(self.history_cache['titles']) >= max_size:
+                titles_list = list(self.history_cache['titles'])
+                remove_count = max_size // 5
+                self.history_cache['titles'] = set(titles_list[remove_count:])
+                log.file_only(f"缓存清理: Titles {len(titles_list)} → {len(self.history_cache['titles'])}")
             self.history_cache['titles'].add(title)
     
     def _filter_by_history(self, all_data: Dict[str, List[Dict]], 
@@ -855,8 +874,10 @@ class AIDataCollector:
     # ============== 异步采集方法 ==============
     
     async def _fetch_url_async(self, session: aiohttp.ClientSession, url: str,
-                                semaphore: asyncio.Semaphore) -> Optional[str]:
+                                semaphore: asyncio.Semaphore,
+                                category: str = 'unknown') -> Optional[str]:
         """异步获取URL内容（带重试）"""
+        last_error = None
         async with semaphore:
             for attempt in range(self.async_config.max_retries + 1):
                 try:
@@ -868,22 +889,28 @@ class AIDataCollector:
                         if response.status == 200:
                             return await response.text()
                         elif response.status == 429:
+                            last_error = f'Rate limited (429)'
                             wait_time = self.async_config.retry_delay * (2 ** attempt)
                             await asyncio.sleep(wait_time)
                         else:
+                            last_error = f'HTTP {response.status}'
                             return None
-                except (asyncio.TimeoutError, aiohttp.ClientError):
+                except (asyncio.TimeoutError, aiohttp.ClientError) as e:
+                    last_error = str(e)[:50] or 'Timeout/Connection error'
                     if attempt < self.async_config.max_retries:
                         await asyncio.sleep(self.async_config.retry_delay * (attempt + 1))
-                except Exception:
-                    pass
+                except Exception as e:
+                    last_error = str(e)[:50] or 'Unknown error'
             
-            self.stats['requests_failed'] += 1
+            # 记录失败详情
+            self._record_failure(url, category, last_error or 'Max retries exceeded')
             return None
     
     async def _fetch_json_async(self, session: aiohttp.ClientSession, url: str,
-                                 semaphore: asyncio.Semaphore, params: Optional[Dict] = None) -> Optional[Any]:
+                                 semaphore: asyncio.Semaphore, params: Optional[Dict] = None,
+                                 category: str = 'unknown') -> Optional[Any]:
         """异步获取JSON内容"""
+        last_error = None
         async with semaphore:
             for attempt in range(self.async_config.max_retries + 1):
                 try:
@@ -895,15 +922,20 @@ class AIDataCollector:
                         if response.status == 200:
                             return await response.json()
                         elif response.status == 429:
+                            last_error = f'Rate limited (429)'
                             wait_time = self.async_config.retry_delay * (2 ** attempt)
                             await asyncio.sleep(wait_time)
-                except (asyncio.TimeoutError, aiohttp.ClientError):
+                        else:
+                            last_error = f'HTTP {response.status}'
+                except (asyncio.TimeoutError, aiohttp.ClientError) as e:
+                    last_error = str(e)[:50] or 'Timeout/Connection error'
                     if attempt < self.async_config.max_retries:
                         await asyncio.sleep(self.async_config.retry_delay * (attempt + 1))
-                except Exception:
-                    pass
+                except Exception as e:
+                    last_error = str(e)[:50] or 'Unknown error'
             
-            self.stats['requests_failed'] += 1
+            # 记录失败详情
+            self._record_failure(url, category, last_error or 'Max retries exceeded')
             return None
     
     async def _parse_rss_feed_async(self, session: aiohttp.ClientSession,
@@ -919,7 +951,7 @@ class AIDataCollector:
         """
         items = []
         try:
-            content = await self._fetch_url_async(session, feed_url, semaphore)
+            content = await self._fetch_url_async(session, feed_url, semaphore, category)
             if not content:
                 return items
             
@@ -1032,7 +1064,7 @@ class AIDataCollector:
                 'per_page': min(max_items + 5, 15)  # 多请求几个以应对过滤
             }
             
-            data = await self._fetch_json_async(session, url, semaphore, params)
+            data = await self._fetch_json_async(session, url, semaphore, params, 'developer')
             if data:
                 # 先过滤掉已缓存的URL
                 repos_to_process = []
@@ -1079,7 +1111,7 @@ class AIDataCollector:
             url = "https://huggingface.co/api/models"
             params = {'limit': min(max_items + 5, 15), 'sort': 'lastModified', 'direction': -1}
             
-            data = await self._fetch_json_async(session, url, semaphore, params)
+            data = await self._fetch_json_async(session, url, semaphore, params, 'developer')
             if data:
                 # 先过滤掉已缓存的URL
                 models_to_process = []
@@ -1124,7 +1156,7 @@ class AIDataCollector:
         try:
             # 获取top stories
             top_url = "https://hacker-news.firebaseio.com/v0/topstories.json"
-            story_ids = await self._fetch_json_async(session, top_url, semaphore, None)
+            story_ids = await self._fetch_json_async(session, top_url, semaphore, None, 'community')
             
             if not story_ids:
                 return items
@@ -1139,7 +1171,7 @@ class AIDataCollector:
                 story_url = f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
                 # 注意：HN的URL实际是story本身的url字段，这里我们仍需要获取详情来判断
                 # 但可以先检查story ID是否已处理过（通过构造标准URL）
-                story_tasks.append(self._fetch_json_async(session, story_url, semaphore, None))
+                story_tasks.append(self._fetch_json_async(session, story_url, semaphore, None, 'community'))
             
             stories = await asyncio.gather(*story_tasks, return_exceptions=True)
             
