@@ -1366,8 +1366,8 @@ class AIDataCollector:
             # 并发采集所有数据源
             log.dual_info("📡 启动并发采集任务...", emoji="")
             
-            # 创建所有采集任务
-            tasks = []
+            # 创建带名称的任务列表: [(name, coroutine), ...]
+            named_tasks = []
             
             # 1. 新闻RSS源（限制源数量，优先采集重要源）
             news_feeds = RSS_FEEDS['news'] + RSS_FEEDS.get('product_news', [])
@@ -1375,36 +1375,72 @@ class AIDataCollector:
             items_per_news_feed = max(2, news_count // max(len(news_feeds), 1))
             # 只采集前几个重要源，避免过多请求
             max_news_feeds = min(len(news_feeds), max(6, news_count // 3))
-            for feed_url in news_feeds[:max_news_feeds]:
-                tasks.append(self._parse_rss_feed_async(session, feed_url, 'news', semaphore, 
-                                                        items_per_feed=items_per_news_feed))
+            for i, feed_url in enumerate(news_feeds[:max_news_feeds]):
+                # 从URL提取简短名称
+                domain = urlparse(feed_url).netloc.replace('www.', '')[:20]
+                named_tasks.append((
+                    f"RSS/{domain}",
+                    self._parse_rss_feed_async(session, feed_url, 'news', semaphore, 
+                                               items_per_feed=items_per_news_feed)
+                ))
             
             # 2. 开发者内容 (GitHub + Hugging Face + 博客RSS)
-            # 限制：GitHub 5条，HuggingFace 5条，每个RSS源3条
             dev_github_limit = min(5, developer_count // 3)
             dev_hf_limit = min(5, developer_count // 3)
             dev_rss_limit = max(2, (developer_count - dev_github_limit - dev_hf_limit) // max(len(RSS_FEEDS['developer']), 1))
-            tasks.append(self._collect_github_trending_async(session, semaphore, max_items=dev_github_limit))
-            tasks.append(self._collect_huggingface_async(session, semaphore, max_items=dev_hf_limit))
+            named_tasks.append(("GitHub Trending", self._collect_github_trending_async(session, semaphore, max_items=dev_github_limit)))
+            named_tasks.append(("Hugging Face", self._collect_huggingface_async(session, semaphore, max_items=dev_hf_limit)))
             for feed_url in RSS_FEEDS['developer']:
-                tasks.append(self._parse_rss_feed_async(session, feed_url, 'developer', semaphore,
-                                                        items_per_feed=dev_rss_limit))
+                domain = urlparse(feed_url).netloc.replace('www.', '')[:20]
+                named_tasks.append((
+                    f"Dev/{domain}",
+                    self._parse_rss_feed_async(session, feed_url, 'developer', semaphore,
+                                               items_per_feed=dev_rss_limit)
+                ))
             
             # 3. 产品发布
-            tasks.append(self._collect_product_releases_async(session, semaphore, product_count))
+            named_tasks.append(("Product Releases", self._collect_product_releases_async(session, semaphore, product_count)))
             
             # 4. AI领袖言论
-            tasks.append(self._collect_leaders_quotes_async(session, semaphore, leader_count))
+            named_tasks.append(("AI Leaders", self._collect_leaders_quotes_async(session, semaphore, leader_count)))
             
             # 5. 社区热点
-            tasks.append(self._collect_community_async(session, semaphore, community_count))
+            named_tasks.append(("Community/HN", self._collect_community_async(session, semaphore, community_count)))
             
             # 6. 研究论文 (在executor中运行)
-            tasks.append(self._collect_research_papers_async(research_count))
+            named_tasks.append(("arXiv Papers", self._collect_research_papers_async(research_count)))
             
-            # 并发执行所有任务
-            log.dual_info(f"⚡ 并发执行 {len(tasks)} 个采集任务 (配额: news={news_count}, dev={developer_count})", emoji="")
-            all_results = await asyncio.gather(*tasks, return_exceptions=True)
+            # 创建任务
+            total_tasks = len(named_tasks)
+            tasks = [asyncio.create_task(coro) for name, coro in named_tasks]
+            
+            log.dual_info(f"⚡ 并发执行 {total_tasks} 个采集任务", emoji="")
+            
+            # 使用 as_completed 实时显示进度
+            all_results = []
+            completed = 0
+            total_items = 0
+            for future in asyncio.as_completed(tasks):
+                try:
+                    result = await future
+                    completed += 1
+                    item_count = len(result) if isinstance(result, list) else 0
+                    total_items += item_count
+                    all_results.append(result)
+                    
+                    # 显示进度条
+                    progress_pct = int(completed / total_tasks * 100)
+                    bar_filled = int(completed / total_tasks * 20)
+                    bar = "█" * bar_filled + "░" * (20 - bar_filled)
+                    log.dual_info(f"  [{bar}] {completed}/{total_tasks} ({progress_pct}%) +{item_count} items", emoji="")
+                    
+                except Exception as e:
+                    completed += 1
+                    all_results.append(e)
+                    progress_pct = int(completed / total_tasks * 100)
+                    bar_filled = int(completed / total_tasks * 20)
+                    bar = "█" * bar_filled + "░" * (20 - bar_filled)
+                    log.dual_warning(f"  [{bar}] {completed}/{total_tasks} ({progress_pct}%) ✗ 失败")
             
             # 分类收集结果（带配额限制）
             category_limits = {
