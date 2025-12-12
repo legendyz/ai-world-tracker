@@ -373,7 +373,16 @@ class AIDataCollector:
     def _filter_by_history(self, all_data: Dict[str, List[Dict]], 
                            filter_enabled: bool = True) -> Tuple[Dict[str, List[Dict]], Dict[str, int], Dict[str, int]]:
         """
-        统一的历史缓存过滤方法
+        历史缓存最终过滤与缓存更新
+        
+        职责说明：
+        1. 二次过滤：采集阶段的URL预过滤可能有遗漏（如跨类别重复），此处做最终清理
+        2. 缓存更新：将新采集的项目添加到历史缓存，供下次采集时预过滤使用
+        3. 统计输出：统计各类别的新内容与缓存命中数量
+        
+        与预过滤的区别：
+        - 预过滤（采集阶段）：在网络请求前快速跳过已知URL，减少无效请求
+        - 本方法（采集后）：确保最终数据无重复，并更新持久化缓存
         
         Args:
             all_data: 按类别分组的数据字典
@@ -387,7 +396,7 @@ class AIDataCollector:
         """
         new_stats = {}  # 记录每个类别的新内容数量
         cached_stats = {}  # 记录每个类别的缓存命中数量
-        new_items_for_cache = []  # 记录新采集的项目
+        new_items_for_cache = []  # 记录新采集的项目（待加入缓存）
         
         if filter_enabled:
             # 过滤模式：移除历史中已有的项目
@@ -1076,7 +1085,9 @@ class AIDataCollector:
                     if len(entries_to_process) >= max_entries:
                         break
                     url = entry.get('link', '')
-                    if url and url not in self.history_cache['urls']:
+                    # 使用规范化URL进行缓存匹配，确保一致性
+                    normalized_url = self._normalize_url(url) if url else ''
+                    if normalized_url and normalized_url not in self.history_cache['urls']:
                         entries_to_process.append(entry)
             else:
                 entries_to_process = feed.entries[:max_entries]
@@ -1177,12 +1188,13 @@ class AIDataCollector:
             
             data = await self._fetch_json_async(session, url, semaphore, params, 'developer')
             if data:
-                # 先过滤掉已缓存的URL
+                # 先过滤掉已缓存的URL（使用规范化URL）
                 repos_to_process = []
                 for repo in data.get('items', [])[:max_items + 5]:
                     repo_url = repo.get('html_url', '')
+                    normalized_url = self._normalize_url(repo_url) if repo_url else ''
                     if enable_url_filter:
-                        if repo_url and repo_url not in self.history_cache['urls']:
+                        if normalized_url and normalized_url not in self.history_cache['urls']:
                             repos_to_process.append(repo)
                     else:
                         repos_to_process.append(repo)
@@ -1224,12 +1236,13 @@ class AIDataCollector:
             
             data = await self._fetch_json_async(session, url, semaphore, params, 'developer')
             if data:
-                # 先过滤掉已缓存的URL
+                # 先过滤掉已缓存的URL（使用规范化URL）
                 models_to_process = []
                 for model in data[:max_items + 5]:
                     model_url = f"https://huggingface.co/{model['id']}"
+                    normalized_url = self._normalize_url(model_url)
                     if enable_url_filter:
-                        if model_url and model_url not in self.history_cache['urls']:
+                        if normalized_url and normalized_url not in self.history_cache['urls']:
                             models_to_process.append(model)
                     else:
                         models_to_process.append(model)
@@ -1292,9 +1305,10 @@ class AIDataCollector:
                     if any(kw in title_lower for kw in ai_keywords):
                         # 构建URL用于过滤检查
                         story_url = story.get('url', f"https://news.ycombinator.com/item?id={story['id']}")
+                        normalized_url = self._normalize_url(story_url)
                         
-                        # URL预过滤：跳过已缓存的URL
-                        if enable_url_filter and story_url in self.history_cache['urls']:
+                        # URL预过滤：跳过已缓存的URL（使用规范化URL）
+                        if enable_url_filter and normalized_url in self.history_cache['urls']:
                             continue
                         
                         # 检查时间

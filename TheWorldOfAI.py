@@ -618,10 +618,18 @@ class AIWorldTracker:
         
         处理流程：
         1. 加载历史数据（已分类的）
-        2. 采集新数据（采集器有URL/标题缓存，避免重复采集）
-        3. 合并历史数据和新采集数据（去重）
+        2. 采集新数据（采集器负责去重：URL预过滤 + 指纹去重 + 语义去重 + 历史缓存过滤）
+        3. 直接合并历史数据和新采集数据（采集器已完成去重，无需再次去重）
         4. 将合并后的全部数据送到分类器（分类器有自己的缓存，避免重复分类）
         5. 输出完整数据集
+        
+        去重职责说明：
+        - 采集器(DataCollector): 负责所有去重工作
+          * URL预过滤: 采集时跳过历史缓存中的URL
+          * 指纹去重: MD5(URL+标题) 快速去重
+          * 语义去重: Jaccard相似度检测相似标题
+          * 历史缓存: collection_history_cache.json 持久化
+        - 分类器: 仅负责分类结果缓存，避免重复调用LLM
         """
         import time
         start_time = time.time()
@@ -631,15 +639,13 @@ class AIWorldTracker:
         
         # 保存历史数据用于后续合并
         history_data = self.data.copy() if self.data else []
-        history_urls = {item.get('url') for item in history_data if item.get('url')}
-        history_titles = {item.get('title') for item in history_data if item.get('title')}
         
-        # 步骤1: 数据采集（采集器有自己的缓存，避免重复网络请求）
+        # 步骤1: 数据采集（采集器负责全部去重工作）
         step_start = time.time()
         log.step(1, 5, t('step_collect'))
         raw_data = self.collector.collect_all()
         
-        # 合并所有新采集的数据
+        # 合并所有新采集的数据（采集器已完成去重，直接合并）
         new_items = []
         for category, items in raw_data.items():
             new_items.extend(items)
@@ -647,27 +653,11 @@ class AIWorldTracker:
         timing_stats['data_collection'] = round(time.time() - step_start, 1)
         log.data(t('collected_items', count=len(new_items)))
         
-        # 步骤2: 合并历史数据和新采集数据（去重）
-        # 先将新数据与历史数据去重合并
-        merged_items = history_data.copy()
-        truly_new_count = 0
+        # 步骤2: 直接合并历史数据和新采集数据
+        # 注意: 采集器已通过历史缓存过滤确保new_items与历史数据不重复
+        merged_items = history_data + new_items
         
-        for item in new_items:
-            item_url = item.get('url', '')
-            item_title = item.get('title', '')
-            # 检查是否与历史数据重复
-            is_duplicate = (item_url and item_url in history_urls) or \
-                          (item_title and item_title in history_titles)
-            if not is_duplicate:
-                merged_items.append(item)
-                truly_new_count += 1
-                # 更新去重集合
-                if item_url:
-                    history_urls.add(item_url)
-                if item_title:
-                    history_titles.add(item_title)
-        
-        log.dual_info(f"📊 Merged: {len(history_data)} history + {truly_new_count} new = {len(merged_items)} items")
+        log.dual_info(f"📊 Merged: {len(history_data)} history + {len(new_items)} new = {len(merged_items)} items")
         
         # 步骤3: 内容分类（分类器有自己的缓存，已分类的直接返回缓存结果）
         step_start = time.time()
