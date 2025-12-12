@@ -296,12 +296,12 @@ class AIDataCollector:
                     cache = json.load(f)
                     # 验证缓存格式
                     if isinstance(cache, dict) and 'urls' in cache and 'titles' in cache:
-                        # 检查缓存是否过期（超过7天）
+                        # 检查缓存是否过期（超过data_retention_days天）
                         last_updated = cache.get('last_updated', '')
                         if last_updated:
                             try:
                                 last_time = datetime.fromisoformat(last_updated)
-                                if (datetime.now() - last_time).days > 7:
+                                if (datetime.now() - last_time).days > self.data_retention_days:
                                     log.warning(t('dc_cache_expired'))
                                     return {'urls': set(), 'titles': set(), 'normalized_titles': set(), 'last_updated': ''}
                             except (ValueError, TypeError):
@@ -1230,7 +1230,7 @@ class AIDataCollector:
             )
             
             for result in client.results(search_query):
-                # 过滤非最近30天的论文
+                # 过滤超出采集窗口的论文（由data_retention_days配置）
                 if not self._is_recent(result.published):
                     continue
                     
@@ -1509,7 +1509,7 @@ class AIDataCollector:
         tasks = []
         for leader_name in leaders.keys():
             query_name = leader_name.replace(' ', '+')
-            feed_url = f"https://news.google.com/rss/search?q={query_name}+AI+when:30d&hl=en-US&gl=US&ceid=US:en"
+            feed_url = f"https://news.google.com/rss/search?q={query_name}+AI+when:{self.data_retention_days}d&hl=en-US&gl=US&ceid=US:en"
             tasks.append(self._parse_rss_feed_async(session, feed_url, 'leader', semaphore))
         
         # 同时采集个人博客

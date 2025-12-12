@@ -605,14 +605,13 @@ The `ImportanceEvaluator` calculates content importance using **5 weighted dimen
 
 ### Confidence Cap Mechanism
 
-To prevent old, low-value content from ranking too high, the system applies confidence caps:
+Within the 7-day collection window, the system applies confidence caps to balance content ranking:
 
 | Content Age | Source Authority | Confidence Cap |
 |-------------|-----------------|----------------|
-| > 14 days | < 0.80 (non-official) | 60% |
-| > 14 days | ≥ 0.80 (official) | 75% |
-| 7-14 days | < 0.70 (low authority) | 75% |
-| ≤ 7 days | Any | No cap |
+| 5-7 days | < 0.70 (low authority) | 75% |
+| 3-5 days | < 0.60 (very low) | 85% |
+| ≤ 3 days | Any | No cap |
 
 ### Calculation Formula
 
@@ -638,22 +637,25 @@ Where:
 | Community | 0.65 - 0.70 | Hacker News, Reddit, Product Hunt |
 | Unknown | 0.40 | Default for unrecognized sources |
 
-### Recency Decay Curve (Exponential Decay)
+### Recency Decay Curve (7-Day Collection Window)
 
-The system uses a smooth exponential decay formula: `score = (1 - min_score) × e^(-decay_rate × days) + min_score`
+Since the system only collects content from the **last 7 days**, the recency scoring is optimized for this window.
+
+The system uses exponential decay formula: `score = (1 - min_score) × e^(-decay_rate × days) + min_score`
 
 | Age | Score | Description |
 |-----|-------|-------------|
 | Today | 1.00 | Most recent |
 | 1 day | ~0.89 | Very fresh |
+| 2 days | ~0.79 | Fresh |
 | 3 days | ~0.70 | Recent |
-| 7 days | ~0.44 | Within a week |
-| 14 days | ~0.22 | Two weeks old |
-| 30+ days | ~0.10 | Older content |
+| 5 days | ~0.56 | Mid-week |
+| 7 days | ~0.44 | Week boundary (oldest collected) |
 
 **Parameters**:
 - Decay rate: 0.12
 - Minimum score: 0.08
+- Collection window: 7 days (configurable via `data_retention_days`)
 
 ### Content Relevance Evaluation (Tiered Keyword System)
 
