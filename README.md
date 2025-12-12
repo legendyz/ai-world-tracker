@@ -34,7 +34,7 @@
   - **Rule Mode**: Keyword-based pattern recognition (fast, no dependencies)
 - **📊 Data Visualization**: Generates charts for technology hotspots, content distribution, regional distribution, and daily trends
 - **🌐 Web Dashboard**: Creates responsive HTML dashboard with categorized news
-- **🔄 Smart Caching**: MD5-based caching to avoid redundant API calls
+- **🔄 Smart Caching**: Multi-model cache with circuit breaker pattern for resilient LLM calls
 - **🌍 Bilingual Support**: Full Chinese/English interface (i18n)
 
 ### LLM Integration
@@ -180,7 +180,7 @@ ai-world-tracker/
 │   │   └── learning_report_*.json    # Learning feedback reports
 │   └── cache/               # Cache files
 │       ├── collection_history_cache.json  # URL/title deduplication (7-day expiry)
-│       └── llm_classification_cache.json  # LLM classification results (MD5-based)
+│       └── llm_classification_cache.json  # LLM classification cache (multi-model support)
 ├── tests/                   # Test files directory
 │   ├── __init__.py
 │   ├── test_classifier_*.py
@@ -572,14 +572,14 @@ The system uses a **dual-mode classification architecture** with automatic fallb
 The LLM-enhanced classifier provides semantic understanding:
 
 - **Multi-Provider Support**: Ollama (local), Azure OpenAI
-- **MD5-based Caching**: Avoid redundant API calls
-- **Concurrent Processing**: 3-6 threads for parallel classification
-- **Auto-Fallback**: Gracefully degrades to rule-based when LLM unavailable
+- **Multi-Model Cache**: Cache key format `{content_hash}:{model_id}`, different models coexist independently
+- **Circuit Breaker Pattern**: Auto-opens after 5 consecutive failures, auto-recovers after 60s
+- **Smart Fallback Strategy**: Different actions based on error type (timeout, connection, parse errors)
+- **HTTP Connection Pool**: Session reuse with retry strategy (3 retries, exponential backoff)
+- **Concurrent Processing**: 3-6 threads for parallel classification (6 with GPU)
 - **GPU Auto-Detection**: NVIDIA (CUDA), AMD (ROCm), Apple Silicon (Metal)
 - **Model Keep-Alive**: 5-minute keep-alive to avoid cold starts
-- **Concurrent Processing**: 3-6 threads for parallel classification
-- **Auto-Fallback**: Gracefully degrades to rule-based when LLM unavailable
-- **GPU Auto-Detection**: NVIDIA (CUDA), AMD (ROCm), Apple Silicon (Metal)
+- **Cache Format Validation**: Auto-detects and cleans outdated cache format
 
 ### Rule Classifier (`content_classifier.py`)
 
