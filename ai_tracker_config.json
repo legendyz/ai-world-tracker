@@ -2,5 +2,5 @@
   "classification_mode": "llm",
   "llm_provider": "ollama",
   "llm_model": "qwen3:8b",
-  "last_updated": "2025-12-11T10:51:19.648975"
+  "last_updated": "2025-12-12T11:31:05.705302"
 }
