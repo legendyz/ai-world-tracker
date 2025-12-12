@@ -1230,7 +1230,7 @@ class AIDataCollector:
             )
             
             for result in client.results(search_query):
-                # 过滤非最近30天的论文
+                # 过滤超出采集窗口的论文（由data_retention_days配置）
                 if not self._is_recent(result.published):
                     continue
                     
@@ -1509,7 +1509,7 @@ class AIDataCollector:
         tasks = []
         for leader_name in leaders.keys():
             query_name = leader_name.replace(' ', '+')
-            feed_url = f"https://news.google.com/rss/search?q={query_name}+AI+when:30d&hl=en-US&gl=US&ceid=US:en"
+            feed_url = f"https://news.google.com/rss/search?q={query_name}+AI+when:7d&hl=en-US&gl=US&ceid=US:en"
             tasks.append(self._parse_rss_feed_async(session, feed_url, 'leader', semaphore))
         
         # 同时采集个人博客
