@@ -156,7 +156,7 @@ Current Mode: 🤖 LLM Mode (ollama/qwen3:8b)
 ```
 ai-world-tracker/
 ├── TheWorldOfAI.py          # Main application entry point (AIWorldTracker class)
-├── data_collector.py        # Multi-source data collection (sync + async modes)
+├── data_collector.py        # Multi-source data collection (async modes)
 ├── content_classifier.py    # Rule-based classifier
 ├── importance_evaluator.py  # Multi-dimensional importance scoring (5 dimensions)
 ├── llm_classifier.py        # LLM-enhanced classifier (Ollama/Azure OpenAI)

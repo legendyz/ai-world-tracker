@@ -156,7 +156,7 @@
 ```
 ai-world-tracker/
 ├── TheWorldOfAI.py          # 主程序入口 (AIWorldTracker 类)
-├── data_collector.py        # 多源数据采集（支持同步和异步模式）
+├── data_collector.py        # 多源数据采集（异步模式）
 ├── content_classifier.py    # 规则分类器
 ├── importance_evaluator.py  # 多维度重要性评估（5 个维度）
 ├── llm_classifier.py        # LLM 增强分类器 (Ollama/Azure OpenAI)
