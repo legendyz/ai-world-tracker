@@ -39,7 +39,7 @@
 
 ### LLM Integration
 - **Multi-Provider Support**: Ollama (free, local), Azure OpenAI
-- **Local Models**: Qwen3:8b, DeepSeek-R1:14b via Ollama - completely free
+- **Local Models**: Qwen3:8b via Ollama - completely free
 - **GPU Acceleration**: Auto-detects NVIDIA (CUDA), AMD (ROCm), Apple Silicon (Metal)
 - **Concurrent Processing**: 3-6 thread parallel processing for speed
 - **Auto-Fallback**: Gracefully degrades to rule-based when LLM unavailable
@@ -515,7 +515,7 @@ logging:
 
 | Provider | Model | Cost | Setup |
 |----------|-------|------|-------|
-| Ollama | qwen3:8b, deepseek-r1:14b | Free | `ollama pull qwen3:8b` |
+| Ollama | qwen3:8b | Free | `ollama pull qwen3:8b` |
 | Azure OpenAI | gpt-4o-mini, gpt-4o | Paid | Configure via menu (Option 3) |
 
 ### Environment Variables
@@ -715,7 +715,7 @@ Uses logarithmic normalization: `score = log(value + 1) / log(threshold_high + 1
 |---------|----------------------------|-----------------------------------|----------------------|
 | Classification | Rule-based | LLM + Rule fallback | TBD |
 | LLM Support | ❌ | ✅ Ollama/Azure OpenAI | ✅ |
-| Local Models | ❌ | ✅ Qwen3:8b, DeepSeek-R1 | ✅ |
+| Local Models | ❌ | ✅ Qwen3:8b | ✅ |
 | Data Collection | Sync only | ✅ **Async-first (78% faster)** | ✅ |
 | URL Pre-filtering | ❌ | ✅ Skip cached URLs | ✅ |
 | Concurrent Processing | ❌ | ✅ 20+ async requests | ✅ |

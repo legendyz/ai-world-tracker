@@ -39,7 +39,7 @@
 
 ### LLM 集成
 - **多提供商支持**：Ollama（免费、本地）、Azure OpenAI
-- **本地模型**：通过 Ollama 使用 Qwen3:8b、DeepSeek-R1:14b - 完全免费
+- **本地模型**：通过 Ollama 使用 Qwen3:8b - 完全免费
 - **GPU 加速**：自动检测 NVIDIA (CUDA)、AMD (ROCm)、Apple Silicon (Metal)
 - **并发处理**：3-6 线程并行处理提升速度
 - **自动降级**：LLM 不可用时优雅降级到规则分类
@@ -517,7 +517,7 @@ logging:
 
 | 提供商 | 模型 | 费用 | 配置方式 |
 |--------|------|------|----------|
-| Ollama | qwen3:8b, deepseek-r1:14b | 免费 | `ollama pull qwen3:8b` |
+| Ollama | qwen3:8b | 免费 | `ollama pull qwen3:8b` |
 | Azure OpenAI | gpt-4o-mini, gpt-4o | 付费 | 通过菜单配置（选项 3） |
 
 ### 环境变量
@@ -714,7 +714,7 @@ LLM 增强分类器提供语义理解能力：
 |------|----------------------------|-----------------------------------|------------------|
 | 分类方式 | 规则分类 | LLM + 规则降级 | 待定 |
 | LLM 支持 | ❌ | ✅ Ollama/Azure OpenAI | ✅ |
-| 本地模型 | ❌ | ✅ Qwen3:8b, DeepSeek-R1 | ✅ |
+| 本地模型 | ❌ | ✅ Qwen3:8b | ✅ |
 | 数据采集 | 仅同步 | ✅ **异步优先（快 78%）** | ✅ |
 | URL 预过滤 | ❌ | ✅ 跳过已缓存 URL | ✅ |
 | 并发处理 | ❌ | ✅ 20+ 异步请求 | ✅ |
