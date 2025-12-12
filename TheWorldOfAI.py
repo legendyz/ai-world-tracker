@@ -58,7 +58,8 @@ def _load_data_paths():
                 data_config = config.get('data', {})
                 exports_dir = data_config.get('exports_dir', exports_dir)
                 cache_dir = data_config.get('cache_dir', cache_dir)
-    except Exception:
+    except (OSError, yaml.YAMLError, KeyError) as e:
+        # 配置文件读取失败，使用默认值
         pass
     
     # 确保目录存在
@@ -203,7 +204,7 @@ class AIWorldTracker:
         Args:
             clear_cache: 是否在初始化前强制清除缓存文件
         """
-        if self.classification_mode == 'llm' and LLM_AVAILABLE:
+        if self.classification_mode == 'llm' and LLM_AVAILABLE and LLMClassifier is not None:
             try:
                 # 强制清除缓存文件（如果需要）
                 if clear_cache:
@@ -232,14 +233,21 @@ class AIWorldTracker:
                 self._save_user_config()
     
     def _force_clear_llm_cache(self):
-        """强制清除LLM分类缓存文件"""
+        """强制清除LLM分类缓存文件和内存缓存"""
         cache_file = os.path.join(DATA_CACHE_DIR, 'llm_classification_cache.json')
         try:
+            # 1. 清除磁盘缓存文件
             if os.path.exists(cache_file):
                 os.remove(cache_file)
                 log.success(t('llm_cache_force_cleared'))
             else:
                 log.info(t('llm_cache_not_found'), emoji="ℹ️")
+            
+            # 2. 清除内存缓存（如果LLM分类器已初始化）
+            if self.llm_classifier:
+                self.llm_classifier.cache.clear()
+                self.llm_classifier.stats['cache_hits'] = 0
+                log.success("✅ 已清空LLM分类器内存缓存")
         except Exception as e:
             log.error(t('llm_cache_clear_error', error=str(e)))
     
@@ -610,10 +618,18 @@ class AIWorldTracker:
         
         处理流程：
         1. 加载历史数据（已分类的）
-        2. 采集新数据（采集器有URL/标题缓存，避免重复采集）
-        3. 合并历史数据和新采集数据（去重）
+        2. 采集新数据（采集器负责去重：URL预过滤 + 指纹去重 + 语义去重 + 历史缓存过滤）
+        3. 直接合并历史数据和新采集数据（采集器已完成去重，无需再次去重）
         4. 将合并后的全部数据送到分类器（分类器有自己的缓存，避免重复分类）
         5. 输出完整数据集
+        
+        去重职责说明：
+        - 采集器(DataCollector): 负责所有去重工作
+          * URL预过滤: 采集时跳过历史缓存中的URL
+          * 指纹去重: MD5(URL+标题) 快速去重
+          * 语义去重: Jaccard相似度检测相似标题
+          * 历史缓存: collection_history_cache.json 持久化
+        - 分类器: 仅负责分类结果缓存，避免重复调用LLM
         """
         import time
         start_time = time.time()
@@ -623,15 +639,13 @@ class AIWorldTracker:
         
         # 保存历史数据用于后续合并
         history_data = self.data.copy() if self.data else []
-        history_urls = {item.get('url') for item in history_data if item.get('url')}
-        history_titles = {item.get('title') for item in history_data if item.get('title')}
         
-        # 步骤1: 数据采集（采集器有自己的缓存，避免重复网络请求）
+        # 步骤1: 数据采集（采集器负责全部去重工作）
         step_start = time.time()
         log.step(1, 5, t('step_collect'))
         raw_data = self.collector.collect_all()
         
-        # 合并所有新采集的数据
+        # 合并所有新采集的数据（采集器已完成去重，直接合并）
         new_items = []
         for category, items in raw_data.items():
             new_items.extend(items)
@@ -639,27 +653,11 @@ class AIWorldTracker:
         timing_stats['data_collection'] = round(time.time() - step_start, 1)
         log.data(t('collected_items', count=len(new_items)))
         
-        # 步骤2: 合并历史数据和新采集数据（去重）
-        # 先将新数据与历史数据去重合并
-        merged_items = history_data.copy()
-        truly_new_count = 0
+        # 步骤2: 直接合并历史数据和新采集数据
+        # 注意: 采集器已通过历史缓存过滤确保new_items与历史数据不重复
+        merged_items = history_data + new_items
         
-        for item in new_items:
-            item_url = item.get('url', '')
-            item_title = item.get('title', '')
-            # 检查是否与历史数据重复
-            is_duplicate = (item_url and item_url in history_urls) or \
-                          (item_title and item_title in history_titles)
-            if not is_duplicate:
-                merged_items.append(item)
-                truly_new_count += 1
-                # 更新去重集合
-                if item_url:
-                    history_urls.add(item_url)
-                if item_title:
-                    history_titles.add(item_title)
-        
-        log.dual_info(f"📊 Merged: {len(history_data)} history + {truly_new_count} new = {len(merged_items)} items")
+        log.dual_info(f"📊 Merged: {len(history_data)} history + {len(new_items)} new = {len(merged_items)} items")
         
         # 步骤3: 内容分类（分类器有自己的缓存，已分类的直接返回缓存结果）
         step_start = time.time()
@@ -877,6 +875,10 @@ class AIWorldTracker:
             selected_model = models[0]
         
         # 初始化LLM分类器
+        if not LLM_AVAILABLE or LLMClassifier is None:
+            log.dual_error("LLM classifier not available")
+            return
+            
         self.classification_mode = 'llm'
         self.llm_provider = 'ollama'
         self.llm_model = selected_model
@@ -988,6 +990,10 @@ class AIWorldTracker:
             log.dual_success("✅ 连接测试成功！" if is_zh else "✅ Connection test successful!")
         
         # 创建分类器
+        if not LLM_AVAILABLE or LLMClassifier is None:
+            log.dual_error("LLM classifier not available")
+            return
+            
         self.classification_mode = 'llm'
         self.llm_provider = 'azure_openai'
         self.llm_model = deployment_name
@@ -1065,8 +1071,9 @@ class AIWorldTracker:
             if client is not None:
                 try:
                     client.close()
-                except Exception:
-                    pass  # 忽略关闭时的错误
+                except (OSError, RuntimeError) as e:
+                    # 关闭失败，记录但不影响结果
+                    log.debug(f"Client close error: {e}")
 
     def _classify_data(self, items: list) -> list:
         """根据当前模式分类数据"""
@@ -1605,7 +1612,8 @@ def main():
         print("\n")
         try:
             log.warning(t('user_interrupted'))
-        except:
+        except (ImportError, KeyError) as e:
+            # i18n模块未加载或翻译键不存在
             print("⚠️ 用户中断程序")
     except Exception as e:
         print(f"\n" + t('program_error', error=str(e)))

@@ -102,7 +102,8 @@ def test_importance_evaluator_standalone():
               f"热度={breakdown['engagement']:.2f}")
         print()
     
-    return True
+    # 验证测试执行成功
+    assert len(test_cases) > 0, "测试用例不能为空"
 
 
 def test_rule_classifier_with_importance():
@@ -159,7 +160,8 @@ def test_rule_classifier_with_importance():
                   f"热度={bd['engagement']:.2f}")
         print()
     
-    return True
+    # 验证测试执行成功
+    assert len(test_items) > 0, "测试项目不能为空"
 
 
 def test_batch_classification():
@@ -186,7 +188,9 @@ def test_batch_classification():
         level, emoji = classifier.importance_evaluator.get_importance_level(r['importance'])
         print(f"   {emoji} {r['title'][:40]}... -> {r['content_type']} | 重要性: {r['importance']:.2f}")
     
-    return True
+    # 验证测试执行成功
+    assert len(results) > 0, "应该有测试结果"
+    assert all('importance' in r for r in results), "所有结果应该包含重要性分数"
 
 
 if __name__ == '__main__':

@@ -3,7 +3,7 @@ LLM增强分类器 - LLM Classifier
 使用大语言模型进行智能内容分类
 
 支持的提供商:
-- Ollama (本地): Qwen3:8b, Qwen3:4b, Llama3.2:3b
+- Ollama (本地): Qwen3:8b, Llama3.2:3b, Mistral:7b
 - Azure OpenAI: GPT-4o-mini, GPT-4o
 
 功能特性:
@@ -148,7 +148,8 @@ def _get_cache_dir():
             with open('config.yaml', 'r', encoding='utf-8') as f:
                 cfg = yaml.safe_load(f)
                 cache_dir = cfg.get('data', {}).get('cache_dir', cache_dir)
-    except Exception:
+    except (OSError, yaml.YAMLError, KeyError) as e:
+        # 配置加载失败，使用默认值
         pass
     os.makedirs(cache_dir, exist_ok=True)
     return cache_dir
@@ -341,7 +342,6 @@ class OllamaOptions:
 AVAILABLE_MODELS = {
     LLMProvider.OLLAMA: {
         'qwen3:8b': {'name': 'Qwen3 8B', 'description': '阿里通义千问，中文能力强，推荐使用'},
-        'qwen3:4b': {'name': 'Qwen3 4B', 'description': '轻量模型，CPU友好'},
         'llama3.2:3b': {'name': 'Llama 3.2 3B', 'description': 'Meta轻量模型，速度最快'},
         'mistral:7b': {'name': 'Mistral 7B', 'description': '性能均衡，英文能力强'},
     },
@@ -705,10 +705,47 @@ class LLMClassifier:
         except Exception as e:
             log.error(t('llm_cache_save_failed', error=str(e)))
     
+    def clear_cache(self):
+        """清除缓存（文件和内存）"""
+        # 清除内存缓存
+        self.cache.clear()
+        self.stats['cache_hits'] = 0
+        
+        # 删除缓存文件
+        if os.path.exists(self.cache_file):
+            try:
+                os.remove(self.cache_file)
+                log.dual_success("✅ LLM分类缓存已清除（文件+内存）")
+            except Exception as e:
+                log.error(f"❌ 删除缓存文件失败: {e}")
+    
     def _get_content_hash(self, item: Dict) -> str:
-        """计算内容的MD5哈希"""
+        """计算内容的MD5哈希（不含模型信息）"""
         content = f"{item.get('title', '')}|{item.get('summary', '')}|{item.get('source', '')}"
         return hashlib.md5(content.encode()).hexdigest()
+    
+    def _get_current_model_identifier(self) -> str:
+        """获取当前模型的标识符"""
+        return f"{self.provider.value}/{self.model}"
+    
+    def _get_cache_key(self, item: Dict) -> str:
+        """
+        获取缓存key（复合key：内容哈希 + 模型标识）
+        
+        多模型缓存共存设计：
+        - 同一内容被不同模型分类后，会有多条缓存记录
+        - 切换模型时，如果该模型之前分类过同样的内容，可以直接从缓存读取
+        - 不会覆盖其他模型的分类结果
+        
+        Args:
+            item: 内容项
+            
+        Returns:
+            格式: "{content_hash}:{model_identifier}"
+        """
+        content_hash = self._get_content_hash(item)
+        model_id = self._get_current_model_identifier()
+        return f"{content_hash}:{model_id}"
     
     def _build_classification_prompt(self, item: Dict) -> str:
         """构建分类提示词（与批量分类规则统一）"""
@@ -1237,22 +1274,21 @@ START from id=1, classify ALL {len(items)} items:"""
         self.stats['total_calls'] += 1
         
         classified = item.copy()
-        content_hash = self._get_content_hash(item)
+        cache_key = self._get_cache_key(item)  # 复合key：content_hash:model_id
         
-        # 检查缓存
-        if use_cache and self.enable_cache and content_hash in self.cache:
+        # 检查缓存（多模型共存：key已包含模型信息，无需额外验证）
+        if use_cache and self.enable_cache and cache_key in self.cache:
+            cached = self.cache[cache_key]
             self.stats['cache_hits'] += 1
-            cached = self.cache[content_hash]
             classified.update(cached)
             classified['from_cache'] = True
             
             # 重要性分数始终重新计算（因为时效性会随时间变化）
-            # 不从缓存读取 importance，确保时效性分数是最新的
             importance, breakdown = self.importance_evaluator.calculate_importance(
                 item,
                 {'content_type': classified.get('content_type', 'news'), 
                  'confidence': classified.get('confidence', 0.5),
-                 'ai_relevance': classified.get('ai_relevance', 0.7)}  # 包含AI相关性
+                 'ai_relevance': classified.get('ai_relevance', 0.7)}
             )
             classified['importance'] = importance
             classified['importance_breakdown'] = breakdown
@@ -1304,9 +1340,9 @@ START from id=1, classify ALL {len(items)} items:"""
             level, _ = self.importance_evaluator.get_importance_level(importance)
             classified['importance_level'] = level
             
-            # 保存到缓存（不保存importance，因为时效性会变化，需要每次重新计算）
+            # 保存到缓存（多模型共存：不同模型的结果分别存储）
             if self.enable_cache:
-                self.cache[content_hash] = {
+                self.cache[cache_key] = {
                     'content_type': classified['content_type'],
                     'confidence': classified['confidence'],
                     'ai_relevance': classified['ai_relevance'],  # 缓存AI相关性
@@ -1388,29 +1424,43 @@ START from id=1, classify ALL {len(items)} items:"""
         """
         total = len(items)
         
+        # 重置统计数据（每次批量分类开始时清零，确保统计反映当前批次）
+        self.stats = {
+            'total_calls': 0,
+            'cache_hits': 0,
+            'llm_calls': 0,
+            'fallback_calls': 0,
+            'errors': 0,
+            'fallback_details': []
+        }
+        
         # 先检查缓存，分离已缓存和未缓存的内容
+        # 多模型共存设计：缓存key已包含模型信息，无需额外验证模型匹配
         cached_items = []
         uncached_items = []
         uncached_indices = []
         
+        current_model = self._get_current_model_identifier()
+        
         for i, item in enumerate(items):
-            content_hash = self._get_content_hash(item)
-            if self.enable_cache and content_hash in self.cache:
+            cache_key = self._get_cache_key(item)  # 复合key：content_hash:model_id
+            if self.enable_cache and cache_key in self.cache:
+                cached = self.cache[cache_key]
                 self.stats['cache_hits'] += 1
                 self.stats['total_calls'] += 1
                 classified = item.copy()
-                classified.update(self.cache[content_hash])
+                classified.update(cached)
                 classified['from_cache'] = True
                 # 确保有 classified_by 字段（兼容旧缓存）
                 if 'classified_by' not in classified:
-                    classified['classified_by'] = 'llm:cached'
+                    classified['classified_by'] = f'llm:cached:{current_model}'
                 
                 # 重要性分数始终重新计算（因为时效性会随时间变化）
                 importance, breakdown = self.importance_evaluator.calculate_importance(
                     item,
                     {'content_type': classified.get('content_type', 'news'), 
                      'confidence': classified.get('confidence', 0.5),
-                     'ai_relevance': classified.get('ai_relevance', 0.7)}  # 包含AI相关性
+                     'ai_relevance': classified.get('ai_relevance', 0.7)}
                 )
                 classified['importance'] = importance
                 classified['importance_breakdown'] = breakdown
@@ -1520,10 +1570,10 @@ START from id=1, classify ALL {len(items)} items:"""
                     level, _ = self.importance_evaluator.get_importance_level(importance)
                     classified['importance_level'] = level
                     
-                    # 缓存（不保存importance，因为时效性会变化）
-                    content_hash = self._get_content_hash(item)
+                    # 缓存（多模型共存：不保存importance，因为时效性会变化）
+                    cache_key = self._get_cache_key(item)
                     if self.enable_cache:
-                        self.cache[content_hash] = {
+                        self.cache[cache_key] = {
                             'content_type': classified['content_type'],
                             'confidence': classified['confidence'],
                             'ai_relevance': classified['ai_relevance'],  # 缓存AI相关性
@@ -1571,10 +1621,10 @@ START from id=1, classify ALL {len(items)} items:"""
                         level, _ = self.importance_evaluator.get_importance_level(importance)
                         classified['importance_level'] = level
                         
-                        # 缓存（不保存importance）
-                        content_hash = self._get_content_hash(item)
+                        # 缓存（多模型共存：不保存importance）
+                        cache_key = self._get_cache_key(item)
                         if self.enable_cache:
-                            self.cache[content_hash] = {
+                            self.cache[cache_key] = {
                                 'content_type': classified['content_type'],
                                 'confidence': classified['confidence'],
                                 'ai_relevance': classified['ai_relevance'],  # 缓存AI相关性
@@ -1984,7 +2034,7 @@ def check_ollama_status() -> Dict:
             result['models'] = [model['name'] for model in data.get('models', [])]
             
             # 推荐模型优先级
-            preferred = ['qwen3:8b', 'qwen3:4b', 'llama3.2:3b', 'mistral:7b']
+            preferred = ['qwen3:8b', 'llama3.2:3b', 'mistral:7b']
             for model in preferred:
                 if model in result['models']:
                     result['recommended'] = model

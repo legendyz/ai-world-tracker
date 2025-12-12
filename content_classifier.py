@@ -756,10 +756,10 @@ class ContentClassifier:
     
     def classify_batch(self, items: List[Dict]) -> List[Dict]:
         """
-        批量分类（带缓存检测）
+        批量分类
         
-        对于已经分类过的数据（有 classified_by 字段），直接保留原分类结果。
-        这确保历史数据不会被重复分类，同时保持与 LLM 分类结果的一致性。
+        对所有输入数据进行完整的规则分类。规则分类器速度很快（纯内存操作），
+        重新分类可以确保分类规则更新后所有数据都能反映最新结果。
         
         Args:
             items: 内容项列表
@@ -769,26 +769,11 @@ class ContentClassifier:
         """
         total = len(items)
         
-        # 分离已分类和未分类的数据
-        classified_items = []
-        unclassified_items = []
-        
-        for item in items:
-            # 检查是否已分类（有 classified_by 字段且有 content_type）
-            if item.get('classified_by') and item.get('content_type'):
-                # 已分类，直接保留
-                classified_items.append(item.copy())
-            else:
-                unclassified_items.append(item)
-        
-        cached_count = len(classified_items)
-        need_classify_count = len(unclassified_items)
-        
         log.dual_rule(f"正在对 {total} 条内容进行规则分类...")
-        log.dual_data(f"已分类(跳过): {cached_count} | 需分类: {need_classify_count}")
         
-        # 只对未分类的数据进行分类
-        for item in unclassified_items:
+        # 对所有数据进行分类
+        classified_items = []
+        for item in items:
             classified_items.append(self.classify_item(item))
         
         # 统计

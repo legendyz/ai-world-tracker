@@ -87,6 +87,7 @@ class CollectorConfig:
     news_count: int = 25
     max_total: int = 100
     timeout: int = 30
+    data_retention_days: int = 7  # 数据采集时间窗口（天）
 
 
 @dataclass 
@@ -190,6 +191,7 @@ class ConfigManager:
                 developer_count=self._get_yaml_value('collector.developer_count', 20),
                 news_count=self._get_yaml_value('collector.news_count', 25),
                 max_total=self._get_yaml_value('collector.max_total', 100),
+                data_retention_days=self._get_yaml_value('collector.data_retention_days', 7),
             ),
             output_dir=self._get_yaml_value('output.report_dir', '.'),
             web_output_dir=self._get_yaml_value('output.web_dir', 'web_output'),
@@ -216,6 +218,17 @@ class ConfigManager:
     def config(self) -> AppConfig:
         """获取配置"""
         return self._config
+    
+    def __getattr__(self, name: str) -> Any:
+        """透传属性访问到内部配置对象
+        
+        允许直接使用 config.collector 而不是 config.config.collector
+        """
+        if name.startswith('_'):
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        if self._config is not None and hasattr(self._config, name):
+            return getattr(self._config, name)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
     
     def get(self, key: str, default: Any = None) -> Any:
         """获取配置项"""
