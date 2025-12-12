@@ -169,6 +169,9 @@ class AIDataCollector:
         self.async_config = _load_async_config()
         log.config("📡 Collector mode: Async (aiohttp)")
         
+        # 数据采集时间窗口（天）- 从配置读取
+        self.data_retention_days = config.collector.data_retention_days
+        
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
@@ -286,7 +289,7 @@ class AIDataCollector:
                 log.dual_info(f"    ... 及其他 {len(failures) - 3} 个", emoji="")
     
     def _load_history_cache(self) -> Dict:
-        """加载采集历史缓存（URL自动规范化）"""
+        """加载采集历史缓存（支持URL、标题、规范化标题）"""
         try:
             if os.path.exists(self.history_cache_file):
                 with open(self.history_cache_file, 'r', encoding='utf-8') as f:
@@ -300,18 +303,27 @@ class AIDataCollector:
                                 last_time = datetime.fromisoformat(last_updated)
                                 if (datetime.now() - last_time).days > 7:
                                     log.warning(t('dc_cache_expired'))
-                                    return {'urls': set(), 'titles': set(), 'last_updated': ''}
+                                    return {'urls': set(), 'titles': set(), 'normalized_titles': set(), 'last_updated': ''}
                             except (ValueError, TypeError):
                                 pass
                         # 转换为 set 以加速查找，同时规范化URL
-                        # 规范化确保旧缓存中的URL变体能正确匹配
                         cache['urls'] = set(self._normalize_url(url) for url in cache['urls'])
                         cache['titles'] = set(cache['titles'])
+                        # 加载规范化标题（新字段，兼容旧缓存）
+                        cache['normalized_titles'] = set(cache.get('normalized_titles', []))
+                        
+                        # 如果是旧缓存（没有normalized_titles），自动生成
+                        if not cache['normalized_titles'] and cache['titles']:
+                            cache['normalized_titles'] = set(
+                                self._normalize_title_for_cache(t) for t in cache['titles'] if t
+                            )
+                            log.file_only(f"自动生成规范化标题缓存: {len(cache['normalized_titles'])} 条")
+                        
                         log.data(t('dc_cache_loaded', url_count=len(cache['urls']), title_count=len(cache['titles'])))
                         return cache
         except Exception as e:
             log.error(t('dc_cache_load_failed', error=str(e)))
-        return {'urls': set(), 'titles': set(), 'last_updated': ''}
+        return {'urls': set(), 'titles': set(), 'normalized_titles': set(), 'last_updated': ''}
     
     def _save_history_cache(self):
         """保存采集历史缓存"""
@@ -320,6 +332,7 @@ class AIDataCollector:
             cache_to_save = {
                 'urls': list(self.history_cache['urls']),
                 'titles': list(self.history_cache['titles']),
+                'normalized_titles': list(self.history_cache.get('normalized_titles', set())),
                 'last_updated': datetime.now().isoformat()
             }
             with open(self.history_cache_file, 'w', encoding='utf-8') as f:
@@ -328,40 +341,109 @@ class AIDataCollector:
             log.error(t('dc_cache_save_failed', error=str(e)))
     
     def _is_in_history(self, item: Dict) -> bool:
-        """检查项目是否在历史缓存中（URL规范化匹配 或 标题精确匹配）"""
+        """
+        检查项目是否在历史缓存中
+        
+        匹配策略（按优先级）：
+        1. URL规范化匹配（处理尾部斜杠、跟踪参数等）
+        2. 标题精确匹配
+        3. 规范化标题匹配（用于处理标题微小变化）
+        
+        对于不稳定URL源（如Google News），主要依赖标题匹配
+        """
         url = item.get('url', '')
         title = item.get('title', '')
         
-        # URL规范化后匹配（处理尾部斜杠、跟踪参数等变体）
-        if url:
+        # 检查是否为不稳定URL源（这些源的URL可能每次都不同）
+        unstable_url_sources = [
+            'news.google.com/rss/articles/',  # Google News重定向URL
+            'feedburner.com',
+            '/redirect/',
+        ]
+        is_unstable_url = url and any(s in url for s in unstable_url_sources)
+        
+        # 策略1: URL规范化匹配（对于稳定URL源优先使用）
+        if url and not is_unstable_url:
             normalized_url = self._normalize_url(url)
             if normalized_url in self.history_cache['urls']:
                 return True
         
-        # 标题精确匹配
+        # 策略2: 标题精确匹配
         if title and title in self.history_cache['titles']:
             return True
+        
+        # 策略3: 规范化标题匹配（处理标题微小变化）
+        if title:
+            normalized_title = self._normalize_title_for_cache(title)
+            if normalized_title and normalized_title in self.history_cache.get('normalized_titles', set()):
+                return True
+        
         return False
     
+    def _normalize_title_for_cache(self, title: str) -> str:
+        """
+        为缓存目的规范化标题
+        
+        处理规则：
+        1. 小写化
+        2. 移除来源后缀（如 " - TechCrunch"）
+        3. 移除标点符号
+        4. 移除多余空格
+        5. 只保留前60个字符（避免标题截断导致的差异）
+        
+        Args:
+            title: 原始标题
+            
+        Returns:
+            规范化后的标题
+        """
+        import re
+        if not title:
+            return ''
+        
+        # 小写化
+        normalized = title.lower()
+        
+        # 移除来源后缀 (- Source, | Source, — Source)
+        normalized = re.sub(r'\s*[-|—]\s*[a-z][a-z\s&.\']+$', '', normalized)
+        
+        # 移除标点符号（保留字母、数字、空格）
+        normalized = re.sub(r'[^\w\s]', ' ', normalized)
+        
+        # 移除多余空格
+        normalized = ' '.join(normalized.split())
+        
+        # 截取前60字符（避免标题末尾差异）
+        normalized = normalized[:60].strip()
+        
+        return normalized
+    
     def _add_to_history(self, item: Dict):
-        """将项目添加到历史缓存（带大小限制，URL自动规范化）"""
+        """
+        将项目添加到历史缓存（带大小限制）
+        
+        缓存内容：
+        1. 规范化URL
+        2. 原始标题
+        3. 规范化标题（用于模糊匹配）
+        """
         url = item.get('url', '')
         title = item.get('title', '')
         
         # 检查缓存大小，超出限制时清理旧条目
         max_size = self.async_config.max_cache_size
         
+        # 添加规范化URL
         if url:
-            # 规范化URL后再添加到缓存
             normalized_url = self._normalize_url(url)
             if len(self.history_cache['urls']) >= max_size:
-                # 转换为list移除最旧的20%条目，再转回set
                 urls_list = list(self.history_cache['urls'])
                 remove_count = max_size // 5  # 移除20%
                 self.history_cache['urls'] = set(urls_list[remove_count:])
                 log.file_only(f"缓存清理: URLs {len(urls_list)} → {len(self.history_cache['urls'])}")
             self.history_cache['urls'].add(normalized_url)
         
+        # 添加原始标题
         if title:
             if len(self.history_cache['titles']) >= max_size:
                 titles_list = list(self.history_cache['titles'])
@@ -369,6 +451,17 @@ class AIDataCollector:
                 self.history_cache['titles'] = set(titles_list[remove_count:])
                 log.file_only(f"缓存清理: Titles {len(titles_list)} → {len(self.history_cache['titles'])}")
             self.history_cache['titles'].add(title)
+            
+            # 添加规范化标题（新增）
+            normalized_title = self._normalize_title_for_cache(title)
+            if normalized_title:
+                if 'normalized_titles' not in self.history_cache:
+                    self.history_cache['normalized_titles'] = set()
+                if len(self.history_cache['normalized_titles']) >= max_size:
+                    nt_list = list(self.history_cache['normalized_titles'])
+                    remove_count = max_size // 5
+                    self.history_cache['normalized_titles'] = set(nt_list[remove_count:])
+                self.history_cache['normalized_titles'].add(normalized_title)
     
     def _filter_by_history(self, all_data: Dict[str, List[Dict]], 
                            filter_enabled: bool = True) -> Tuple[Dict[str, List[Dict]], Dict[str, int], Dict[str, int]]:
@@ -440,7 +533,7 @@ class AIDataCollector:
     
     def clear_history_cache(self):
         """清除采集历史缓存"""
-        self.history_cache = {'urls': set(), 'titles': set(), 'last_updated': ''}
+        self.history_cache = {'urls': set(), 'titles': set(), 'normalized_titles': set(), 'last_updated': ''}
         if os.path.exists(self.history_cache_file):
             os.remove(self.history_cache_file)
         log.success(t('dc_cache_cleared'))
@@ -847,9 +940,9 @@ class AIDataCollector:
             return text[:max_length] + '...' if len(text) > max_length else text
     
     def _is_recent(self, date_val) -> bool:
-        """检查日期是否在最近30天内"""
+        """检查日期是否在最近N天内（由data_retention_days配置决定）"""
         try:
-            cutoff_date = datetime.now() - timedelta(days=30)
+            cutoff_date = datetime.now() - timedelta(days=self.data_retention_days)
             
             if isinstance(date_val, datetime):
                 # 处理时区感知的时间
@@ -1175,9 +1268,9 @@ class AIDataCollector:
         """异步采集GitHub热门项目（支持URL预过滤和数量限制）"""
         projects = []
         try:
-            last_month = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+            cutoff_date = (datetime.now() - timedelta(days=self.data_retention_days)).strftime('%Y-%m-%d')
             url = "https://api.github.com/search/repositories"
-            query = f'(machine-learning OR artificial-intelligence OR deep-learning OR llm) created:>{last_month}'
+            query = f'(machine-learning OR artificial-intelligence OR deep-learning OR llm) created:>{cutoff_date}'
             
             params = {
                 'q': query,

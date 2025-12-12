@@ -8,6 +8,7 @@ collector:
   developer_count: 20
   news_count: 25
   max_total: 100
+  data_retention_days: 7    # 数据采集时间窗口（天）- 只采集最近N天的数据
   parallel_enabled: true    # 是否启用并行采集（同步模式）
   parallel_workers: 6       # 并行采集的最大线程数（同步模式）
   async_mode: true          # 是否使用异步模式（推荐开启，性能更好）

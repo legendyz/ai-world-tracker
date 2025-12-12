@@ -87,6 +87,7 @@ class CollectorConfig:
     news_count: int = 25
     max_total: int = 100
     timeout: int = 30
+    data_retention_days: int = 7  # 数据采集时间窗口（天）
 
 
 @dataclass 
@@ -190,6 +191,7 @@ class ConfigManager:
                 developer_count=self._get_yaml_value('collector.developer_count', 20),
                 news_count=self._get_yaml_value('collector.news_count', 25),
                 max_total=self._get_yaml_value('collector.max_total', 100),
+                data_retention_days=self._get_yaml_value('collector.data_retention_days', 7),
             ),
             output_dir=self._get_yaml_value('output.report_dir', '.'),
             web_output_dir=self._get_yaml_value('output.web_dir', 'web_output'),
