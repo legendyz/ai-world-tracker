@@ -219,6 +219,17 @@ class ConfigManager:
         """获取配置"""
         return self._config
     
+    def __getattr__(self, name: str) -> Any:
+        """透传属性访问到内部配置对象
+        
+        允许直接使用 config.collector 而不是 config.config.collector
+        """
+        if name.startswith('_'):
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        if self._config is not None and hasattr(self._config, name):
+            return getattr(self._config, name)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+    
     def get(self, key: str, default: Any = None) -> Any:
         """获取配置项"""
         keys = key.split('.')
