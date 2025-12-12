@@ -24,10 +24,11 @@
 
 ### Core Capabilities
 - **🤖 Multi-Source Data Collection**: Automatically scrapes data from arXiv (latest papers), GitHub (trending projects), tech media (TechCrunch, The Verge, Wired), and AI blogs (OpenAI, Google AI, Hugging Face)
-- **⚡ High-Performance Async Collection**: True async architecture with aiohttp (78% faster than sync mode)
-  - 20+ concurrent requests with smart rate limiting
-  - URL pre-filtering to skip already-cached content
-  - Automatic fallback to sync mode if async unavailable
+- **⚡ High-Performance Pure Async Collection**: True async architecture with asyncio + aiohttp
+  - 20+ concurrent requests with smart rate limiting (3 per host)
+  - URL pre-filtering with normalized URL deduplication
+  - 3-tier deduplication: MD5 fingerprint + Semantic similarity + String similarity
+  - 7-day history cache with automatic expiration
 - **🧠 Intelligent Classification**: Dual-mode classification system
   - **LLM Mode**: Semantic understanding via Ollama/Azure OpenAI (95%+ accuracy)
   - **Rule Mode**: Keyword-based pattern recognition (fast, no dependencies)
@@ -292,7 +293,7 @@ ai-world-tracker/
 ## 📰 Data Sources
 
 ### Research Papers
-- arXiv (cs.AI, cs.LG, cs.CV, cs.CL)
+- arXiv API (cs.AI, cs.LG, cs.CV, cs.CL, cs.NE, stat.ML)
 
 ### Tech News Media
 - TechCrunch AI
@@ -311,17 +312,31 @@ ai-world-tracker/
 - InfoQ China
 
 ### Developer Resources
+- GitHub Trending (AI/ML repositories)
+- Hugging Face (models & papers)
 - GitHub Blog
 - Hugging Face Blog
 - OpenAI Blog
 - Google AI Blog
+- Anthropic Blog
+- DeepMind Blog
 
 ### Community & Leaders
 - Product Hunt AI
 - Hacker News AI (via Official API)
-- Sam Altman's Blog
-- Andrej Karpathy's Blog
-- Lex Fridman Podcast
+- **AI Leaders Tracking**:
+  - Sam Altman (OpenAI CEO)
+  - Satya Nadella (Microsoft CEO)
+  - Sundar Pichai (Google CEO)
+  - Jensen Huang (NVIDIA CEO)
+  - Mark Zuckerberg (Meta CEO)
+  - Elon Musk (xAI/Tesla CEO)
+  - Demis Hassabis (Google DeepMind CEO)
+  - Yann LeCun (Meta Chief AI Scientist)
+  - Geoffrey Hinton (AI Pioneer)
+  - Andrew Ng (AI Fund Managing General Partner)
+  - Kai-Fu Lee (01.AI CEO)
+  - Robin Li (Baidu CEO)
 
 ## 🔄 Data Processing Pipeline
 
@@ -355,18 +370,18 @@ ai-world-tracker/
 
 ### Data Collector Module
 
-The collector supports two modes with automatic selection:
+The collector uses **pure async architecture** for maximum performance:
 
-**Async Mode (Default - Recommended)**
-- Uses `asyncio` + `aiohttp` for true async I/O
-- 20+ concurrent requests with smart rate limiting
-- URL pre-filtering to skip cached content
-- **78% faster** than sync mode
+**Async Mode (asyncio + aiohttp)**
+- True async I/O with `asyncio` + `aiohttp`
+- 20 concurrent requests globally, 3 per host (smart rate limiting)
+- Real-time progress tracking with `asyncio.as_completed()`
+- Automatic retry with exponential backoff
 
-**Sync Mode (Fallback)**
-- Uses `requests` + `ThreadPoolExecutor`
-- 6 parallel threads
-- Compatible with environments without async support
+**3-Tier Deduplication System**
+- **MD5 Fingerprint**: Hash-based exact duplicate detection
+- **Semantic Similarity**: Jaccard similarity on normalized tokens (threshold: 0.6)
+- **String Similarity**: difflib SequenceMatcher for fuzzy matching (threshold: 0.85)
 
 | Data Type | Sources | Method | Default Count |
 |-----------|---------|--------|---------------|
@@ -378,11 +393,12 @@ The collector supports two modes with automatic selection:
 | Industry News | Global Tech Media | RSS | 25 items |
 
 **Features**:
-- **Dual-mode architecture**: Auto-selects async or sync based on environment
-- **URL pre-filtering**: Checks cache BEFORE making requests (not after)
-- **URL/title deduplication**: Avoids duplicate content
-- **7-day cache expiration**: Auto-cleanup of old entries
-- **AI relevance filtering**: Filters non-AI content early
+- **Pure async architecture**: All collection tasks run concurrently
+- **URL pre-filtering**: Normalized URL check before making requests
+- **Multi-tier deduplication**: MD5 + semantic + string similarity
+- **History cache**: URLs, titles, and normalized_titles with 7-day expiration
+- **AI relevance filtering**: Early filtering of non-AI content
+- **Configurable quotas**: Per-category limits for balanced collection
 
 ### Content Classification Module
 

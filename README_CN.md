@@ -24,10 +24,11 @@
 
 ### 基础能力
 - **🤖 多源数据采集**：自动从 arXiv（最新论文）、GitHub（热门项目）、科技媒体（TechCrunch、The Verge、Wired）以及 AI 博客（OpenAI、Google AI、Hugging Face）采集数据
-- **⚡ 高性能异步采集**：基于 aiohttp 的真正异步架构（比同步模式快 78%）
-  - 20+ 并发请求，智能限速
-  - URL 预过滤，跳过已缓存内容
-  - 异步不可用时自动降级到同步模式
+- **⚡ 高性能纯异步采集**：基于 asyncio + aiohttp 的纯异步架构
+  - 20+ 并发请求，智能限速（每主机最多 3 个）
+  - URL 预过滤，使用规范化 URL 去重
+  - 三层去重：MD5 指纹 + 语义相似度 + 字符串相似度
+  - 7 天历史缓存，自动过期清理
 - **🧠 智能分类**：双模式分类系统
   - **LLM 模式**：通过 Ollama/Azure OpenAI 进行语义理解（95%+ 准确率）
   - **规则模式**：基于关键词的模式识别（快速，无依赖）
@@ -293,7 +294,7 @@ ai-world-tracker/
 ## 📰 数据来源
 
 ### 研究论文
-- arXiv (cs.AI, cs.LG, cs.CV, cs.CL)
+- arXiv API (cs.AI, cs.LG, cs.CV, cs.CL, cs.NE, stat.ML)
 
 ### 科技新闻媒体
 - TechCrunch AI
@@ -312,17 +313,31 @@ ai-world-tracker/
 - InfoQ 中国
 
 ### 开发者资源
-- GitHub Blog
-- Hugging Face Blog
-- OpenAI Blog
-- Google AI Blog
+- GitHub Trending（AI/ML 热门仓库）
+- Hugging Face（模型与论文）
+- GitHub 博客
+- Hugging Face 博客
+- OpenAI 博客
+- Google AI 博客
+- Anthropic 博客
+- DeepMind 博客
 
 ### 社区与领袖
 - Product Hunt AI
 - Hacker News AI（使用官方 API）
-- Sam Altman 博客
-- Andrej Karpathy 博客
-- Lex Fridman 播客
+- **AI 领袖跟踪**：
+  - Sam Altman（OpenAI CEO）
+  - Satya Nadella（微软 CEO）
+  - Sundar Pichai（谷歌 CEO）
+  - Jensen Huang/黄仁勋（NVIDIA CEO）
+  - Mark Zuckerberg（Meta CEO）
+  - Elon Musk/马斯克（xAI/特斯拉 CEO）
+  - Demis Hassabis（Google DeepMind CEO）
+  - Yann LeCun/杨立昌（Meta 首席 AI 科学家）
+  - Geoffrey Hinton/辛顿（AI 先驱）
+  - Andrew Ng/吴恩达（AI Fund 管理合伙人）
+  - Kai-Fu Lee/李开复（01.AI CEO）
+  - Robin Li/李彦宏（百度 CEO）
 
 ## 🔄 数据处理流程
 
@@ -357,18 +372,18 @@ ai-world-tracker/
 
 ### 数据采集模块 (DataCollector)
 
-采集器支持两种模式，自动选择最优方案：
+采集器使用**纯异步架构**以实现最佳性能：
 
-**异步模式（默认推荐）**
+**异步模式 (asyncio + aiohttp)**
 - 使用 `asyncio` + `aiohttp` 实现真正的异步 I/O
-- 20+ 并发请求，智能限速
-- URL 预过滤，跳过已缓存内容
-- 比同步模式**快 78%**
+- 全局 20 个并发请求，每主机最多 3 个（智能限速）
+- 使用 `asyncio.as_completed()` 实时进度跟踪
+- 自动重试，指数退避策略
 
-**同步模式（兼容降级）**
-- 使用 `requests` + `ThreadPoolExecutor`
-- 6 个并行线程
-- 兼容不支持异步的环境
+**三层去重系统**
+- **MD5 指纹**：基于哈希的精确重复检测
+- **语义相似度**：基于规范化词元的 Jaccard 相似度（阈值：0.6）
+- **字符串相似度**：difflib SequenceMatcher 模糊匹配（阈值：0.85）
 
 | 数据类型 | 来源 | 采集方式 | 默认数量 |
 |----------|------|----------|----------|
@@ -380,11 +395,12 @@ ai-world-tracker/
 | 行业新闻 | 中外科技媒体 | RSS | 25 条 |
 
 **特点**：
-- **双模式架构**：根据环境自动选择异步或同步模式
-- **URL 预过滤**：在发送请求前检查缓存（不是事后检查）
-- **URL/标题去重**：避免重复内容
-- **7 天缓存过期**：自动清理旧条目
+- **纯异步架构**：所有采集任务并发执行
+- **URL 预过滤**：发送请求前进行规范化 URL 检查
+- **多层去重**：MD5 + 语义 + 字符串相似度
+- **历史缓存**：URL、标题和规范化标题，7 天过期
 - **AI 相关性过滤**：提前过滤非 AI 内容
+- **可配置配额**：按类别限制数量，确保均衡采集
 
 ### 内容分类模块
 
