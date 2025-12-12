@@ -8,15 +8,17 @@
 
 | Branch | Version | Description | Target Users |
 |--------|---------|-------------|--------------|
-| `main` | v2.0.3 | **Latest stable version** with full LLM integration | Production use |
-| `ai-world-tracker-v1` | v1.0 | First complete release with rule-based classification | Hobbyists & custom development |
-| `feature/data-collection-v2` | v2.1-beta | **Enhanced async data collection** (78% faster) | Contributors & testers |
+| `main` | v2.0 | **Latest stable version** with full LLM integration + async data collection | Production use |
+| `ai-world-tracker-v2` | v2.0 | Stable v2 release with async collection (78% faster) | Production use |
+| `ai-world-tracker-v1` | v1.0 | First complete release with rule-based classification | Learning & customization |
+| `ai-world-tracker-v3-developing` | v3.0-dev | **Next generation development** | Contributors & testers |
 
 ### Choosing the Right Branch
 
-- **Production Use**: Use `main` branch - fully tested with LLM-enhanced classification
+- **Production Use**: Use `main` branch - fully tested with LLM-enhanced classification and async collection
+- **Stable v2**: Use `ai-world-tracker-v2` - stable v2 release with all async improvements
 - **Learning/Customization**: Use `ai-world-tracker-v1` - simpler architecture, rule-based, easy to modify
-- **Contributing**: Use `feature/data-collection-v2` - latest async improvements and URL pre-filtering
+- **Contributing**: Use `ai-world-tracker-v3-developing` - next generation features in development
 
 ## ✨ Key Features
 
@@ -42,7 +44,7 @@
 - **Auto-Fallback**: Gracefully degrades to rule-based when LLM unavailable
 - **Resource Management**: Automatic model unloading on exit to free VRAM/memory
 
-### Data Collection Performance (v2.1-beta)
+### Data Collection Performance (v2.0)
 | Metric | Sync Mode | Async Mode | Improvement |
 |--------|-----------|------------|-------------|
 | Collection Time | ~147s | ~32s | **78% faster** |
@@ -693,27 +695,27 @@ Uses logarithmic normalization: `score = log(value + 1) / log(threshold_high + 1
 
 ## 🔧 Version Comparison
 
-| Feature | v1.0 (ai-world-tracker-v1) | v2.0.3 (main) | v2.1-beta (feature branch) |
-|---------|----------------------------|---------------|---------------------------|
-| Classification | Rule-based | LLM + Rule fallback | LLM + Rule fallback |
-| LLM Support | ❌ | ✅ Ollama/Azure OpenAI | ✅ Ollama/Azure OpenAI |
-| Local Models | ❌ | ✅ Qwen3:8b, DeepSeek-R1 | ✅ Qwen3:8b, DeepSeek-R1 |
-| Data Collection | Sync only | Sync + Async fallback | ✅ **Async-first (78% faster)** |
-| URL Pre-filtering | ❌ | ❌ | ✅ Skip cached URLs |
-| Concurrent Processing | ❌ | ✅ Multi-threaded (3-6) | ✅ 20+ async requests |
-| Smart Caching | ❌ | ✅ MD5-based | ✅ MD5-based |
-| GPU Acceleration | ❌ | ✅ Auto-detection | ✅ Auto-detection |
-| Unified Logging | ❌ | ✅ logger.py | ✅ logger.py |
-| Log Auto-Cleanup | ❌ | ✅ Configurable retention | ✅ Configurable retention |
-| Structured Data Dir | ❌ | ✅ data/exports, data/cache | ✅ data/exports, data/cache |
-| Test Organization | Scattered | ✅ tests/ directory | ✅ tests/ directory |
-| Bilingual UI | ❌ | ✅ Chinese/English | ✅ Chinese/English |
-| Resource Cleanup | ❌ | ✅ Auto unload LLM | ✅ Auto unload LLM |
-| Confidence Cap | ❌ | ✅ Cap for old content | ✅ Cap for old content |
-| Importance Evaluator | ❌ | ✅ 5-dimension scoring | ✅ 5-dimension scoring |
-| Accuracy | ~70% | ~95% | ~95% |
-| Collection Speed | Baseline | ~150s | **~32s (78% faster)** |
-| Use Case | Learning | Production | Production + Performance |
+| Feature | v1.0 (ai-world-tracker-v1) | v2.0 (main / ai-world-tracker-v2) | v3.0-dev (developing) |
+|---------|----------------------------|-----------------------------------|----------------------|
+| Classification | Rule-based | LLM + Rule fallback | TBD |
+| LLM Support | ❌ | ✅ Ollama/Azure OpenAI | ✅ |
+| Local Models | ❌ | ✅ Qwen3:8b, DeepSeek-R1 | ✅ |
+| Data Collection | Sync only | ✅ **Async-first (78% faster)** | ✅ |
+| URL Pre-filtering | ❌ | ✅ Skip cached URLs | ✅ |
+| Concurrent Processing | ❌ | ✅ 20+ async requests | ✅ |
+| Smart Caching | ❌ | ✅ MD5-based | ✅ |
+| GPU Acceleration | ❌ | ✅ Auto-detection | ✅ |
+| Unified Logging | ❌ | ✅ logger.py | ✅ |
+| Log Auto-Cleanup | ❌ | ✅ Configurable retention | ✅ |
+| Structured Data Dir | ❌ | ✅ data/exports, data/cache | ✅ |
+| Test Organization | Scattered | ✅ tests/ directory | ✅ |
+| Bilingual UI | ❌ | ✅ Chinese/English | ✅ |
+| Resource Cleanup | ❌ | ✅ Auto unload LLM | ✅ |
+| Confidence Cap | ❌ | ✅ Cap for old content | ✅ |
+| Importance Evaluator | ❌ | ✅ 5-dimension scoring | ✅ |
+| Accuracy | ~70% | ~95% | TBD |
+| Collection Speed | Baseline | **~32s (78% faster)** | TBD |
+| Use Case | Learning | Production | Next-gen Development |
 
 ## 🧪 Testing
 
@@ -756,7 +758,7 @@ Contributions are welcome! Here's how to get involved:
 2. **Feature Requests**: Have an idea? Let us know!
 3. **Submit Code**:
    - Fork the repository
-   - Create a feature branch from `feature/data-collection-v2`
+   - Create a feature branch from `ai-world-tracker-v3-developing`
    - Submit a PR
 
 ### Development Workflow
@@ -765,7 +767,7 @@ Contributions are welcome! Here's how to get involved:
 # Clone and setup
 git clone https://github.com/legendyz/ai-world-tracker.git
 cd ai-world-tracker
-git checkout feature/data-collection-v2
+git checkout ai-world-tracker-v3-developing
 
 # Create feature branch
 git checkout -b feature/your-feature
