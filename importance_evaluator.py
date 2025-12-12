@@ -422,7 +422,9 @@ class ImportanceEvaluator:
             
             return round(max(min(score, 1.0), min_score), 3)
                 
-        except Exception:
+        except (ValueError, TypeError, AttributeError, OverflowError) as e:
+            # 日期计算失败，返回中间值
+            log.debug(f"Recency calculation error: {e}")
             return 0.5
     
     def _calculate_relevance(self, item: Dict, content_type: str) -> float:

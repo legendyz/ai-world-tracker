@@ -58,7 +58,8 @@ def _load_data_paths():
                 data_config = config.get('data', {})
                 exports_dir = data_config.get('exports_dir', exports_dir)
                 cache_dir = data_config.get('cache_dir', cache_dir)
-    except Exception:
+    except (OSError, yaml.YAMLError, KeyError) as e:
+        # 配置文件读取失败，使用默认值
         pass
     
     # 确保目录存在
@@ -203,7 +204,7 @@ class AIWorldTracker:
         Args:
             clear_cache: 是否在初始化前强制清除缓存文件
         """
-        if self.classification_mode == 'llm' and LLM_AVAILABLE:
+        if self.classification_mode == 'llm' and LLM_AVAILABLE and LLMClassifier is not None:
             try:
                 # 强制清除缓存文件（如果需要）
                 if clear_cache:
@@ -877,6 +878,10 @@ class AIWorldTracker:
             selected_model = models[0]
         
         # 初始化LLM分类器
+        if not LLM_AVAILABLE or LLMClassifier is None:
+            log.dual_error("LLM classifier not available")
+            return
+            
         self.classification_mode = 'llm'
         self.llm_provider = 'ollama'
         self.llm_model = selected_model
@@ -988,6 +993,10 @@ class AIWorldTracker:
             log.dual_success("✅ 连接测试成功！" if is_zh else "✅ Connection test successful!")
         
         # 创建分类器
+        if not LLM_AVAILABLE or LLMClassifier is None:
+            log.dual_error("LLM classifier not available")
+            return
+            
         self.classification_mode = 'llm'
         self.llm_provider = 'azure_openai'
         self.llm_model = deployment_name
@@ -1065,8 +1074,9 @@ class AIWorldTracker:
             if client is not None:
                 try:
                     client.close()
-                except Exception:
-                    pass  # 忽略关闭时的错误
+                except (OSError, RuntimeError) as e:
+                    # 关闭失败，记录但不影响结果
+                    log.debug(f"Client close error: {e}")
 
     def _classify_data(self, items: list) -> list:
         """根据当前模式分类数据"""
@@ -1605,7 +1615,8 @@ def main():
         print("\n")
         try:
             log.warning(t('user_interrupted'))
-        except:
+        except (ImportError, KeyError) as e:
+            # i18n模块未加载或翻译键不存在
             print("⚠️ 用户中断程序")
     except Exception as e:
         print(f"\n" + t('program_error', error=str(e)))

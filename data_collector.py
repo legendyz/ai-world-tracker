@@ -49,7 +49,8 @@ def _get_cache_dir():
             with open('config.yaml', 'r', encoding='utf-8') as f:
                 cfg = yaml.safe_load(f)
                 cache_dir = cfg.get('data', {}).get('cache_dir', cache_dir)
-    except Exception:
+    except (OSError, yaml.YAMLError, KeyError) as e:
+        # 配置文件读取失败，使用默认值
         pass
     os.makedirs(cache_dir, exist_ok=True)
     return cache_dir
@@ -97,7 +98,8 @@ def _load_async_config() -> AsyncCollectorConfig:
                 cfg.total_timeout = async_cfg.get('total_timeout', cfg.total_timeout)
                 cfg.max_retries = async_cfg.get('max_retries', cfg.max_retries)
                 cfg.cache_dir = yaml_cfg.get('data', {}).get('cache_dir', cfg.cache_dir)
-    except Exception:
+    except (OSError, yaml.YAMLError, KeyError) as e:
+        # 配置加载失败，使用默认配置
         pass
     
     os.makedirs(cfg.cache_dir, exist_ok=True)
@@ -156,6 +158,10 @@ class AIDataCollector:
     """AI数据采集器 - 收集真实最新的AI信息
     
     使用纯异步模式 (asyncio + aiohttp) 进行高性能采集
+    
+    支持上下文管理器用法:
+        async with AIDataCollector() as collector:
+            data = await collector._collect_all_async()
     """
     
     def __init__(self):
@@ -183,6 +189,50 @@ class AIDataCollector:
             'end_time': None,
             'failed_sources': []  # 失败的数据源列表: [{'source': 'xxx', 'category': 'xxx', 'error': 'xxx'}]
         }
+        
+        # 异步session（延迟初始化）
+        self._session: Optional[aiohttp.ClientSession] = None
+    
+    async def __aenter__(self):
+        """异步上下文管理器入口"""
+        await self._ensure_session()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """异步上下文管理器出口，确保资源清理"""
+        await self._close_session()
+        return False
+    
+    async def _ensure_session(self):
+        """确保session已创建"""
+        if self._session is None or self._session.closed:
+            connector = aiohttp.TCPConnector(
+                limit=self.async_config.max_concurrent_requests,
+                limit_per_host=self.async_config.max_concurrent_per_host,
+                ttl_dns_cache=300
+            )
+            timeout = aiohttp.ClientTimeout(
+                total=self.async_config.total_timeout,
+                connect=self.async_config.request_timeout,
+                sock_read=self.async_config.request_timeout
+            )
+            self._session = aiohttp.ClientSession(
+                connector=connector,
+                timeout=timeout,
+                headers=self.headers
+            )
+    
+    async def _close_session(self):
+        """关闭异步session"""
+        if self._session and not self._session.closed:
+            await self._session.close()
+            self._session = None
+    
+    def __del__(self):
+        """析构函数，确保资源清理"""
+        if self._session and not self._session.closed:
+            # 在同步析构中无法调用异步close，记录警告
+            log.warning("AIDataCollector session not properly closed")
     
     def _reset_stats(self):
         """重置统计信息"""
@@ -724,7 +774,7 @@ class AIDataCollector:
                 clean_text = clean_text[:max_length] + '...'
             
             return clean_text
-        except Exception:
+        except (AttributeError, TypeError, ValueError) as e:
             # 如果清理失败，返回原始文本的截断版本
             return text[:max_length] + '...' if len(text) > max_length else text
     
@@ -765,7 +815,8 @@ class AIDataCollector:
                 return dt >= cutoff_date
                 
             return True # 无法解析时默认保留
-        except Exception:
+        except (ValueError, TypeError, AttributeError, OverflowError) as e:
+            # 日期解析失败，默认保留项目
             return True
     
     def _get_backup_leaders_data(self) -> List[Dict]:
@@ -994,8 +1045,9 @@ class AIDataCollector:
                 
                 if self._is_valid_item(item):
                     items.append(item)
-        except Exception:
-            pass
+        except (AttributeError, KeyError, ValueError) as e:
+            # RSS解析失败，记录错误
+            log.debug(f"RSS parsing error: {e}")
         
         return items
     

@@ -148,7 +148,8 @@ def _get_cache_dir():
             with open('config.yaml', 'r', encoding='utf-8') as f:
                 cfg = yaml.safe_load(f)
                 cache_dir = cfg.get('data', {}).get('cache_dir', cache_dir)
-    except Exception:
+    except (OSError, yaml.YAMLError, KeyError) as e:
+        # 配置加载失败，使用默认值
         pass
     os.makedirs(cache_dir, exist_ok=True)
     return cache_dir
