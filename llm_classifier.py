@@ -3,7 +3,7 @@ LLM增强分类器 - LLM Classifier
 使用大语言模型进行智能内容分类
 
 支持的提供商:
-- Ollama (本地): Qwen3:8b, Qwen3:4b, Llama3.2:3b
+- Ollama (本地): Qwen3:8b, Llama3.2:3b, Mistral:7b
 - Azure OpenAI: GPT-4o-mini, GPT-4o
 
 功能特性:
@@ -342,7 +342,6 @@ class OllamaOptions:
 AVAILABLE_MODELS = {
     LLMProvider.OLLAMA: {
         'qwen3:8b': {'name': 'Qwen3 8B', 'description': '阿里通义千问，中文能力强，推荐使用'},
-        'qwen3:4b': {'name': 'Qwen3 4B', 'description': '轻量模型，CPU友好'},
         'llama3.2:3b': {'name': 'Llama 3.2 3B', 'description': 'Meta轻量模型，速度最快'},
         'mistral:7b': {'name': 'Mistral 7B', 'description': '性能均衡，英文能力强'},
     },
@@ -706,10 +705,48 @@ class LLMClassifier:
         except Exception as e:
             log.error(t('llm_cache_save_failed', error=str(e)))
     
+    def clear_cache(self):
+        """清除缓存（文件和内存）"""
+        # 清除内存缓存
+        self.cache.clear()
+        self.stats['cache_hits'] = 0
+        
+        # 删除缓存文件
+        if os.path.exists(self.cache_file):
+            try:
+                os.remove(self.cache_file)
+                log.dual_success("✅ LLM分类缓存已清除（文件+内存）")
+            except Exception as e:
+                log.error(f"❌ 删除缓存文件失败: {e}")
+    
     def _get_content_hash(self, item: Dict) -> str:
         """计算内容的MD5哈希"""
         content = f"{item.get('title', '')}|{item.get('summary', '')}|{item.get('source', '')}"
         return hashlib.md5(content.encode()).hexdigest()
+    
+    def _get_current_model_identifier(self) -> str:
+        """获取当前模型的标识符，用于缓存验证"""
+        return f"{self.provider.value}/{self.model}"
+    
+    def _is_cache_model_match(self, cached_entry: Dict) -> bool:
+        """
+        检查缓存条目的模型是否与当前模型匹配
+        
+        Args:
+            cached_entry: 缓存条目
+            
+        Returns:
+            True 如果模型匹配或缓存无模型信息（兼容旧缓存）
+        """
+        cached_by = cached_entry.get('classified_by', '')
+        if not cached_by:
+            # 旧缓存无模型信息，视为不匹配，需要重新分类
+            return False
+        
+        current_model = self._get_current_model_identifier()
+        # classified_by 格式: "llm:batch:ollama/qwen3:8b" 或 "llm:retry:azure_openai/gpt-4.1-mini"
+        # 检查当前模型标识符是否在 classified_by 中
+        return current_model in cached_by
     
     def _build_classification_prompt(self, item: Dict) -> str:
         """构建分类提示词（与批量分类规则统一）"""
@@ -1240,27 +1277,33 @@ START from id=1, classify ALL {len(items)} items:"""
         classified = item.copy()
         content_hash = self._get_content_hash(item)
         
-        # 检查缓存
+        # 检查缓存（增加模型一致性验证）
         if use_cache and self.enable_cache and content_hash in self.cache:
-            self.stats['cache_hits'] += 1
             cached = self.cache[content_hash]
-            classified.update(cached)
-            classified['from_cache'] = True
             
-            # 重要性分数始终重新计算（因为时效性会随时间变化）
-            # 不从缓存读取 importance，确保时效性分数是最新的
-            importance, breakdown = self.importance_evaluator.calculate_importance(
-                item,
-                {'content_type': classified.get('content_type', 'news'), 
-                 'confidence': classified.get('confidence', 0.5),
-                 'ai_relevance': classified.get('ai_relevance', 0.7)}  # 包含AI相关性
-            )
-            classified['importance'] = importance
-            classified['importance_breakdown'] = breakdown
-            level, _ = self.importance_evaluator.get_importance_level(importance)
-            classified['importance_level'] = level
-            
-            return classified
+            # 验证缓存模型是否与当前模型匹配
+            if self._is_cache_model_match(cached):
+                self.stats['cache_hits'] += 1
+                classified.update(cached)
+                classified['from_cache'] = True
+                
+                # 重要性分数始终重新计算（因为时效性会随时间变化）
+                importance, breakdown = self.importance_evaluator.calculate_importance(
+                    item,
+                    {'content_type': classified.get('content_type', 'news'), 
+                     'confidence': classified.get('confidence', 0.5),
+                     'ai_relevance': classified.get('ai_relevance', 0.7)}
+                )
+                classified['importance'] = importance
+                classified['importance_breakdown'] = breakdown
+                level, _ = self.importance_evaluator.get_importance_level(importance)
+                classified['importance_level'] = level
+                
+                return classified
+            else:
+                # 模型不匹配，跳过缓存，重新分类
+                cached_model = cached.get('classified_by', 'unknown')
+                log.file_only(f"缓存模型不匹配，跳过: cached={cached_model}, current={self._get_current_model_identifier()}")
         
         # 检查断路器
         if not self.fallback_strategy.should_use_llm():
@@ -1389,36 +1432,58 @@ START from id=1, classify ALL {len(items)} items:"""
         """
         total = len(items)
         
-        # 先检查缓存，分离已缓存和未缓存的内容
+        # 重置统计数据（每次批量分类开始时清零，确保统计反映当前批次）
+        self.stats = {
+            'total_calls': 0,
+            'cache_hits': 0,
+            'llm_calls': 0,
+            'fallback_calls': 0,
+            'errors': 0,
+            'fallback_details': []
+        }
+        
+        # 先检查缓存，分离已缓存和未缓存的内容（增加模型一致性验证）
         cached_items = []
         uncached_items = []
         uncached_indices = []
+        model_mismatch_count = 0  # 统计因模型不匹配而跳过的缓存
+        
+        current_model = self._get_current_model_identifier()
         
         for i, item in enumerate(items):
             content_hash = self._get_content_hash(item)
             if self.enable_cache and content_hash in self.cache:
-                self.stats['cache_hits'] += 1
-                self.stats['total_calls'] += 1
-                classified = item.copy()
-                classified.update(self.cache[content_hash])
-                classified['from_cache'] = True
-                # 确保有 classified_by 字段（兼容旧缓存）
-                if 'classified_by' not in classified:
-                    classified['classified_by'] = 'llm:cached'
+                cached = self.cache[content_hash]
                 
-                # 重要性分数始终重新计算（因为时效性会随时间变化）
-                importance, breakdown = self.importance_evaluator.calculate_importance(
-                    item,
-                    {'content_type': classified.get('content_type', 'news'), 
-                     'confidence': classified.get('confidence', 0.5),
-                     'ai_relevance': classified.get('ai_relevance', 0.7)}  # 包含AI相关性
-                )
-                classified['importance'] = importance
-                classified['importance_breakdown'] = breakdown
-                level, _ = self.importance_evaluator.get_importance_level(importance)
-                classified['importance_level'] = level
-                
-                cached_items.append((i, classified))
+                # 验证缓存模型是否与当前模型匹配
+                if self._is_cache_model_match(cached):
+                    self.stats['cache_hits'] += 1
+                    self.stats['total_calls'] += 1
+                    classified = item.copy()
+                    classified.update(cached)
+                    classified['from_cache'] = True
+                    # 确保有 classified_by 字段（兼容旧缓存）
+                    if 'classified_by' not in classified:
+                        classified['classified_by'] = 'llm:cached'
+                    
+                    # 重要性分数始终重新计算（因为时效性会随时间变化）
+                    importance, breakdown = self.importance_evaluator.calculate_importance(
+                        item,
+                        {'content_type': classified.get('content_type', 'news'), 
+                         'confidence': classified.get('confidence', 0.5),
+                         'ai_relevance': classified.get('ai_relevance', 0.7)}
+                    )
+                    classified['importance'] = importance
+                    classified['importance_breakdown'] = breakdown
+                    level, _ = self.importance_evaluator.get_importance_level(importance)
+                    classified['importance_level'] = level
+                    
+                    cached_items.append((i, classified))
+                else:
+                    # 模型不匹配，需要重新分类
+                    model_mismatch_count += 1
+                    uncached_items.append(item)
+                    uncached_indices.append(i)
             else:
                 uncached_items.append(item)
                 uncached_indices.append(i)
@@ -1429,6 +1494,10 @@ START from id=1, classify ALL {len(items)} items:"""
         log.dual_start(t('llm_batch_start', total=total))
         log.dual_ai(t('llm_batch_info', provider=self.provider.value, model=self.model))
         log.dual_data(t('llm_batch_cache', workers=self.max_workers, cached=cached_count, total=total))
+        
+        # 输出模型不匹配统计（如果有）
+        if model_mismatch_count > 0:
+            log.dual_warning(f"⚠️ 缓存模型不匹配: {model_mismatch_count} 条需重新分类 (当前模型: {current_model})")
         
         if uncached_count == 0:
             log.dual_success(t('llm_all_cached'))
@@ -1985,7 +2054,7 @@ def check_ollama_status() -> Dict:
             result['models'] = [model['name'] for model in data.get('models', [])]
             
             # 推荐模型优先级
-            preferred = ['qwen3:8b', 'qwen3:4b', 'llama3.2:3b', 'mistral:7b']
+            preferred = ['qwen3:8b', 'llama3.2:3b', 'mistral:7b']
             for model in preferred:
                 if model in result['models']:
                     result['recommended'] = model

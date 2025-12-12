@@ -286,7 +286,7 @@ class AIDataCollector:
                 log.dual_info(f"    ... 及其他 {len(failures) - 3} 个", emoji="")
     
     def _load_history_cache(self) -> Dict:
-        """加载采集历史缓存"""
+        """加载采集历史缓存（URL自动规范化）"""
         try:
             if os.path.exists(self.history_cache_file):
                 with open(self.history_cache_file, 'r', encoding='utf-8') as f:
@@ -303,8 +303,9 @@ class AIDataCollector:
                                     return {'urls': set(), 'titles': set(), 'last_updated': ''}
                             except (ValueError, TypeError):
                                 pass
-                        # 转换为 set 以加速查找
-                        cache['urls'] = set(cache['urls'])
+                        # 转换为 set 以加速查找，同时规范化URL
+                        # 规范化确保旧缓存中的URL变体能正确匹配
+                        cache['urls'] = set(self._normalize_url(url) for url in cache['urls'])
                         cache['titles'] = set(cache['titles'])
                         log.data(t('dc_cache_loaded', url_count=len(cache['urls']), title_count=len(cache['titles'])))
                         return cache
@@ -327,19 +328,23 @@ class AIDataCollector:
             log.error(t('dc_cache_save_failed', error=str(e)))
     
     def _is_in_history(self, item: Dict) -> bool:
-        """检查项目是否在历史缓存中（严格匹配 URL 或标题）"""
+        """检查项目是否在历史缓存中（URL规范化匹配 或 标题精确匹配）"""
         url = item.get('url', '')
         title = item.get('title', '')
         
-        # 严格匹配：URL 完全相同 或 标题完全相同
-        if url and url in self.history_cache['urls']:
-            return True
+        # URL规范化后匹配（处理尾部斜杠、跟踪参数等变体）
+        if url:
+            normalized_url = self._normalize_url(url)
+            if normalized_url in self.history_cache['urls']:
+                return True
+        
+        # 标题精确匹配
         if title and title in self.history_cache['titles']:
             return True
         return False
     
     def _add_to_history(self, item: Dict):
-        """将项目添加到历史缓存（带大小限制）"""
+        """将项目添加到历史缓存（带大小限制，URL自动规范化）"""
         url = item.get('url', '')
         title = item.get('title', '')
         
@@ -347,13 +352,15 @@ class AIDataCollector:
         max_size = self.async_config.max_cache_size
         
         if url:
+            # 规范化URL后再添加到缓存
+            normalized_url = self._normalize_url(url)
             if len(self.history_cache['urls']) >= max_size:
                 # 转换为list移除最旧的20%条目，再转回set
                 urls_list = list(self.history_cache['urls'])
                 remove_count = max_size // 5  # 移除20%
                 self.history_cache['urls'] = set(urls_list[remove_count:])
                 log.file_only(f"缓存清理: URLs {len(urls_list)} → {len(self.history_cache['urls'])}")
-            self.history_cache['urls'].add(url)
+            self.history_cache['urls'].add(normalized_url)
         
         if title:
             if len(self.history_cache['titles']) >= max_size:
@@ -466,6 +473,58 @@ class AIDataCollector:
         'can', 'like', 'back', 'even', 'well', 'way', 'our', 'out', 'its', 'it',
         'up', 'go', 'going', 'get', 'getting', 'come', 'coming', 'become', 'becoming'
     })
+    
+    def _normalize_url(self, url: str) -> str:
+        """
+        归一化URL：统一格式以提高缓存命中率
+        
+        处理规则:
+        1. 移除尾部斜杠
+        2. 转换为小写（scheme和host部分）
+        3. 移除常见跟踪参数
+        4. 统一协议（可选）
+        
+        Args:
+            url: 原始URL
+            
+        Returns:
+            归一化后的URL
+        """
+        if not url:
+            return ''
+        
+        from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
+        
+        try:
+            # 解析URL
+            parsed = urlparse(url)
+            
+            # 小写化scheme和netloc
+            scheme = parsed.scheme.lower()
+            netloc = parsed.netloc.lower()
+            
+            # 移除尾部斜杠（路径部分）
+            path = parsed.path.rstrip('/')
+            
+            # 移除常见跟踪参数
+            tracking_params = {'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 
+                               'utm_term', 'ref', 'source', 'fbclid', 'gclid', 'ocid'}
+            if parsed.query:
+                params = parse_qs(parsed.query, keep_blank_values=True)
+                # 过滤掉跟踪参数
+                filtered_params = {k: v for k, v in params.items() 
+                                   if k.lower() not in tracking_params}
+                query = urlencode(filtered_params, doseq=True) if filtered_params else ''
+            else:
+                query = ''
+            
+            # 重建URL
+            normalized = urlunparse((scheme, netloc, path, parsed.params, query, ''))
+            return normalized
+            
+        except Exception:
+            # 解析失败时返回去除尾部斜杠的原始URL
+            return url.rstrip('/')
     
     def _normalize_title(self, title: str) -> str:
         """

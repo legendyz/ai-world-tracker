@@ -233,14 +233,21 @@ class AIWorldTracker:
                 self._save_user_config()
     
     def _force_clear_llm_cache(self):
-        """强制清除LLM分类缓存文件"""
+        """强制清除LLM分类缓存文件和内存缓存"""
         cache_file = os.path.join(DATA_CACHE_DIR, 'llm_classification_cache.json')
         try:
+            # 1. 清除磁盘缓存文件
             if os.path.exists(cache_file):
                 os.remove(cache_file)
                 log.success(t('llm_cache_force_cleared'))
             else:
                 log.info(t('llm_cache_not_found'), emoji="ℹ️")
+            
+            # 2. 清除内存缓存（如果LLM分类器已初始化）
+            if self.llm_classifier:
+                self.llm_classifier.cache.clear()
+                self.llm_classifier.stats['cache_hits'] = 0
+                log.success("✅ 已清空LLM分类器内存缓存")
         except Exception as e:
             log.error(t('llm_cache_clear_error', error=str(e)))
     
