@@ -363,6 +363,12 @@ class AIWorldTracker:
             except Exception as e:
                 log.dual_error(f"Failed to delete LLM cache: {e}")
         
+        # 同时清除内存中的LLM分类缓存
+        if self.llm_classifier:
+            self.llm_classifier.cache.clear()
+            self.llm_classifier.stats['cache_hits'] = 0
+            log.dual_info("LLM classifier memory cache cleared", emoji="✓")
+        
         # 2. 清除采集历史缓存
         self.collector.clear_history_cache()
         deleted_total += 1
@@ -414,6 +420,20 @@ class AIWorldTracker:
                 log.dual_success(t('ollama_running') + ", " + t('ollama_available_models', models=', '.join(status['models'][:3])))
                 if status['recommended']:
                     self.llm_model = status['recommended']
+                
+                # 显示GPU和已加载模型信息
+                gpu_info = status.get('gpu_info', {})
+                if gpu_info and gpu_info.get('available'):
+                    if gpu_info.get('ollama_supported'):
+                        log.dual_success(f"🎮 GPU加速可用: {gpu_info.get('name', 'Unknown')}")
+                    else:
+                        log.dual_warning(f"⚠️ 检测到GPU ({gpu_info.get('name', 'Unknown')})，但Ollama不支持该GPU类型，将使用CPU模式")
+                
+                loaded = status.get('loaded_models', [])
+                if loaded:
+                    log.dual_info(f"✅ 模型已预加载: {', '.join(loaded)}（首次分类会很快）")
+                else:
+                    log.dual_info("💡 提示: 模型尚未加载，首次分类可能需要1-2分钟加载模型")
             else:
                 log.warning(t('ollama_no_models_warning'))
                 log.dual_info(t('ollama_install_hint'), emoji="💡")

@@ -159,6 +159,11 @@ DATA_CACHE_DIR = _get_cache_dir()
 # 模型保活时间（秒）
 MODEL_KEEP_ALIVE_SECONDS = 5 * 60  # 5分钟
 
+# Ollama 超时配置
+OLLAMA_WARMUP_TIMEOUT = 180  # 预热超时（模型首次加载可能很慢）
+OLLAMA_SINGLE_REQUEST_TIMEOUT = 120  # 单条分类超时
+OLLAMA_BATCH_REQUEST_TIMEOUT = 150  # 批量分类超时
+
 # 统一的 LLM System Prompt（所有提供商使用相同的系统提示）
 LLM_SYSTEM_PROMPT = "你是一个专业的AI内容分类助手，请严格按照JSON格式输出分类结果。"
 
@@ -524,6 +529,7 @@ class LLMClassifier:
         try:
             # 发送一个简单的请求来加载模型
             # 使用 keep_alive 参数让模型保持活跃
+            log.dual_info(f"⏳ 正在加载模型到{'GPU' if self.gpu_info and self.gpu_info.ollama_gpu_supported else 'CPU'}内存，首次加载可能需要1-3分钟...")
             response = self.session.post(
                 'http://localhost:11434/api/generate',
                 json={
@@ -536,7 +542,7 @@ class LLMClassifier:
                         'num_ctx': 512
                     }
                 },
-                timeout=120  # 首次加载可能较慢
+                timeout=OLLAMA_WARMUP_TIMEOUT  # 首次加载可能较慢
             )
             
             if response.status_code == 200:
@@ -948,11 +954,11 @@ START from id=1, classify ALL {len(items)} items:"""
                             {'role': 'user', 'content': prompt}
                         ],
                         'stream': False,
-                        'think': False,  # 关闭思考模式
+                        'think': False,  # 关闭思考模式（Qwen3专用）
                         'keep_alive': keep_alive,  # 保持模型活跃
                         'options': options
                     },
-                    timeout=90 if is_batch else (60 if self.gpu_info and self.gpu_info.ollama_gpu_supported else 90)
+                    timeout=OLLAMA_BATCH_REQUEST_TIMEOUT if is_batch else OLLAMA_SINGLE_REQUEST_TIMEOUT
                 )
                 
                 if response.status_code == 200:
@@ -980,7 +986,7 @@ START from id=1, classify ALL {len(items)} items:"""
                         'keep_alive': keep_alive,  # 保持模型活跃
                         'options': options
                     },
-                    timeout=120 if self.gpu_info and self.gpu_info.ollama_gpu_supported else 180
+                    timeout=OLLAMA_SINGLE_REQUEST_TIMEOUT + 30  # Generate API 通常更慢
                 )
                 
                 if response.status_code == 200:
@@ -1001,8 +1007,10 @@ START from id=1, classify ALL {len(items)} items:"""
                     return (None, FallbackReason.API_ERROR)
             
         except requests.exceptions.Timeout:
+            log.dual_warning("⏱️ Ollama请求超时 - 可能原因: 1)模型正在首次加载 2)显存/内存不足 3)批量请求过大")
             return (None, FallbackReason.TIMEOUT)
         except requests.exceptions.ConnectionError:
+            log.dual_error("🔌 无法连接Ollama服务 - 请确认 ollama serve 正在运行")
             return (None, FallbackReason.CONNECTION_ERROR)
         except Exception as e:
             log.error(t('llm_ollama_failed', error=str(e)))
@@ -2018,15 +2026,19 @@ def get_available_ollama_models() -> List[str]:
 
 
 def check_ollama_status() -> Dict:
-    """检查Ollama服务状态"""
+    """检查Ollama服务状态（增强版，包含更多诊断信息）"""
     result = {
         'running': False,
         'models': [],
-        'recommended': None
+        'recommended': None,
+        'loaded_models': [],  # 当前已加载到内存的模型
+        'gpu_info': None
     }
     
     try:
         import requests
+        
+        # 1. 检查Ollama服务是否运行
         response = requests.get('http://localhost:11434/api/tags', timeout=5)
         if response.status_code == 200:
             result['running'] = True
@@ -2042,7 +2054,40 @@ def check_ollama_status() -> Dict:
             
             if not result['recommended'] and result['models']:
                 result['recommended'] = result['models'][0]
+        
+        # 2. 检查当前已加载的模型（ollama ps 等效）
+        try:
+            ps_response = requests.get('http://localhost:11434/api/ps', timeout=5)
+            if ps_response.status_code == 200:
+                ps_data = ps_response.json()
+                loaded = ps_data.get('models', [])
+                result['loaded_models'] = [m.get('name', '') for m in loaded]
                 
+                # 如果有模型已加载，优先推荐已加载的模型（避免重新加载）
+                for loaded_model in result['loaded_models']:
+                    if loaded_model in result['models']:
+                        result['recommended'] = loaded_model
+                        result['model_preloaded'] = True
+                        break
+        except Exception:
+            pass  # ps API 可能不可用，忽略
+        
+        # 3. 检测GPU状态
+        gpu_info = detect_gpu()
+        if gpu_info:
+            result['gpu_info'] = {
+                'available': gpu_info.available,
+                'type': gpu_info.gpu_type,
+                'name': gpu_info.gpu_name,
+                'ollama_supported': gpu_info.ollama_gpu_supported
+            }
+                
+    except requests.exceptions.ConnectionError:
+        result['error'] = 'connection_refused'
+        result['error_message'] = 'Ollama服务未运行，请先启动 ollama serve'
+    except requests.exceptions.Timeout:
+        result['error'] = 'timeout'
+        result['error_message'] = 'Ollama服务响应超时'
     except Exception as e:
         result['error'] = str(e)
     
