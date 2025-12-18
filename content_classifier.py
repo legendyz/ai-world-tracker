@@ -736,10 +736,10 @@ class ContentClassifier:
         classified['classified_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         classified['classified_by'] = 'rule'
         
-        # 计算多维度重要性分数
+        # 计算多维度重要性分数（传递ai_relevance用于降权非AI内容）
         importance, importance_breakdown = self.importance_evaluator.calculate_importance(
             item,
-            {'content_type': content_type, 'confidence': confidence}
+            {'content_type': content_type, 'confidence': confidence, 'ai_relevance': ai_relevance}
         )
         classified['importance'] = importance
         classified['importance_breakdown'] = importance_breakdown
