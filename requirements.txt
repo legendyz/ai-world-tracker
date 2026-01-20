@@ -17,7 +17,7 @@ pytz>=2023.3
 matplotlib>=3.7.0
 
 # Optional AI Features
-# openai>=1.6.0
+openai>=1.6.0
 
 # Development Dependencies (optional)
 # pytest>=7.0.0
