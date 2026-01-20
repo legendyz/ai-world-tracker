@@ -108,12 +108,15 @@ def _load_async_config() -> AsyncCollectorConfig:
 # RSS源配置 - 统一配置
 RSS_FEEDS = {
     'research': [
+        # arXiv feeds
         'http://export.arxiv.org/rss/cs.AI',
         'http://export.arxiv.org/rss/cs.CL',
         'http://export.arxiv.org/rss/cs.CV',
         'http://export.arxiv.org/rss/cs.LG',
+        'http://export.arxiv.org/rss/cs.NE',  # Neural and Evolutionary Computing
     ],
     'news': [
+        # English tech news
         'https://www.theverge.com/rss/ai-artificial-intelligence/index.xml',
         'https://techcrunch.com/category/artificial-intelligence/feed/',
         'https://www.wired.com/feed/tag/ai/latest/rss',
@@ -121,6 +124,9 @@ RSS_FEEDS = {
         'https://www.technologyreview.com/feed/',
         'https://artificialintelligence-news.com/feed/',
         'https://syncedreview.com/feed/',
+        'https://venturebeat.com/category/ai/feed/',
+        'https://www.zdnet.com/topic/artificial-intelligence/rss.xml',
+        # Chinese news
         'https://www.36kr.com/feed',
         'https://www.ithome.com/rss/',
         'https://www.jiqizhixin.com/rss',
@@ -128,19 +134,28 @@ RSS_FEEDS = {
         'https://www.infoq.cn/feed/topic/18',
     ],
     'developer': [
+        # Company blogs
         'https://github.blog/feed/',
         'https://huggingface.co/blog/feed.xml',
         'https://openai.com/blog/rss.xml',
         'https://blog.google/technology/ai/rss/',
+        'https://aws.amazon.com/blogs/machine-learning/feed/',
+        'https://engineering.fb.com/feed/',
+        # Developer communities
+        'https://medium.com/feed/tag/artificial-intelligence',
+        'https://towardsdatascience.com/feed',
+        'https://developers.googleblog.com/feeds/posts/default',
     ],
     'product_news': [
-        # 美国科技巨头
+        # US Tech Giants
         'https://openai.com/blog/rss.xml',
         'https://blog.google/technology/ai/rss/',
         'https://blogs.microsoft.com/ai/feed/',
         'https://ai.meta.com/blog/rss/',
         'https://www.anthropic.com/news/rss',
-        # 中国科技公司 (via 36kr/机器之心等)
+        'https://stability.ai/news/rss',
+        'https://www.cohere.com/blog/rss.xml',
+        # Chinese AI companies
         'https://www.jiqizhixin.com/rss',
         'https://www.qbitai.com/feed',
     ],
@@ -148,9 +163,44 @@ RSS_FEEDS = {
         'https://www.producthunt.com/feed?category=artificial-intelligence',
     ],
     'leader_blogs': [
+        # OpenAI leadership
         {'url': 'http://blog.samaltman.com/posts.atom', 'author': 'Sam Altman', 'title': 'OpenAI CEO'},
+        # Researchers
         {'url': 'https://karpathy.github.io/feed.xml', 'author': 'Andrej Karpathy', 'title': 'AI Researcher'},
+        {'url': 'https://colah.github.io/rss.xml', 'author': 'Christopher Olah', 'title': 'Anthropic Research'},
+        # Podcasts
         {'url': 'https://lexfridman.com/feed/podcast/', 'author': 'Lex Fridman', 'title': 'Podcast Host', 'type': 'podcast'},
+        {'url': 'https://feeds.megaphone.fm/gradient-dissent', 'author': 'Weights & Biases', 'title': 'Gradient Dissent Podcast', 'type': 'podcast'},
+        # Industry leaders
+        {'url': 'https://www.linkedin.com/in/andrewng/recent-activity/shares/', 'author': 'Andrew Ng', 'title': 'DeepLearning.AI', 'type': 'linkedin'},
+        {'url': 'https://bensbites.beehiiv.com/feed', 'author': 'Ben Bites', 'title': 'AI Newsletter', 'type': 'newsletter'},
+    ],
+    'youtube': [
+        # AI Research channels
+        {'channel_id': 'UCbfYPyITQ-7l4upoX8nvctg', 'name': 'Two Minute Papers', 'type': 'research'},
+        {'channel_id': 'UCZHmQk67mSJgfCCTn7xBfew', 'name': 'Yannic Kilcher', 'type': 'research'},
+        {'channel_id': 'UCYO_jab_esuFRV4b17AJtAw', 'name': '3Blue1Brown', 'type': 'educational'},
+        {'channel_id': 'UCkw4JCwteGrDHIsyIIKo4tQ', 'name': 'CodeEmporium', 'type': 'tutorial'},
+    ],
+    'newsletters': [
+        {'url': 'https://thebatch.beehiiv.com/feed', 'name': 'The Batch (Andrew Ng)', 'author': 'DeepLearning.AI'},
+        {'url': 'https://jack-clark.net/feed/', 'name': 'Import AI', 'author': 'Jack Clark'},
+        {'url': 'https://www.therundown.ai/feed', 'name': 'The Rundown AI'},
+        {'url': 'https://alphasignal.ai/feed', 'name': 'AlphaSignal'},
+    ],
+    'reddit': [
+        {'subreddit': 'MachineLearning', 'filter': 'hot', 'time': 'week'},
+        {'subreddit': 'artificial', 'filter': 'hot', 'time': 'week'},
+        {'subreddit': 'LocalLLaMA', 'filter': 'hot', 'time': 'week'},
+        {'subreddit': 'ArtificialInteligence', 'filter': 'hot', 'time': 'week'},
+        {'subreddit': 'singularity', 'filter': 'hot', 'time': 'week'},
+    ],
+    'chinese_platforms': [
+        # Zhihu topics (will need API/scraping)
+        {'platform': 'zhihu', 'topic_id': '19551424', 'name': '人工智能'},
+        {'platform': 'zhihu', 'topic_id': '19559450', 'name': '机器学习'},
+        # Bilibili spaces (will need API/scraping)
+        {'platform': 'bilibili', 'uid': '1577804', 'name': 'Bilibili AI研究所'},
     ]
 }
 
@@ -1571,6 +1621,247 @@ class AIDataCollector:
         
         return trends[:max_results]
     
+    async def _collect_reddit_async(self, session: aiohttp.ClientSession,
+                                    semaphore: asyncio.Semaphore,
+                                    max_items: int = 20) -> List[Dict]:
+        """异步采集Reddit AI相关帖子（使用Reddit JSON API，无需认证）"""
+        items = []
+        
+        subreddits_config = self.rss_feeds.get('reddit', [
+            {'subreddit': 'MachineLearning', 'filter': 'hot', 'time': 'week'},
+            {'subreddit': 'artificial', 'filter': 'hot', 'time': 'week'},
+        ])
+        
+        items_per_sub = max(3, max_items // len(subreddits_config))
+        
+        for config in subreddits_config:
+            try:
+                subreddit = config['subreddit']
+                filter_type = config.get('filter', 'hot')
+                time_filter = config.get('time', 'week')
+                
+                # Reddit JSON API (no auth needed)
+                url = f"https://www.reddit.com/r/{subreddit}/{filter_type}.json"
+                params = {'limit': items_per_sub + 5, 't': time_filter}
+                
+                data = await self._fetch_json_async(session, url, semaphore, params, 'community')
+                
+                if data and 'data' in data and 'children' in data['data']:
+                    for post in data['data']['children'][:items_per_sub]:
+                        post_data = post.get('data', {})
+                        
+                        # Skip if not recent
+                        created_utc = post_data.get('created_utc', 0)
+                        if created_utc:
+                            post_date = datetime.fromtimestamp(created_utc)
+                            if not self._is_recent(post_date):
+                                continue
+                        
+                        # Check URL cache
+                        post_url = f"https://reddit.com{post_data.get('permalink', '')}"
+                        normalized_url = self._normalize_url(post_url)
+                        if normalized_url in self.history_cache['urls']:
+                            continue
+                        
+                        item = {
+                            'title': post_data.get('title', ''),
+                            'summary': self._clean_html(post_data.get('selftext', ''), 200) or f"Score: {post_data.get('score', 0)}, Comments: {post_data.get('num_comments', 0)}",
+                            'url': post_url,
+                            'published': datetime.fromtimestamp(created_utc).strftime('%Y-%m-%d') if created_utc else '',
+                            'score': post_data.get('score', 0),
+                            'comments': post_data.get('num_comments', 0),
+                            'source': f'r/{subreddit}',
+                            '_source_type': 'community'
+                        }
+                        
+                        if item['title']:
+                            items.append(item)
+                            
+            except Exception as e:
+                self._record_failure(f'Reddit r/{subreddit}', 'community', str(e))
+                log.warning(f"Reddit r/{subreddit} failed: {e}")
+        
+        return items
+    
+    async def _collect_papers_with_code_async(self, session: aiohttp.ClientSession,
+                                              semaphore: asyncio.Semaphore,
+                                              max_items: int = 10) -> List[Dict]:
+        """异步采集Papers with Code最新论文"""
+        papers = []
+        
+        try:
+            # Papers with Code API
+            url = "https://paperswithcode.com/api/v1/papers/"
+            params = {'items_per_page': max_items + 5}
+            
+            data = await self._fetch_json_async(session, url, semaphore, params, 'research')
+            
+            if data and 'results' in data:
+                for paper in data['results'][:max_items]:
+                    paper_url = f"https://paperswithcode.com/paper/{paper.get('id', '')}"
+                    normalized_url = self._normalize_url(paper_url)
+                    
+                    if normalized_url in self.history_cache['urls']:
+                        continue
+                    
+                    # Check if recent
+                    published_date = paper.get('published')
+                    if published_date and not self._is_recent(published_date):
+                        continue
+                    
+                    item = {
+                        'title': paper.get('title', ''),
+                        'summary': paper.get('abstract', '')[:300] if paper.get('abstract') else '',
+                        'url': paper_url,
+                        'published': published_date[:10] if published_date else '',
+                        'arxiv_id': paper.get('arxiv_id', ''),
+                        'stars': paper.get('stars', 0),
+                        'source': 'Papers with Code',
+                        '_source_type': 'research'
+                    }
+                    
+                    if item['title']:
+                        papers.append(item)
+                        
+        except Exception as e:
+            self._record_failure('Papers with Code', 'research', str(e))
+            log.warning(f"Papers with Code failed: {e}")
+        
+        return papers
+    
+    async def _collect_youtube_channels_async(self, session: aiohttp.ClientSession,
+                                              semaphore: asyncio.Semaphore,
+                                              max_items: int = 10) -> List[Dict]:
+        """异步采集YouTube AI频道视频（使用RSS feeds，无需API key）"""
+        videos = []
+        
+        youtube_channels = self.rss_feeds.get('youtube', [])
+        items_per_channel = max(2, max_items // max(len(youtube_channels), 1))
+        
+        for channel in youtube_channels:
+            try:
+                channel_id = channel.get('channel_id', '')
+                channel_name = channel.get('name', 'Unknown')
+                
+                # YouTube provides RSS feeds for channels
+                feed_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+                
+                channel_videos = await self._parse_rss_feed_async(
+                    session, feed_url, 'news', semaphore, items_per_feed=items_per_channel
+                )
+                
+                # Add channel name to source
+                for video in channel_videos:
+                    video['source'] = f'YouTube - {channel_name}'
+                    video['_source_type'] = 'news'
+                
+                videos.extend(channel_videos)
+                
+            except Exception as e:
+                self._record_failure(f'YouTube {channel_name}', 'news', str(e))
+                log.warning(f"YouTube {channel_name} failed: {e}")
+        
+        return videos
+    
+    async def _collect_medium_async(self, session: aiohttp.ClientSession,
+                                   semaphore: asyncio.Semaphore,
+                                   max_items: int = 10) -> List[Dict]:
+        """异步采集Medium AI标签文章（使用RSS）"""
+        articles = []
+        
+        try:
+            # Medium tag RSS feeds
+            tags = ['artificial-intelligence', 'machine-learning', 'deep-learning']
+            items_per_tag = max(3, max_items // len(tags))
+            
+            for tag in tags:
+                feed_url = f"https://medium.com/feed/tag/{tag}"
+                tag_articles = await self._parse_rss_feed_async(
+                    session, feed_url, 'developer', semaphore, items_per_feed=items_per_tag
+                )
+                articles.extend(tag_articles)
+                
+        except Exception as e:
+            self._record_failure('Medium', 'developer', str(e))
+            log.warning(f"Medium collection failed: {e}")
+        
+        return articles
+    
+    async def _collect_zhihu_async(self, session: aiohttp.ClientSession,
+                                  semaphore: asyncio.Semaphore,
+                                  max_items: int = 10) -> List[Dict]:
+        """异步采集知乎AI话题（使用API）"""
+        items = []
+        
+        # Note: Zhihu requires authentication for API access
+        # This is a placeholder that would need proper implementation with auth
+        try:
+            # Zhihu hot questions API (may require auth)
+            # For now, we'll skip this and return empty
+            # In production, you'd need to implement OAuth or use web scraping
+            log.debug("Zhihu collection requires authentication - skipping for now")
+            
+        except Exception as e:
+            self._record_failure('Zhihu', 'community', str(e))
+            log.warning(f"Zhihu collection failed: {e}")
+        
+        return items
+    
+    async def _collect_bilibili_async(self, session: aiohttp.ClientSession,
+                                      semaphore: asyncio.Semaphore,
+                                      max_items: int = 10) -> List[Dict]:
+        """异步采集Bilibili AI视频"""
+        videos = []
+        
+        try:
+            # Bilibili search API (no auth needed for basic search)
+            url = "https://api.bilibili.com/x/web-interface/search/type"
+            params = {
+                'search_type': 'video',
+                'keyword': '人工智能',
+                'order': 'pubdate',
+                'duration': 0,
+                'page': 1,
+                'pagesize': max_items + 5
+            }
+            
+            data = await self._fetch_json_async(session, url, semaphore, params, 'news')
+            
+            if data and 'data' in data and 'result' in data['data']:
+                for video in data['data']['result'][:max_items]:
+                    video_url = video.get('arcurl', '') or f"https://www.bilibili.com/video/{video.get('bvid', '')}"
+                    normalized_url = self._normalize_url(video_url)
+                    
+                    if normalized_url in self.history_cache['urls']:
+                        continue
+                    
+                    # Check if recent
+                    pubdate = video.get('pubdate', 0)
+                    if pubdate:
+                        video_date = datetime.fromtimestamp(pubdate)
+                        if not self._is_recent(video_date):
+                            continue
+                    
+                    item = {
+                        'title': self._clean_html(video.get('title', '')),
+                        'summary': self._clean_html(video.get('description', ''), 200),
+                        'url': video_url,
+                        'published': datetime.fromtimestamp(pubdate).strftime('%Y-%m-%d') if pubdate else '',
+                        'author': video.get('author', ''),
+                        'play': video.get('play', 0),
+                        'source': 'Bilibili',
+                        '_source_type': 'news'
+                    }
+                    
+                    if item['title']:
+                        videos.append(item)
+                        
+        except Exception as e:
+            self._record_failure('Bilibili', 'news', str(e))
+            log.warning(f"Bilibili collection failed: {e}")
+        
+        return videos
+
     async def _collect_all_async(self) -> Dict[str, List[Dict]]:
         """
         异步采集所有类型的数据（带URL预过滤优化）
@@ -1595,12 +1886,17 @@ class AIDataCollector:
         }
         
         # 从配置读取采集数量
-        product_count = config.get('collector.product_count', 15)
-        community_count = config.get('collector.community_count', 10)
+        product_count = config.get('collector.product_count', 20)
+        community_count = config.get('collector.community_count', 25)
         leader_count = config.get('collector.leader_count', 15)
-        research_count = config.get('collector.research_count', 15)
-        developer_count = config.get('collector.developer_count', 20)
-        news_count = config.get('collector.news_count', 25)
+        research_count = config.get('collector.research_count', 20)
+        developer_count = config.get('collector.developer_count', 30)
+        news_count = config.get('collector.news_count', 35)
+        youtube_count = config.get('collector.youtube_count', 10)
+        reddit_count = config.get('collector.reddit_count', 15)
+        medium_count = config.get('collector.medium_count', 10)
+        bilibili_count = config.get('collector.bilibili_count', 10)
+        newsletter_count = config.get('collector.newsletter_count', 8)
         
         # 创建信号量控制并发
         semaphore = asyncio.Semaphore(self.async_config.max_concurrent_requests)
@@ -1655,10 +1951,38 @@ class AIDataCollector:
             named_tasks.append(("AI Leaders", self._collect_leaders_quotes_async(session, semaphore, leader_count)))
             
             # 5. 社区热点
-            named_tasks.append(("Community/HN", self._collect_community_async(session, semaphore, community_count)))
+            named_tasks.append(("Community/HN", self._collect_community_async(session, semaphore, community_count // 2)))
             
-            # 6. 研究论文 (在executor中运行)
-            named_tasks.append(("arXiv Papers", self._collect_research_papers_async(research_count)))
+            # 6. Reddit (NEW)
+            named_tasks.append(("Reddit", self._collect_reddit_async(session, semaphore, reddit_count)))
+            
+            # 7. 研究论文 (在executor中运行)
+            named_tasks.append(("arXiv Papers", self._collect_research_papers_async(research_count // 2)))
+            
+            # 8. Papers with Code (NEW)
+            named_tasks.append(("Papers with Code", self._collect_papers_with_code_async(session, semaphore, research_count // 2)))
+            
+            # 9. YouTube AI Channels (NEW)
+            named_tasks.append(("YouTube Channels", self._collect_youtube_channels_async(session, semaphore, youtube_count)))
+            
+            # 10. Medium Articles (NEW)
+            named_tasks.append(("Medium", self._collect_medium_async(session, semaphore, medium_count)))
+            
+            # 11. Bilibili Videos (NEW)
+            named_tasks.append(("Bilibili", self._collect_bilibili_async(session, semaphore, bilibili_count)))
+            
+            # 12. Newsletters RSS (NEW)
+            newsletter_feeds = RSS_FEEDS.get('newsletters', [])
+            items_per_newsletter = max(2, newsletter_count // max(len(newsletter_feeds), 1))
+            for newsletter in newsletter_feeds:
+                feed_url = newsletter.get('url', newsletter if isinstance(newsletter, str) else '')
+                feed_name = newsletter.get('name', 'Newsletter') if isinstance(newsletter, dict) else 'Newsletter'
+                if feed_url:
+                    named_tasks.append((
+                        f"Newsletter/{feed_name}",
+                        self._parse_rss_feed_async(session, feed_url, 'news', semaphore,
+                                                   items_per_feed=items_per_newsletter)
+                    ))
             
             # 创建任务
             total_tasks = len(named_tasks)
@@ -1694,12 +2018,12 @@ class AIDataCollector:
             
             # 分类收集结果（带配额限制）
             category_limits = {
-                'news': news_count,
-                'developer': developer_count,
+                'news': news_count + youtube_count + bilibili_count + newsletter_count,  # Combined news sources
+                'developer': developer_count + medium_count,  # Combined developer sources
                 'product': product_count,
                 'leader': leader_count,
-                'community': community_count,
-                'research': research_count
+                'community': community_count + reddit_count,  # Combined community sources
+                'research': research_count  # arXiv + Papers with Code
             }
             
             for result in all_results:

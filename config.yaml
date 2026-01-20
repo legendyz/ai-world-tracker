@@ -1,17 +1,22 @@
 # AI World Tracker 全局配置
 
 collector:
-  product_count: 15
-  community_count: 10
-  leader_count: 15
-  research_count: 15
-  developer_count: 20
-  news_count: 25
-  max_total: 100
-  data_retention_days: 7    # 数据采集时间窗口（天）- 只采集最近N天的数据
-  parallel_enabled: true    # 是否启用并行采集（同步模式）
-  parallel_workers: 6       # 并行采集的最大线程数（同步模式）
-  async_mode: true          # 是否使用异步模式（推荐开启，性能更好）
+  product_count: 20          # 产品发布数量（增加）
+  community_count: 25        # 社区热点数量（增加以包含Reddit）
+  leader_count: 15           # 领袖言论数量
+  research_count: 20         # 研究论文数量（增加以包含Papers with Code）
+  developer_count: 30        # 开发者内容数量（增加以包含Medium）
+  news_count: 35             # 新闻数量（增加以包含YouTube, Bilibili）
+  youtube_count: 10          # YouTube视频数量（新增）
+  reddit_count: 15           # Reddit帖子数量（新增）
+  medium_count: 10           # Medium文章数量（新增）
+  bilibili_count: 10         # Bilibili视频数量（新增）
+  newsletter_count: 8        # 新闻通讯数量（新增）
+  max_total: 150             # 最大总数（增加）
+  data_retention_days: 7     # 数据采集时间窗口（天）- 只采集最近N天的数据
+  parallel_enabled: true     # 是否启用并行采集（同步模式）
+  parallel_workers: 6        # 并行采集的最大线程数（同步模式）
+  async_mode: true           # 是否使用异步模式（推荐开启，性能更好）
 
 # 异步采集器配置
 async_collector:
