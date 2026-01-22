@@ -141,6 +141,8 @@ RSS_FEEDS = {
         'https://blog.google/technology/ai/rss/',
         'https://aws.amazon.com/blogs/machine-learning/feed/',
         'https://engineering.fb.com/feed/',
+        'https://blogs.nvidia.com/blog/category/deep-learning/feed/',
+        'https://machinelearning.apple.com/rss.xml',
         # Developer communities
         'https://medium.com/feed/tag/artificial-intelligence',
         'https://towardsdatascience.com/feed',
@@ -155,9 +157,11 @@ RSS_FEEDS = {
         'https://www.anthropic.com/news/rss',
         'https://stability.ai/news/rss',
         'https://www.cohere.com/blog/rss.xml',
-        # Chinese AI companies
+        'https://blogs.nvidia.com/blog/category/deep-learning/feed/',
+        # Chinese AI companies (via tech media - best coverage for CN companies)
         'https://www.jiqizhixin.com/rss',
         'https://www.qbitai.com/feed',
+        'https://www.36kr.com/feed',  # Additional CN tech coverage
     ],
     'community': [
         'https://www.producthunt.com/feed?category=artificial-intelligence',
